@@ -8,8 +8,9 @@ from app.main import create_app
 
 def make_client(**settings_overrides) -> TestClient:
     """設定を差し替えたテスト用クライアントを作る（実際の .env の影響を受けない）。"""
-    app = create_app()
-    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, **settings_overrides)
+    settings = Settings(_env_file=None, **settings_overrides)
+    app = create_app(settings)
+    app.dependency_overrides[get_settings] = lambda: settings
     return TestClient(app)
 
 
