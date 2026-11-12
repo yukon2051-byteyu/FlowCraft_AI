@@ -82,6 +82,25 @@ npm run build
 npm run lint
 ```
 
+画面幅ごとのスクリーンショットとレイアウト自動チェック（開発サーバー起動中に実行）：
+
+```powershell
+cd frontend
+npx playwright install chromium   # 初回のみ
+node scripts/screenshots.mjs screenshots
+```
+
+1440px・1280px・ノートPC相当（1280×650）・タブレット（768px）・スマートフォン（390px）で撮影し、横スクロール・ブラウザのエラー・ファーストビューのボタン表示を確認します。
+
+## 画面一覧
+
+| URL | 画面 |
+|---|---|
+| `/` | TOP（製品紹介） |
+| `/workspace` | ワークスペース（ファイル読込 → フロー編集）。PC専用 |
+| `/workspace?view=sample` | サンプルフローでの編集画面表示 |
+| `/dev/diagnostics` | 開発者向けのシステム状態 |
+
 ## 設計資料
 
 - [設計書](docs/architecture.md)

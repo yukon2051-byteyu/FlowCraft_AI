@@ -7,7 +7,10 @@
  */
 @theme {
   --color-navy: #14263d;
+  --color-navy-soft: #1d3452; /* ネイビー上のカード */
+  --color-navy-line: #2c4766; /* ネイビー上の枠線 */
   --color-accent: #2563a6;
+  --color-accent-hover: #1d4f86;
   --color-accent-soft: #e8f0f9; /* AI提案ノードの背景など、アクセントの淡色 */
   --color-surface: #f5f7fa; /* 画面の背景 */
   --color-card: #ffffff;
@@ -15,8 +18,12 @@
   --color-muted: #64748b; /* 補助文字・未設定状態 */
   --color-line: #dde3ea; /* 枠線 */
   --color-success: #16845b;
+  --color-success-soft: #e7f4ee;
+  --color-mint: #7fd3ae; /* ネイビー背景の上で使う、明るいグリーン */
   --color-warning: #b7791f;
+  --color-warning-soft: #fbf3e4;
   --color-error: #c24141;
+  --color-error-soft: #fbeaea;
 
   --font-sans: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
 }
@@ -26,7 +33,28 @@ html {
   font-size: 15px;
 }
 
+/* ページ内リンクで滑らかにスクロール（動きを減らす設定の利用者には適用しない） */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   @apply bg-surface text-ink font-sans antialiased;
-  min-width: 1280px; /* PC専用。スマホは対象外 */
+}
+
+/* ヒーロー図の接続線が流れて見えるアニメーション */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+/* 日本語の見出し・文章を、文節の途中で改行しにくくする（対応ブラウザのみ） */
+h1,
+h2,
+h3,
+p {
+  word-break: auto-phrase;
 }

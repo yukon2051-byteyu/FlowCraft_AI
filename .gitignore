@@ -18,6 +18,7 @@ node_modules/
 dist/
 frontend/test-results/
 frontend/playwright-report/
+frontend/screenshots/
 
 # ===== 実行時に生成されるデータ（利用者のデータを残さない） =====
 backend/tmp/
