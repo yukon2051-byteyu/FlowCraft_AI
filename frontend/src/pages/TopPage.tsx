@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  CalendarClock,
   Check,
   CircleHelp,
   Clock3,
@@ -24,6 +25,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
 import { SiteHeader } from '../components/layout/SiteHeader'
+import { BackToTop } from '../components/top/BackToTop'
 import { HeroVisual, HeroVisualCompact } from '../components/top/HeroVisual'
 import { Button } from '../components/ui/Button'
 import { DevBadge } from '../components/ui/DevBadge'
@@ -31,7 +33,7 @@ import { DevBadge } from '../components/ui/DevBadge'
 /*
  * TOPページ（全面改修：新しい製品コンセプト）
  * 伝えること：①その作業は本当に必要か ②不要な作業は減らし、必要な作業は効率化する ③処理して終わりではなく、結果の正しさまで確認する
- * 構成：ヒーロー → 選ばれる5つの理由 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 処理できた、だけで終わらせない
+ * 構成：ヒーロー → 選ばれる6つの理由 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 処理できた、だけで終わらせない
  * 未実装の機能には「開発中」を表示する（content/featureStatus.ts で一元管理）。
  */
 export default function TopPage() {
@@ -47,6 +49,7 @@ export default function TopPage() {
         <Trust />
       </main>
       <SiteFooter />
+      <BackToTop />
     </div>
   )
 }
@@ -116,7 +119,7 @@ function Hero() {
   )
 }
 
-/* ================= 選ばれる5つの理由 ================= */
+/* ================= 選ばれる6つの理由 ================= */
 
 type Reason = { icon: LucideIcon; title: string; body: string; feature: FeatureKey }
 
@@ -139,7 +142,7 @@ function Reasons() {
     <section id="features" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
         <SectionHeading
-          eyebrow="選ばれる5つの理由"
+          eyebrow="選ばれる6つの理由"
           title="Excelの処理だけでなく、その前と後ろまで。"
           lead="作業そのものを見直し、処理した結果が正しいかまで確かめる。生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。"
         />
@@ -196,8 +199,56 @@ function Reasons() {
             ))}
           </div>
         </div>
+
+        {/* ⑥ 無人定期実行：横長の帯で、縦に伸ばさない */}
+        <ScheduleCard />
       </div>
     </section>
+  )
+}
+
+/** 無人で実行する前に必ず通る5つの段階（設定しただけでは動かない） */
+const SAFE_START = ['設定を保存', '接続テスト', 'テスト実行', '品質検証', '利用者が有効化']
+
+function ScheduleCard() {
+  return (
+    <article
+      aria-label="決まった日時に無人で実行できる"
+      className="mt-4 grid gap-5 rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center"
+    >
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="grid size-10 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
+            <CalendarClock className="size-5" aria-hidden />
+          </span>
+          <span className="text-[0.8rem] text-subtle/70 tabular-nums">06</span>
+          <h3 className="text-[1.2rem] font-bold text-white">毎月の作業は、もう開かなくていい。</h3>
+          <DevBadge feature="schedule" />
+        </div>
+        <p className="mt-2.5 text-[0.92rem] leading-relaxed text-subtle">
+          参照先・処理手順・実行日時・出力先を一度設定。ファイルの取得から加工・集計、品質検証、保存、結果の通知までを、決まった日時に自動で実行します。
+        </p>
+        <p className="mt-2 text-[0.92rem] leading-relaxed">
+          <span className="font-bold text-white">通常時は、結果を確認するだけ。</span>
+          <span className="text-subtle">確認が必要な結果やエラーのときは、正式なファイルを出力せずに止めてお知らせします。その後の対応は人が行います。</span>
+        </p>
+      </div>
+      <div>
+        <p className="text-[0.85rem] font-bold text-white/90">設定しただけでは動きません。5つの確認を通ってから始めます</p>
+        <ol className="mt-2 grid grid-cols-5 gap-1.5">
+          {SAFE_START.map((s, i) => (
+            <li
+              key={s}
+              className={`rounded-lg px-2 py-2 text-center text-[0.8rem] leading-snug font-bold ring-1 ${i === 4 ? 'bg-mint/12 text-mint ring-mint/40' : 'bg-panel-hi text-white/90 ring-edge'}`}
+            >
+              <span className="block text-[0.72rem] font-normal text-subtle tabular-nums">{i + 1}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-[0.82rem] text-subtle">設定を変えたときは、もう一度確認してから実行します（以前の確認結果は使い回しません）。</p>
+      </div>
+    </article>
   )
 }
 

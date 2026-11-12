@@ -125,6 +125,7 @@ node scripts/screenshots.mjs screenshots
 
 - [設計書](docs/architecture.md)
 - [実装計画](docs/implementation-plan.md)
+- [無人定期実行の設計](docs/scheduled-run-design.md)（設計のみ・未実装）
 
 ## データの取り扱い
 

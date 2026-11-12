@@ -28,6 +28,8 @@ export const FEATURE_STATUS = {
   criteria: 'in_development',
   /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */
   kaizen: 'in_development',
+  /** 無人定期実行（共通Workerが、有効化された案件だけを決まった日時に実行する） */
+  schedule: 'in_development',
 } as const satisfies Record<string, FeatureStatus>
 
 export type FeatureKey = keyof typeof FEATURE_STATUS
