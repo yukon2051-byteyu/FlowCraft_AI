@@ -1,0 +1,41 @@
+# ===== 秘密情報（絶対にコミットしない） =====
+.env
+.env.*
+!.env.example
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# ===== Node / フロントエンド =====
+node_modules/
+dist/
+frontend/test-results/
+frontend/playwright-report/
+
+# ===== 実行時に生成されるデータ（利用者のデータを残さない） =====
+backend/tmp/
+backend/data/usage/
+*.log
+
+# ===== 利用者のExcel・CSVを誤ってコミットしない =====
+# デモ用の架空データは backend/app/demos/data/ に置き、例外として許可する
+*.xlsx
+*.xls
+*.csv
+!backend/app/demos/data/*.xlsx
+!backend/app/demos/data/*.csv
+!backend/tests/fixtures/**
+
+# ===== エディタ・OS =====
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+.DS_Store

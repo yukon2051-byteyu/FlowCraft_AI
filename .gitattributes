@@ -1,0 +1,4 @@
+# 改行コードをLFに統一（Windows開発とLinux公開環境の差をなくす）
+* text=auto eol=lf
+*.xlsx binary
+*.png binary
