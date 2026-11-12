@@ -47,9 +47,20 @@ def register(node_type: str) -> Callable[[Handler], Handler]:
     return deco
 
 
+def _ensure_loaded() -> None:
+    """ノードの実装を読み込み、登録を済ませる。
+
+    どのモジュールから先に使われても（runner を経由しなくても）、
+    ホワイトリストが空のまま参照されることがないようにする。
+    """
+    import app.engine.nodes  # noqa: F401  読み込むと各ノードが register される
+
+
 def get_handler(node_type: str) -> Handler | None:
+    _ensure_loaded()
     return _REGISTRY.get(node_type)
 
 
 def registered_types() -> list[str]:
+    _ensure_loaded()
     return sorted(_REGISTRY)

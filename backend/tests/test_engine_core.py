@@ -346,7 +346,12 @@ def test_unconfirmed_flow_is_not_executed_but_preview_runs():
     assert run(flow, require_confirmed=False).result.status == "success"
 
 
-def test_not_yet_implemented_node_stops_safely():
+def test_unregistered_node_stops_safely(monkeypatch):
+    """ホワイトリストに登録されていない処理は実行せず、明確なエラーで止まる（二重の安全装置）。"""
+    import app.engine.runner as runner_mod
+
+    real = runner_mod.get_handler
+    monkeypatch.setattr(runner_mod, "get_handler", lambda t: None if t == "sort" else real(t))
     extra = [
         {
             "node_id": "s1",
@@ -358,12 +363,10 @@ def test_not_yet_implemented_node_stops_safely():
             "confirmation_status": "confirmed",
         }
     ]
-    flow = make_flow(extra_nodes=extra)
-    r = run(flow).result
-    # sort は次のタスクで実装予定。未登録の処理は実行せず、明確なエラーで止まる
-    if "sort" not in registered_types():
-        assert r.nodes[1].issues[-1].code == "NODE_NOT_AVAILABLE"
-        assert r.status == "failed"
+    r = run(make_flow(extra_nodes=extra)).result
+    assert r.status == "failed"
+    assert r.nodes[1].issues[-1].code == "NODE_NOT_AVAILABLE"
+    assert r.nodes[2].status == "skipped"
 
 
 def test_row_limit_stops_execution():
@@ -389,3 +392,36 @@ def test_input_tables_are_not_modified():
     before = [row[:] for row in files["f1"].sheets["売上"].grid]
     run_flow(make_flow(), {"sales": Binding(input_id="sales", file_id="f1")}, files)
     assert files["f1"].sheets["売上"].grid == before
+
+
+def test_pipeline_load_filter_sort_select_output():
+    """読込 → 抽出 → 並べ替え → 列の抽出 → 出力 を通しで実行する。"""
+
+    def step(node_id, node_type, params, src, dst):
+        return {
+            "node_id": node_id,
+            "node_type": node_type,
+            "node_name": node_id,
+            "parameters": params,
+            "input_references": [src],
+            "output_reference": dst,
+            "confirmation_status": "confirmed",
+        }
+
+    extra = [
+        step("f", "filter", {"condition": {"kind": "condition", "column": "金額", "operator": "ge", "value": 1000}}, "sales", "big"),
+        step("s", "sort", {"keys": [{"column": "金額", "ascending": False}]}, "big", "sorted"),
+        step("c", "select_columns", {"columns": ["商品コード", "金額"]}, "sorted", "final"),
+    ]
+    flow = make_flow(extra_nodes=extra)
+    out = flow.nodes[-1]
+    out.input_references = ["final"]
+    out.parameters.sheets[0].reference = "final"
+    ex = run(flow)
+    r = ex.result
+    assert r.status == "success", [i.message for n in r.nodes for i in n.issues]
+    assert ex.tables["final"].rows() == [["00123", Decimal("7500.0")], ["00123", Decimal("3000.5")]]
+    assert [n.output_rows for n in r.nodes[:4]] == [3, 2, 2, 2]
+    assert r.nodes[3].removed_columns == ["売上日", "数量", "備考", "担当者"]
+    # 同じ入力なら最終結果の指紋も毎回同じ
+    assert run(flow).result.fingerprints["final"] == r.fingerprints["final"]
