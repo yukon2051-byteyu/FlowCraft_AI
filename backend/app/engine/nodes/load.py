@@ -129,16 +129,16 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
             data[name] = [to_string(v) for v in values]
 
     if failures:
-        type_label = {"integer": "整数", "decimal": "小数", "date": "日付", "boolean": "真偽値", "string": "文字列"}
+        type_label = {"integer": "整数", "decimal": "小数", "date": "日付", "boolean": "はい／いいえ", "string": "文字"}
         parts = []
         for col_name, f in failures.items():
             ex = "、".join(f"{e['row']}行目「{e['value']}」" for e in f["examples"])  # type: ignore[union-attr]
             parts.append(f"「{col_name}」（{type_label[str(f['type'])]}）{f['count']}件：{ex}")
         raise _fail(
             "TYPE_CONVERSION_FAILED",
-            "決められた型に変換できない値があります。",
+            "決められたデータの形式に変換できない値があります。",
             cause=" ／ ".join(parts),
-            how_to_fix="元のファイルの値を修正するか、型変換ノードで扱い方を指定してください。変換できない値を黙って空欄にはしません。",
+            how_to_fix="元のファイルの値を修正するか、「データの形式をそろえる」処理で扱い方を指定してください。変換できない値を黙って空欄にはしません。",
             failures=failures,
         )
 

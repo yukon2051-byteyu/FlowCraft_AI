@@ -106,7 +106,7 @@ def run_aggregate(node: AggregateNode, inputs: list[Table], ctx: NodeContext) ->
                 raise fail(
                     "AGGREGATION_TYPE_INVALID",
                     f"「{name}」：{TYPE_LABEL[t]}の列「{a.column}」は「{FUNC_LABEL[a.function]}」で集計できません。",
-                    how_to_fix="数値の列を指定するか、先に型変換ノードで数値に変換してください。",
+                    how_to_fix="数値の列を指定するか、先に「データの形式をそろえる」処理で数値にしてください。",
                 )
 
     # グループ分け（キーの空欄も1つのグループとして残す）

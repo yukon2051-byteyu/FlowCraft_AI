@@ -54,7 +54,7 @@ def run_cast(node: CastNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
             label += f"（小数{spec.scale}桁・{ROUNDING_LABEL[spec.rounding]}）"
         done.append(f"「{spec.column}」→{label}")
 
-    issues = [info("CAST_DONE", f"型を変換しました：{'、'.join(done)}")]
+    issues = [info("CAST_DONE", f"データの形式をそろえました：{'、'.join(done)}")]
     if failures:
         parts = []
         for col, f in failures.items():

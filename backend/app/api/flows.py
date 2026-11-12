@@ -164,9 +164,9 @@ def _parse_or_422(data: dict[str, Any]) -> FlowDefinition:
         err = AppError(
             422,
             "FLOW_SCHEMA_INVALID",
-            "フローの形式が正しくありません。",
+            "作業手順の形式が正しくありません。",
             cause=" ／ ".join(f"{loc}：{msg}" for loc, msg in e.errors[:5]),
-            how_to_fix="フローを読み込み直すか、エラーの箇所を修正してください。",
+            how_to_fix="作業手順を読み込み直すか、エラーの箇所を修正してください。",
         )
         raise err from None
 
@@ -176,7 +176,7 @@ def _bindings(flow: FlowDefinition, items: list[BindingIn]) -> dict[str, Binding
     out: dict[str, Binding] = {}
     for b in items:
         if b.input_id not in known:
-            raise AppError(422, "UNKNOWN_INPUT", f"フローに入力「{b.input_id}」はありません。", how_to_fix="入力の割当を見直してください。")
+            raise AppError(422, "UNKNOWN_INPUT", f"作業手順に入力「{b.input_id}」はありません。", how_to_fix="入力の割当を見直してください。")
         if b.input_id in out:
             raise AppError(422, "DUPLICATE_BINDING", f"入力「{b.input_id}」に複数のファイルが割り当てられています。", how_to_fix="1つの入力には1つのファイルを割り当ててください。")
         out[b.input_id] = Binding(b.input_id, b.file_id, b.sheet, b.header_row, dict(b.column_mapping))
@@ -269,7 +269,7 @@ def preview(
     flow = _parse_or_422(req.flow)
     target = next((n for n in flow.nodes if n.node_id == req.node_id), None)
     if target is None:
-        raise AppError(422, "NODE_NOT_FOUND", f"ノード「{req.node_id}」がフローにありません。", how_to_fix="画面を再読み込みしてください。")
+        raise AppError(422, "NODE_NOT_FOUND", f"ステップ「{req.node_id}」が作業手順にありません。", how_to_fix="画面を再読み込みしてください。")
 
     ex = run_flow(flow, _bindings(flow, req.bindings), session.files, limits=_limits(settings), require_confirmed=False, stop_after=req.node_id)
     runs = {n.node_id: n for n in ex.result.nodes}

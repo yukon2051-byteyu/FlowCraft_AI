@@ -1,18 +1,21 @@
 import { Check } from 'lucide-react'
 
-/** 操作の段階（設計書 §3）。現在地と次の操作が常に分かるようにする。 */
-const STEPS = ['データを読み込む', '作業を伝える', 'フローを確認する', '実行して検証する', '出力・保存する'] as const
+/**
+ * 作業の「段階」（設計書 §3）。現在地と次の操作が常に分かるようにする。
+ * 作業手順の中の「処理ステップ」と混同しないよう、画面では「段階」と呼ぶ（用語集 T1）。
+ */
+const STEPS = ['データを読み込む', '作業を伝える', '作業手順を確認する', '作業を実行する', '出力・保存する'] as const
 
 /** current：現在のステップ番号（1始まり） */
 export function Stepper({ current, hint }: { current: number; hint: string }) {
   return (
     <div className="flex h-13 shrink-0 items-center gap-5 border-b border-edge bg-canvas px-5">
-      <ol className="flex shrink-0 items-center gap-1" aria-label="操作の段階">
+      <ol className="flex shrink-0 items-center gap-1" aria-label="作業の段階">
         {STEPS.map((label, i) => {
           const n = i + 1
           const state = n < current ? 'done' : n === current ? 'current' : 'todo'
           return (
-            <li key={label} className="flex items-center gap-1" aria-current={state === 'current' ? 'step' : undefined}>
+            <li key={label} className="flex items-center gap-1" aria-current={state === 'current' ? 'step' : undefined} title={`段階${n}：${label}`}>
               <span
                 className={
                   'inline-flex items-center gap-1.5 rounded-full py-1 pr-3 pl-1 text-[0.88rem] whitespace-nowrap ' +

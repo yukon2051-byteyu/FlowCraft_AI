@@ -138,7 +138,7 @@ function DataTable({ detail }: { detail: SheetDetail }) {
     <>
       <p className="mb-2 text-[0.88rem] text-muted">
         表示：先頭 <span className="font-bold text-ink tabular-nums">{preview.shown.toLocaleString()}</span> 行 ／ 全{' '}
-        <span className="font-bold text-ink tabular-nums">{preview.total.toLocaleString()}</span> 行（件数・型は全件で集計）
+        <span className="font-bold text-ink tabular-nums">{preview.total.toLocaleString()}</span> 行（件数・形式は全件で集計）
       </p>
       <div className="max-h-[28rem] overflow-auto rounded-xl ring-1 ring-line">
         <table className="w-full border-separate border-spacing-0 text-[0.9rem]">
@@ -182,13 +182,13 @@ function ColumnTable({ detail }: { detail: SheetDetail }) {
     <>
       <p className="mb-2 flex items-center gap-1.5 text-[0.88rem] text-muted">
         <Info className="size-4" aria-hidden />
-        型は値から推定したものです。データ自体は変換していません。
+        データの形式は値から推定したものです。データ自体は変えていません。
       </p>
       <div className="overflow-x-auto rounded-xl ring-1 ring-line">
         <table className="w-full text-[0.9rem]">
           <thead className="bg-card text-[0.82rem] text-muted">
             <tr>
-              {['列名', '推定した型', '空欄', '値の種類', '値の例', '補足'].map((h) => (
+              {['列名', 'データの形式（推定）', '空欄', '値の種類', '値の例', '補足'].map((h) => (
                 <th key={h} className="border-b border-line px-3 py-2 text-left font-bold whitespace-nowrap">
                   {h}
                 </th>

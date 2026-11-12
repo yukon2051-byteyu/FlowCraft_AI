@@ -126,9 +126,9 @@ def run_join(node: JoinNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
         if lt != rt and {lt, rt} != {"integer", "decimal"}:
             raise fail(
                 "KEY_TYPE_MISMATCH",
-                f"「{name}」：結合キーの型が左右で違います（左「{lc}」：{TYPE_LABEL[lt]}、右「{rc}」：{TYPE_LABEL[rt]}）。",
-                cause="型が違うと、見た目が同じでも一致しません（例：文字列の「00123」と数値の123）。",
-                how_to_fix="結合の前に型変換ノードで、左右のキーを同じ型（コードなら文字列）にそろえてください。",
+                f"「{name}」：照合に使う列のデータの形式が、2つの表で違います（左「{lc}」：{TYPE_LABEL[lt]}、右「{rc}」：{TYPE_LABEL[rt]}）。",
+                cause="形式が違うと、見た目が同じでも一致しません（例：文字の「00123」と数値の123）。",
+                how_to_fix="情報を付け加える前に「データの形式をそろえる」処理で、照合に使う列を同じ形式（コードなら文字）にそろえてください。",
             )
 
     trim = p.key_normalization == "trim"

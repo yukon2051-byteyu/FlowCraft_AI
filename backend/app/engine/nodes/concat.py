@@ -65,8 +65,8 @@ def run_concat(node: ConcatNode, inputs: list[Table], ctx: NodeContext) -> NodeO
             detail = "、".join(f"{lab}：{TYPE_LABEL[r.type_of(c)]}" for lab, r in zip(labels, renamed) if c in r.specs)
             raise fail(
                 "TYPE_MISMATCH",
-                f"「{node.node_name}」：列「{c}」の型が入力によって異なります（{detail}）。",
-                how_to_fix="連結の前に型変換ノードで型をそろえてください。",
+                f"「{node.node_name}」：列「{c}」のデータの形式が、表によって異なります（{detail}）。",
+                how_to_fix="まとめる前に「データの形式をそろえる」処理で、形式をそろえてください。",
             )
 
     # 3) 一部の入力にない列

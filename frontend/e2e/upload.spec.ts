@@ -31,13 +31,13 @@ test('Excelを読み込むと、列・型・先頭の行が表示される', asy
   // 列の情報タブ：推定した型と空欄の件数
   await preview.getByRole('tab', { name: /列の情報/ }).click()
   const row = preview.getByRole('row', { name: /備考/ })
-  await expect(row).toContainText('文字列')
+  await expect(row).toContainText('文字')
   await expect(row).toContainText('2件')
   await expect(preview.getByRole('row', { name: /売上日/ })).toContainText('日付')
 
   // 下部のバーに件数と次の操作
   await expect(page.getByText('1ファイル')).toBeVisible()
-  await expect(page.locator('p', { hasText: '次の操作：' })).toContainText('列名と型')
+  await expect(page.locator('p', { hasText: '次の操作：' })).toContainText('列名とデータの形式')
 })
 
 test('シートと見出し行を切り替えられる', async ({ page }) => {

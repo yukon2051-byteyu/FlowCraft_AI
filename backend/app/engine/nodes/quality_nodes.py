@@ -121,8 +121,8 @@ def run_missing(node: MissingNode, inputs: list[Table], ctx: NodeContext) -> Nod
             if not ok or value is None:
                 raise fail(
                     "FILL_VALUE_INVALID",
-                    f"「{node.node_name}」：補完する値「{p.fill_value}」を、列「{c}」の型（{TYPE_LABEL[col_type]}）として解釈できません。",
-                    how_to_fix="列の型に合う値を指定してください。",
+                    f"「{node.node_name}」：補完する値「{p.fill_value}」を、列「{c}」のデータの形式（{TYPE_LABEL[col_type]}）として解釈できません。",
+                    how_to_fix="列のデータの形式に合う値を指定してください。",
                 )
             data[c] = [value if v is None else v for v in table.data[c]]
         out = Table(columns=list(table.columns), specs=dict(table.specs), data=data)

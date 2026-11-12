@@ -62,8 +62,8 @@ def _prepare(cond: Condition, table: Table, node_name: str) -> Any:
     if not ok or value is None:
         raise fail(
             "FILTER_VALUE_INVALID",
-            f"「{node_name}」：条件の値「{cond.value}」を、列「{cond.column}」の型（{TYPE_LABEL[col_type]}）として解釈できません。",
-            how_to_fix="条件の値を、列の型に合う形で入力してください（例：日付は 2026/10/01）。",
+            f"「{node_name}」：条件の値「{cond.value}」を、列「{cond.column}」のデータの形式（{TYPE_LABEL[col_type]}）として解釈できません。",
+            how_to_fix="条件の値を、列のデータの形式に合う形で入力してください（例：日付は 2026/10/01）。",
         )
     return value
 

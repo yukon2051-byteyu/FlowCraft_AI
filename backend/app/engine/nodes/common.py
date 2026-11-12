@@ -9,7 +9,7 @@ from typing import Any
 from app.engine.result import EngineIssue, NodeFailure
 from app.engine.table import ColumnSpec, Table
 
-TYPE_LABEL = {"string": "文字列", "integer": "整数", "decimal": "小数", "date": "日付", "boolean": "真偽値"}
+TYPE_LABEL = {"string": "文字", "integer": "整数", "decimal": "小数", "date": "日付", "boolean": "はい／いいえ"}
 MAX_EXAMPLES = 5
 
 

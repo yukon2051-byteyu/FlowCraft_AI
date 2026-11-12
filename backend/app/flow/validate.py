@@ -45,7 +45,7 @@ class FlowSchemaError(Exception):
     def __init__(self, errors: list[tuple[str, str]]):
         self.errors = errors
         summary = "; ".join(f"{loc}: {msg}" for loc, msg in errors[:5])
-        super().__init__(f"フローJSONの形式が正しくありません（{len(errors)}件）: {summary}")
+        super().__init__(f"作業手順のファイルの形式が正しくありません（{len(errors)}件）: {summary}")
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ def parse_flow(data: str | bytes | dict[str, Any]) -> FlowDefinition:
         except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as e:
             raise FlowSchemaError([("(全体)", f"JSONとして読み込めません: {e}")]) from None
     if not isinstance(data, dict):
-        raise FlowSchemaError([("(全体)", "フローJSONの最上位はオブジェクト（{...}）である必要があります")])
+        raise FlowSchemaError([("(全体)", "作業手順のファイルの形式が正しくありません（最上位が { } で囲まれていません）")])
 
     # バージョンは最初に確認し、未対応なら分かりやすいエラーにする
     version = data.get("schema_version")
@@ -156,8 +156,8 @@ def _ordering_issues(nodes: list[Node]) -> list[Issue]:
                     Issue(
                         "REFERENCE_NOT_YET_DEFINED",
                         "error",
-                        f"「{n.node_name}」は、より下にあるノード（{later}）の結果「{ref}」を使っています。"
-                        "使うデータを作るノードより下に配置してください。",
+                        f"「{n.node_name}」は、より下にあるステップ（{later}）の結果「{ref}」を使っています。"
+                        "使うデータを作るステップより下に置いてください。",
                         n.node_id,
                     )
                 )
@@ -166,7 +166,7 @@ def _ordering_issues(nodes: list[Node]) -> list[Issue]:
                     Issue(
                         "UNKNOWN_REFERENCE",
                         "error",
-                        f"「{n.node_name}」が参照しているデータ「{ref}」はどのノードでも作られていません。",
+                        f"「{n.node_name}」が参照しているデータ「{ref}」はどのステップでも作られていません。",
                         n.node_id,
                     )
                 )
@@ -176,7 +176,7 @@ def _ordering_issues(nodes: list[Node]) -> list[Issue]:
                     Issue(
                         "DUPLICATE_OUTPUT_REFERENCE",
                         "error",
-                        f"データ名「{n.output_reference}」が複数のノードで作られています"
+                        f"データ名「{n.output_reference}」が複数のステップで作られています"
                         f"（{producer[n.output_reference]} と {n.node_id}）。",
                         n.node_id,
                     )
@@ -199,7 +199,7 @@ def validate_structure(flow: FlowDefinition) -> list[Issue]:
     # ノードID重複
     node_ids = [n.node_id for n in nodes]
     for dup in sorted({i for i in node_ids if node_ids.count(i) > 1}):
-        issues.append(Issue("DUPLICATE_NODE_ID", "error", f"ノードID「{dup}」が重複しています。", dup))
+        issues.append(Issue("DUPLICATE_NODE_ID", "error", f"ステップID「{dup}」が重複しています。", dup))
 
     # 読込ノードが存在しない入力を指していないか
     known_inputs = set(input_ids)
@@ -221,14 +221,14 @@ def validate_structure(flow: FlowDefinition) -> list[Issue]:
     if len(outputs) > 1:
         for i in outputs[1:]:
             issues.append(
-                Issue("MULTIPLE_OUTPUT_NODES", "error", "Excel出力ノードは1つだけ配置できます。", nodes[i].node_id)
+                Issue("MULTIPLE_OUTPUT_NODES", "error", "「Excelに出力する」ステップは1つだけ置けます。", nodes[i].node_id)
             )
     if outputs and outputs[0] != len(nodes) - 1:
         issues.append(
-            Issue("OUTPUT_NOT_LAST", "error", "Excel出力ノードはフローの最後に配置してください。", nodes[outputs[0]].node_id)
+            Issue("OUTPUT_NOT_LAST", "error", "「Excelに出力する」ステップは、作業手順の最後に置いてください。", nodes[outputs[0]].node_id)
         )
     if nodes and not outputs:
-        issues.append(Issue("NO_OUTPUT_NODE", "warning", "Excel出力ノードがないため、結果をExcelに出力できません。"))
+        issues.append(Issue("NO_OUTPUT_NODE", "warning", "「Excelに出力する」ステップがないため、結果をExcelに出力できません。"))
 
     # R4：誰にも使われないデータ（出力ノードがある場合のみ判定）
     if outputs:
@@ -251,7 +251,7 @@ def validate_structure(flow: FlowDefinition) -> list[Issue]:
                 Issue(
                     "DEPENDENCIES_MISMATCH",
                     "error",
-                    "dependencies の内容が、ノードの参照関係と一致しません。ファイルが手作業で編集された可能性があります。",
+                    "ステップどうしのつながりの記録が、実際の内容と一致しません。ファイルが手作業で編集された可能性があります。",
                 )
             )
     return issues
@@ -280,7 +280,7 @@ def check_move(flow: FlowDefinition, node_id: str, new_index: int) -> tuple[bool
     nodes = list(flow.nodes)
     idx = next((i for i, n in enumerate(nodes) if n.node_id == node_id), None)
     if idx is None:
-        return False, f"ノード「{node_id}」が見つかりません。"
+        return False, f"ステップ「{node_id}」が見つかりません。"
     if not 0 <= new_index < len(nodes):
         return False, "移動先の位置が範囲外です。"
     node = nodes.pop(idx)
@@ -291,9 +291,9 @@ def check_move(flow: FlowDefinition, node_id: str, new_index: int) -> tuple[bool
         if (issue.code, issue.node_id) not in before:
             return False, issue.message
     if isinstance(node, OutputNode) and new_index != len(nodes) - 1:
-        return False, "Excel出力ノードはフローの最後から動かせません。"
+        return False, "「Excelに出力する」ステップは、作業手順の最後から動かせません。"
     if any(isinstance(n, OutputNode) for n in nodes[:-1]) and not isinstance(node, OutputNode):
-        return False, "Excel出力ノードより下には移動できません。"
+        return False, "「Excelに出力する」ステップより下には移動できません。"
     return True, None
 
 
@@ -301,7 +301,7 @@ def execution_blockers(flow: FlowDefinition) -> list[Issue]:
     """実行できない理由の一覧。空なら実行してよい（データの互換性は別途検証する）。"""
     blockers = [i for i in validate_structure(flow) if i.severity == "error"]
     if not flow.nodes:
-        blockers.append(Issue("EMPTY_FLOW", "error", "処理ノードがありません。"))
+        blockers.append(Issue("EMPTY_FLOW", "error", "処理ステップがありません。"))
     for n in flow.nodes:
         if n.confirmation_status != "confirmed":
             label = {"unset": "未設定", "ai_proposed": "AI提案のまま", "pending": "確認待ち"}[n.confirmation_status]

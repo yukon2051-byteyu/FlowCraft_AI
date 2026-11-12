@@ -18,10 +18,10 @@ type StatusDef = {
 }
 
 export const NODE_STATUS: Record<NodeStatus, StatusDef> = {
-  unset: { label: '未設定', icon: Circle, badge: 'bg-ink/6 text-muted ring-ink/15', stripe: 'bg-idle' },
-  ai_proposed: { label: 'AI提案', icon: Sparkles, badge: 'bg-mint-soft text-forest ring-forest/25', stripe: 'bg-mint' },
-  pending: { label: '確認待ち', icon: CircleHelp, badge: 'bg-mint-soft text-forest ring-forest/40', stripe: 'bg-mint' },
-  confirmed: { label: '確定', icon: CircleCheck, badge: 'bg-success-soft text-success-ink ring-success/30', stripe: 'bg-success' },
+  unset: { label: '設定が必要', icon: Circle, badge: 'bg-ink/6 text-muted ring-ink/15', stripe: 'bg-idle' },
+  ai_proposed: { label: 'AIの提案', icon: Sparkles, badge: 'bg-mint-soft text-forest ring-forest/25', stripe: 'bg-mint' },
+  pending: { label: '回答が必要', icon: CircleHelp, badge: 'bg-mint-soft text-forest ring-forest/40', stripe: 'bg-mint' },
+  confirmed: { label: '確認済み', icon: CircleCheck, badge: 'bg-success-soft text-success-ink ring-success/30', stripe: 'bg-success' },
   warning: { label: '警告', icon: TriangleAlert, badge: 'bg-warning-soft text-warning-ink ring-warning/40', stripe: 'bg-warning' },
   error: { label: 'エラー', icon: CircleX, badge: 'bg-error-soft text-error-ink ring-error/40', stripe: 'bg-error' },
 }

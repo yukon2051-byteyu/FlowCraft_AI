@@ -104,7 +104,7 @@ def evaluate(expr: Expr, columns: dict[str, list[Any]], numeric_columns: set[str
         raise ExpressionError(f"計算式で使う列がありません: {'、'.join(missing)}")
     not_numeric = [c for c in used if c not in numeric_columns]
     if not_numeric:
-        raise ExpressionError(f"数値ではない列は計算に使えません: {'、'.join(not_numeric)}（先に型変換してください）")
+        raise ExpressionError(f"数値ではない列は計算に使えません: {'、'.join(not_numeric)}（先に「データの形式をそろえる」処理で数値にしてください）")
 
     n = len(next(iter(columns.values()))) if columns else 0
     result = ExpressionResult(values=[])

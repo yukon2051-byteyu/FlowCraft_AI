@@ -231,11 +231,11 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
           <p className="text-[0.92rem]">
             <span className="font-bold">{files.length}ファイル</span>
             <span className="text-subtle">（合計 {totalRows.toLocaleString()}行）を読み込みました。</span>
-            <span className="ml-2 text-subtle">列名と型、先頭の行を確認してください。</span>
+            <span className="ml-2 text-subtle">列名とデータの形式、先頭の行を確認してください。</span>
           </p>
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-[0.85rem] text-subtle">AIによるフロー作成は開発中です</span>
-            <Button variant="primary" disabled title="AIによるフロー作成は Phase 2 で実装します">
+            <span className="text-[0.85rem] text-subtle">AIで作業手順を作る機能は開発中のため、まだ次へ進めません</span>
+            <Button variant="primary" disabled title="AIで作業手順を作る機能は開発中です">
               次へ：作業を伝える
               <ArrowRight className="size-4" aria-hidden />
             </Button>

@@ -297,7 +297,7 @@ def test_reference_to_later_node(flow_dict):
     issues = validate_structure(parse_flow(flow_dict))
     hit = [i for i in issues if i.code == "REFERENCE_NOT_YET_DEFINED"]
     assert hit and hit[0].node_id == "n4"
-    assert "より下にあるノード" in hit[0].message
+    assert "より下にあるステップ" in hit[0].message
 
 
 def test_unknown_reference(flow_dict):
@@ -368,7 +368,7 @@ def test_move_blocked_when_breaking_reference(flow_dict):
     flow = parse_flow(flow_dict)
     ok, reason = check_move(flow, "n4", 1)  # 結合を、使うデータの読込より上へ
     assert ok is False
-    assert reason and "より下にあるノード" in reason
+    assert reason and "より下にあるステップ" in reason
 
 
 def test_move_blocked_for_output_and_below_output(flow_dict):

@@ -419,7 +419,7 @@ class NodeBase(StrictModel):
             raise ValueError("input_references に同じ参照が重複しています")
         if node_type == "output":
             if self.output_reference is not None:
-                raise ValueError("output ノードは output_reference を持てません")
+                raise ValueError("「Excelに出力する」ステップは、出力先のデータ名を持てません")
         elif self.output_reference is None:
             raise ValueError("output_reference が必要です")
         return self

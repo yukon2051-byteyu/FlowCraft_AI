@@ -159,7 +159,7 @@ _INT_COMMA_RE = re.compile(r"^[+-]?[0-9]{1,3}(,[0-9]{3})+$")
 _DEC_RE = re.compile(r"^[+-]?([0-9]+|[0-9]{1,3}(,[0-9]{3})+)?\.[0-9]+$")
 _DATE_RE = re.compile(r"^([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})( [0-9]{1,2}:[0-9]{2}(:[0-9]{2})?)?$")
 
-_TYPE_LABEL = {"string": "文字列", "integer": "整数", "decimal": "小数", "date": "日付", "boolean": "真偽値"}
+_TYPE_LABEL = {"string": "文字", "integer": "整数", "decimal": "小数", "date": "日付", "boolean": "はい／いいえ"}
 
 
 def _classify(v: Any) -> str:

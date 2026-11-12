@@ -120,5 +120,5 @@ def _session_error(code: str, message: str) -> AppError:
         401,
         code,
         message,
-        how_to_fix="画面を再読み込みして、ファイルをもう一度読み込んでください。保存したフロー（.json）は引き続き使えます。",
+        how_to_fix="画面を再読み込みして、ファイルをもう一度読み込んでください。保存した作業手順のファイルは引き続き使えます。",
     )

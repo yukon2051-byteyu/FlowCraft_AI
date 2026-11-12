@@ -65,9 +65,9 @@ export function deleteFile(fileId: string): Promise<void> {
 }
 
 export const COLUMN_TYPE_LABEL: Record<ColumnType, string> = {
-  string: '文字列',
+  string: '文字',
   integer: '整数',
   decimal: '小数',
   date: '日付',
-  boolean: '真偽値',
+  boolean: 'はい／いいえ',
 }

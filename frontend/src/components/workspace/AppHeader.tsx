@@ -27,17 +27,17 @@ export function AppHeader({ flowName, unsaved, canExport }: Props) {
         )}
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghostDark" size="sm" disabled title="フローの読込は開発中です">
+        <Button variant="ghostDark" size="sm" disabled title="作業手順を開く機能は開発中です">
           <FolderOpen className="size-4" aria-hidden />
-          フローを開く
+          作業手順を開く
         </Button>
-        <Button variant="outlineDark" size="sm" disabled title="フローの保存は開発中です">
+        <Button variant="outlineDark" size="sm" disabled title="作業手順を保存する機能は開発中です">
           <Save className="size-4" aria-hidden />
-          フローを保存
+          作業手順を保存
         </Button>
-        <Button variant="primary" size="sm" disabled={!canExport} title="実行が完了すると出力できます">
+        <Button variant="primary" size="sm" disabled={!canExport} title="作業を実行すると、Excelに出力できます">
           <FileOutput className="size-4" aria-hidden />
-          Excel出力
+          Excelに出力
         </Button>
       </div>
     </header>
