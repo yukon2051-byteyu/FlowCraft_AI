@@ -16,7 +16,7 @@ htmlcov/
 # ===== Node / フロントエンド =====
 node_modules/
 dist/
-frontend/test-results/
+test-results/
 frontend/playwright-report/
 frontend/screenshots/
 

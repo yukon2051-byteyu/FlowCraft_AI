@@ -64,6 +64,28 @@ export function deleteFile(fileId: string): Promise<void> {
   return apiRequest<void>(`/api/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
 }
 
+/* ---------- 形式の確認（選んだデータの形式で、全件を変換できるか） ---------- */
+
+export type TypeCheckColumn = { name: string; type: ColumnType }
+
+export type TypeCheckResult = {
+  name: string
+  type: ColumnType
+  found: boolean
+  converted: number
+  failed: number
+  blank: number
+  examples: { row: number; value: string | null }[]
+}
+
+export function typeCheck(fileId: string, sheet: string, headerRow: number, columns: TypeCheckColumn[]): Promise<TypeCheckResult[]> {
+  return apiRequest<TypeCheckResult[]>(`/api/files/${encodeURIComponent(fileId)}/type-check`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sheet, header_row: headerRow, columns }),
+  })
+}
+
 export const COLUMN_TYPE_LABEL: Record<ColumnType, string> = {
   string: '文字',
   integer: '整数',

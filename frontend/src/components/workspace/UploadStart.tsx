@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, hasSession } from '../../api/client'
 import type { ApiErrorBody } from '../../api/client'
 import { deleteFile, fetchSheet, listFiles, uploadFile } from '../../api/files'
-import type { SheetDetail, UploadResult } from '../../api/files'
+import type { FileSummary, SheetDetail, UploadResult } from '../../api/files'
 import { Button } from '../ui/Button'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { Dropzone } from './data/Dropzone'
@@ -17,14 +17,24 @@ import { FilePreview } from './data/FilePreview'
 
 const MAX_FILES = 5
 
-type Loaded = FileEntry & { initialDetail: SheetDetail }
+/** initialDetail：最初に表示した内容。current：シート・見出し行を変えたあとの、今の内容 */
+type Loaded = FileEntry & { initialDetail: SheetDetail; current: SheetDetail }
+
+export type DefineSource = { summary: FileSummary; detail: SheetDetail }
 type UploadFailure = { id: number; filename: string; error: ApiErrorBody }
 
 /**
  * ワークスペースのステップ1「データを読み込む」。
  * ファイルを読み込み、列・型・先頭の行を確認する。
  */
-export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample: () => void; onFileCountChange: (n: number) => void }) {
+type Props = {
+  onShowSample: () => void
+  onFileCountChange: (n: number) => void
+  /** 「使う列と形式を決める」へ進む（各ファイルの、今選んでいるシート・見出し行の内容を渡す） */
+  onDefine: (sources: DefineSource[]) => void
+}
+
+export function UploadStart({ onShowSample, onFileCountChange, onDefine }: Props) {
   const [files, setFiles] = useState<Loaded[]>([])
   const [uploading, setUploading] = useState<string[]>([])
   const [failures, setFailures] = useState<UploadFailure[]>([])
@@ -44,7 +54,7 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
         const restored = await Promise.all(
           summaries.map(async (summary): Promise<Loaded> => {
             const detail = await fetchSheet(summary.file_id, null, 1)
-            return { summary, initialDetail: detail, rowCount: detail.row_count, columnCount: detail.column_count, warningCount: detail.warnings.length }
+            return { summary, initialDetail: detail, current: detail, rowCount: detail.row_count, columnCount: detail.column_count, warningCount: detail.warnings.length }
           }),
         )
         if (cancelled || restored.length === 0) return
@@ -112,6 +122,7 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
           {
             summary,
             initialDetail: detail,
+            current: detail,
             rowCount: detail.row_count,
             columnCount: detail.column_count,
             warningCount: detail.warnings.length,
@@ -148,11 +159,9 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
   const onDetailChange = useCallback((fileId: string, d: SheetDetail) => {
     setFiles((prev) => {
       const target = prev.find((f) => f.summary.file_id === fileId)
-      if (!target || (target.rowCount === d.row_count && target.columnCount === d.column_count && target.warningCount === d.warnings.length)) {
-        return prev
-      }
+      if (!target || target.current === d) return prev
       return prev.map((f) =>
-        f.summary.file_id === fileId ? { ...f, rowCount: d.row_count, columnCount: d.column_count, warningCount: d.warnings.length } : f,
+        f.summary.file_id === fileId ? { ...f, current: d, rowCount: d.row_count, columnCount: d.column_count, warningCount: d.warnings.length } : f,
       )
     })
   }, [])
@@ -234,9 +243,13 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
             <span className="ml-2 text-subtle">列名とデータの形式、先頭の行を確認してください。</span>
           </p>
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-[0.85rem] text-subtle">AIで作業手順を作る機能は開発中のため、まだ次へ進めません</span>
-            <Button variant="primary" disabled title="AIで作業手順を作る機能は開発中です">
-              次へ：作業を伝える
+            {uploading.length > 0 && <span className="text-[0.85rem] text-subtle">ファイルの解析が終わるまでお待ちください</span>}
+            <Button
+              variant="primary"
+              disabled={uploading.length > 0}
+              onClick={() => onDefine(files.map((f) => ({ summary: f.summary, detail: f.current })))}
+            >
+              次へ：使う列と形式を決める
               <ArrowRight className="size-4" aria-hidden />
             </Button>
           </div>

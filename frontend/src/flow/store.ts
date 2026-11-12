@@ -24,6 +24,8 @@ type FlowState = {
   openFlow: (flow: unknown) => void
   renameFlow: (name: string) => void
   setInputDefinitions: (defs: InputDefinition[]) => void
+  /** 「新しく作る」：入力の定義・割当・読み込みステップで、作業手順の最初の形を作る（既存のステップは置き換える） */
+  startFromInputs: (defs: InputDefinition[], bindings: Binding[], loadNodes: Omit<FlowNode, 'node_id'>[]) => void
   addNode: (node: Omit<FlowNode, 'node_id'>, index?: number) => string
   updateNode: (nodeId: string, patch: Partial<Omit<FlowNode, 'node_id'>>) => void
   removeNode: (nodeId: string) => Result
@@ -55,6 +57,16 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   renameFlow: (name) => set((s) => ({ flow: { ...s.flow, flow_name: name } })),
 
   setInputDefinitions: (defs) => set((s) => ({ flow: { ...s.flow, input_definitions: defs } })),
+
+  startFromInputs: (defs, bindings, loadNodes) =>
+    set((s) => {
+      const nodes = loadNodes.map((n, i) => ({ ...n, node_id: `n${i + 1}` }))
+      return {
+        flow: { ...s.flow, input_definitions: defs, nodes },
+        bindings: Object.fromEntries(bindings.map((b) => [b.input_id, b])),
+        selectedNodeId: nodes[0]?.node_id ?? null,
+      }
+    }),
 
   addNode: (node, index) => {
     const id = nextId('n', get().flow.nodes.map((n) => n.node_id))
