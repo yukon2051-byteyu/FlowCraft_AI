@@ -145,16 +145,20 @@ function Reasons() {
         />
         <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           {/* ⑤ 新しい価値：大きく見せる */}
-          <article className="relative overflow-hidden rounded-2xl bg-panel p-6 ring-1 ring-mint/40 sm:p-7">
-            <div className="pointer-events-none absolute -top-24 -right-20 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,rgba(56,217,173,0.18),transparent)]" />
+          <article className="relative overflow-hidden rounded-2xl bg-panel p-6 ring-1 ring-edge sm:p-7">
+            <span className="absolute inset-x-0 top-0 h-1 bg-kaizen" aria-hidden />
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[0.85rem] font-bold text-mint tabular-nums">05</span>
+                <span className="grid size-9 place-items-center rounded-xl bg-kaizen/12 text-kaizen ring-1 ring-kaizen/35">
+                  <Lightbulb className="size-5" aria-hidden />
+                </span>
+                <span className="text-[0.85rem] font-bold text-kaizen-text tabular-nums">05</span>
                 <h3 className="text-[1.35rem] font-bold text-white">作業そのものを改善できる</h3>
                 <DevBadge feature="kaizen" />
               </div>
-              <p className="mt-2 leading-relaxed text-white/85">
-                トヨタ式カイゼンの考え方で、作業の必要性・ムダ・重複している工程を見直します。<span className="font-bold text-white">不要な作業は、わざわざ自動化しません。</span>
+              <p className="mt-3 leading-relaxed text-white/85">
+                トヨタ式カイゼンの考え方で、作業の必要性・<span className="font-bold text-kaizen-text">ムダ・重複している工程を見直します。</span>
+                <span className="font-bold text-white">不要な作業は、わざわざ自動化しません。</span>
               </p>
               <ol className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {KAIZEN_WAYS.map((w, i) => (
@@ -167,7 +171,7 @@ function Reasons() {
                 ))}
               </ol>
               <p className="mt-4 flex items-start gap-1.5 text-[0.88rem] text-subtle">
-                <CircleHelp className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+                <CircleHelp className="mt-0.5 size-4 shrink-0 text-subtle" aria-hidden />
                 使うかどうかは自由です。「不要」とは決めつけず、規程や監査で必要な作業もあるため、判断は利用者が行います。
               </p>
             </div>

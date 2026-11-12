@@ -87,8 +87,8 @@ export function HeroVisualCompact() {
       <ol className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">
         {PHASES.map(({ icon: Icon, label }, i) => (
           <li key={label} className="contents">
-            <span className="flex flex-col items-center gap-1 rounded-lg bg-panel-hi px-1 py-2.5">
-              <Icon className="size-4.5 text-mint" aria-hidden />
+            <span className={`flex flex-col items-center gap-1 rounded-lg bg-panel-hi px-1 py-2.5 ${i === 0 ? 'ring-1 ring-kaizen/40' : ''}`}>
+              <Icon className={`size-4.5 ${i === 0 ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
               <span className="text-[0.75rem] whitespace-nowrap text-white">{label}</span>
             </span>
             {i < PHASES.length - 1 && <ArrowRight className="size-3.5 text-mint" aria-hidden />}
@@ -107,11 +107,11 @@ export function HeroVisualCompact() {
 
 type BoxProps = { className?: string; style?: CSSProperties }
 
-function StageLabel({ n, label, icon: Icon }: { n: number; label: string; icon: LucideIcon }) {
+function StageLabel({ n, label, icon: Icon, tone = 'mint' }: { n: number; label: string; icon: LucideIcon; tone?: 'mint' | 'kaizen' }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[0.8rem] font-bold">
-      <span className="grid size-5 place-items-center rounded-full bg-mint text-[0.66rem] text-on-mint">{n}</span>
-      <Icon className="size-3.5 text-mint" aria-hidden />
+      <span className={`grid size-5 place-items-center rounded-full text-[0.66rem] ${tone === 'kaizen' ? 'bg-kaizen text-canvas' : 'bg-mint text-on-mint'}`}>{n}</span>
+      <Icon className={`size-3.5 ${tone === 'kaizen' ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
       {label}
     </span>
   )
@@ -128,22 +128,22 @@ const CURRENT: { label: string; tag?: { text: string; tone: 'warn' | 'ask' } }[]
 
 function ReviewCard({ className = '', style }: BoxProps) {
   return (
-    <div style={style} className={`rounded-2xl bg-panel p-3 text-white shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] ring-1 ring-edge ${className}`}>
+    <div style={style} className={`rounded-2xl bg-panel p-3 text-white shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] ring-1 ring-kaizen/35 ${className}`}>
       <div className="mb-2 flex items-center justify-between px-1">
-        <StageLabel n={1} label="見直す" icon={ScanSearch} />
+        <StageLabel n={1} label="見直す" icon={ScanSearch} tone="kaizen" />
         <span className="text-[0.66rem] text-subtle">今の作業</span>
       </div>
       <ol className="space-y-1.5">
         {CURRENT.map((c) => (
           <li
             key={c.label}
-            className={`flex items-center gap-2 rounded-lg px-2.5 py-[0.55rem] ${c.tag?.tone === 'warn' ? 'bg-warning/10 ring-1 ring-warning/30' : c.tag ? 'bg-mint/8 ring-1 ring-mint/30' : 'bg-panel-hi'}`}
+            className={`flex items-center gap-2 rounded-lg px-2.5 py-[0.55rem] ${c.tag?.tone === 'warn' ? 'bg-kaizen/10 ring-1 ring-kaizen/30' : c.tag ? 'border border-dashed border-kaizen/45 bg-panel-hi' : 'bg-panel-hi'}`}
           >
             <FileSpreadsheet className="size-3.5 shrink-0 text-subtle" aria-hidden />
-            <span className={`flex-1 text-[0.72rem] whitespace-nowrap ${c.tag?.tone === 'warn' ? 'text-white/70 line-through decoration-warning/60' : ''}`}>{c.label}</span>
+            <span className={`flex-1 text-[0.72rem] whitespace-nowrap ${c.tag?.tone === 'warn' ? 'text-white/70 line-through decoration-kaizen/70' : ''}`}>{c.label}</span>
             {c.tag && (
               <span
-                className={`rounded-full px-1.5 py-px text-[0.62rem] font-bold whitespace-nowrap ${c.tag.tone === 'warn' ? 'bg-warning/20 text-warning' : 'bg-mint/15 text-mint'}`}
+                className={`rounded-full px-1.5 py-px text-[0.62rem] font-bold whitespace-nowrap ${c.tag.tone === 'warn' ? 'bg-kaizen/20 text-kaizen-text' : 'text-kaizen-text ring-1 ring-kaizen/45'}`}
               >
                 {c.tag.text}
               </span>
