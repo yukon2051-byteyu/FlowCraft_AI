@@ -19,7 +19,7 @@ export default function WorkspacePage() {
 
   return (
     <>
-      <div className="hidden h-screen min-h-[640px] flex-col bg-surface lg:flex">
+      <div className="hidden h-screen min-h-[640px] flex-col bg-canvas lg:flex">
         <AppHeader flowName={sample ? '月次売上集計' : '無題のフロー'} unsaved={sample} canExport={false} />
         {sample ? (
           <>
@@ -47,12 +47,12 @@ export default function WorkspacePage() {
 
 function PcOnlyNotice() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-navy px-6 lg:hidden">
-      <div className="max-w-sm rounded-2xl bg-white p-7 text-center shadow-xl">
-        <span className="mx-auto grid size-14 place-items-center rounded-full bg-accent-soft text-accent">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-6 lg:hidden">
+      <div className="light-panel max-w-sm rounded-2xl p-7 text-center shadow-xl">
+        <span className="mx-auto grid size-14 place-items-center rounded-full bg-mint-soft text-forest">
           <Monitor className="size-7" aria-hidden />
         </span>
-        <h1 className="mt-4 text-[1.25rem] font-bold text-navy">この画面はPC向けです</h1>
+        <h1 className="mt-4 text-[1.25rem] font-bold">この画面はPC向けです</h1>
         <p className="mt-2 leading-relaxed text-ink/80">
           フローの編集画面は、画面幅の広いPC（1280px以上を推奨）でのご利用を想定しています。PCのブラウザで開いてください。
         </p>

@@ -40,14 +40,14 @@ export function FilePreview({ file, initialDetail, onDetailChange }: Props) {
   const visibleSheets = file.sheets
 
   return (
-    <section className="rounded-2xl bg-white shadow-sm ring-1 ring-line" aria-label={`${file.filename} の内容`}>
+    <section className="light-panel rounded-2xl shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)]" aria-label={`${file.filename} の内容`}>
       {/* 見出し：ファイル名・シート・見出し行 */}
       <div className="border-b border-line px-6 pt-5 pb-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h2 className="min-w-0 truncate text-[1.25rem] font-bold text-navy" title={file.filename}>
+          <h2 className="min-w-0 truncate text-[1.25rem] font-bold text-ink" title={file.filename}>
             {file.filename}
           </h2>
-          {query.isFetching && <LoaderCircle className="size-4.5 animate-spin text-accent" aria-label="読み込み中" />}
+          {query.isFetching && <LoaderCircle className="size-4.5 animate-spin text-forest" aria-label="読み込み中" />}
         </div>
 
         <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
@@ -60,7 +60,7 @@ export function FilePreview({ file, initialDetail, onDetailChange }: Props) {
                   setSheet(e.target.value)
                   setHeaderRow(1)
                 }}
-                className="h-9 min-w-44 rounded-lg bg-surface px-2.5 ring-1 ring-line focus:ring-2 focus:ring-accent focus:outline-none"
+                className="h-9 min-w-44 rounded-lg bg-card px-2.5 ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
               >
                 {visibleSheets.map((s) => (
                   <option key={s.name} value={s.name}>
@@ -106,7 +106,7 @@ export function FilePreview({ file, initialDetail, onDetailChange }: Props) {
             <ul className="mb-4 space-y-1.5 rounded-xl bg-warning-soft p-3.5 ring-1 ring-warning/25" aria-label="確認事項">
               {detail.warnings.map((w) => (
                 <li key={w.code} className="flex gap-2 text-[0.9rem] text-ink">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-ink" aria-hidden />
                   {w.message}
                 </li>
               ))}
@@ -132,7 +132,7 @@ export function FilePreview({ file, initialDetail, onDetailChange }: Props) {
 function DataTable({ detail }: { detail: SheetDetail }) {
   const { preview } = detail
   if (preview.columns.length === 0) {
-    return <p className="rounded-xl bg-surface px-4 py-8 text-center text-muted">このシートにはデータがありません。</p>
+    return <p className="rounded-xl bg-card px-4 py-8 text-center text-muted">このシートにはデータがありません。</p>
   }
   return (
     <>
@@ -144,9 +144,9 @@ function DataTable({ detail }: { detail: SheetDetail }) {
         <table className="w-full border-separate border-spacing-0 text-[0.9rem]">
           <thead className="sticky top-0 z-10">
             <tr>
-              <th className="sticky left-0 z-20 border-b border-line bg-surface px-3 py-2 text-right text-[0.78rem] font-bold text-muted">#</th>
+              <th className="sticky left-0 z-20 border-b border-line bg-card px-3 py-2 text-right text-[0.78rem] font-bold text-muted">#</th>
               {preview.columns.map((c, i) => (
-                <th key={`${c}-${i}`} className="border-b border-line bg-surface px-3 py-2 text-left font-bold whitespace-nowrap text-ink">
+                <th key={`${c}-${i}`} className="border-b border-line bg-card px-3 py-2 text-left font-bold whitespace-nowrap text-ink">
                   {c}
                   <span className="ml-1.5 text-[0.75rem] font-medium text-muted">{COLUMN_TYPE_LABEL[detail.columns[i]?.inferred_type ?? 'string']}</span>
                 </th>
@@ -155,8 +155,8 @@ function DataTable({ detail }: { detail: SheetDetail }) {
           </thead>
           <tbody>
             {preview.rows.map((r, ri) => (
-              <tr key={ri} className="hover:bg-accent-soft/40">
-                <td className="sticky left-0 border-b border-line bg-white px-3 py-1.5 text-right text-[0.78rem] text-muted tabular-nums">
+              <tr key={ri} className="hover:bg-mint-soft">
+                <td className="sticky left-0 border-b border-line bg-paper px-3 py-1.5 text-right text-[0.78rem] text-muted tabular-nums">
                   {ri + 1}
                 </td>
                 {r.map((v, ci) => (
@@ -186,7 +186,7 @@ function ColumnTable({ detail }: { detail: SheetDetail }) {
       </p>
       <div className="overflow-x-auto rounded-xl ring-1 ring-line">
         <table className="w-full text-[0.9rem]">
-          <thead className="bg-surface text-[0.82rem] text-muted">
+          <thead className="bg-card text-[0.82rem] text-muted">
             <tr>
               {['列名', '推定した型', '空欄', '値の種類', '値の例', '補足'].map((h) => (
                 <th key={h} className="border-b border-line px-3 py-2 text-left font-bold whitespace-nowrap">
@@ -202,7 +202,7 @@ function ColumnTable({ detail }: { detail: SheetDetail }) {
                 <td className="px-3 py-2">
                   <TypeBadge type={c.inferred_type} />
                 </td>
-                <td className={`px-3 py-2 whitespace-nowrap tabular-nums ${c.null_count > 0 ? 'font-bold text-warning' : 'text-muted'}`}>
+                <td className={`px-3 py-2 whitespace-nowrap tabular-nums ${c.null_count > 0 ? 'font-bold text-warning-ink' : 'text-muted'}`}>
                   {c.null_count.toLocaleString()}件
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap text-muted tabular-nums">{c.unique_count.toLocaleString()}種類</td>
@@ -210,7 +210,7 @@ function ColumnTable({ detail }: { detail: SheetDetail }) {
                   {c.samples.join('、') || '—'}
                 </td>
                 <td className="px-3 py-2 text-[0.85rem]">
-                  {c.note ? <span className="text-warning">{c.note}</span> : <span className="text-muted/60">—</span>}
+                  {c.note ? <span className="text-warning-ink">{c.note}</span> : <span className="text-muted/60">—</span>}
                 </td>
               </tr>
             ))}
@@ -221,12 +221,13 @@ function ColumnTable({ detail }: { detail: SheetDetail }) {
   )
 }
 
+// 型は「状態」ではないので、状態色（緑・アンバー等）は使わない。数値だけミント系で区別する
 const TYPE_STYLE: Record<ColumnType, string> = {
-  string: 'bg-surface text-ink ring-line',
-  integer: 'bg-accent-soft text-accent ring-accent/25',
-  decimal: 'bg-accent-soft text-accent ring-accent/25',
-  date: 'bg-success-soft text-success ring-success/25',
-  boolean: 'bg-warning-soft text-warning ring-warning/25',
+  string: 'bg-ink/6 text-ink ring-ink/10',
+  integer: 'bg-mint-soft text-forest ring-forest/20',
+  decimal: 'bg-mint-soft text-forest ring-forest/20',
+  date: 'bg-paper text-ink ring-ink/20',
+  boolean: 'bg-paper text-ink ring-ink/20',
 }
 
 function TypeBadge({ type }: { type: ColumnType }) {
@@ -245,7 +246,7 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: '
   return (
     <div className="text-right">
       <dt className="text-[0.78rem] font-bold text-muted">{label}</dt>
-      <dd className={`text-[1.15rem] font-bold tabular-nums ${tone === 'warning' ? 'text-warning' : 'text-navy'}`}>{value}</dd>
+      <dd className={`text-[1.15rem] font-bold tabular-nums ${tone === 'warning' ? 'text-warning-ink' : 'text-ink'}`}>{value}</dd>
     </div>
   )
 }
@@ -258,7 +259,7 @@ function StepButton({ label, disabled, onClick, icon }: { label: string; disable
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="grid size-9 place-items-center rounded-lg bg-surface ring-1 ring-line hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40"
+      className="grid size-9 place-items-center rounded-lg bg-card ring-1 ring-line hover:bg-mint-soft focus-visible:outline-2 focus-visible:outline-forest disabled:cursor-not-allowed disabled:opacity-40"
     >
       <Icon className="size-4" aria-hidden />
     </button>
@@ -273,8 +274,8 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       aria-selected={active}
       onClick={onClick}
       className={
-        '-mb-px border-b-2 px-4 py-2 text-[0.92rem] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-accent ' +
-        (active ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-ink')
+        '-mb-px border-b-2 px-4 py-2 text-[0.92rem] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-forest ' +
+        (active ? 'border-mint text-forest' : 'border-transparent text-muted hover:text-ink')
       }
     >
       {children}

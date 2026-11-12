@@ -51,7 +51,7 @@ export function SampleWorkspace({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-2 border-b border-accent/20 bg-accent-soft px-5 py-1.5 text-[0.85rem] text-accent">
+      <div className="flex shrink-0 items-center gap-2 border-b border-mint/20 bg-mint/10 px-5 py-1.5 text-[0.85rem] text-mint">
         <Info className="size-4" aria-hidden />
         <span>
           <span className="font-bold">サンプル表示中</span>
@@ -60,7 +60,7 @@ export function SampleWorkspace({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-accent"
+          className="ml-auto inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold hover:bg-mint/10 focus-visible:outline-2 focus-visible:outline-mint"
         >
           <X className="size-4" aria-hidden />
           ファイル読込に戻る
@@ -83,26 +83,26 @@ export function SampleWorkspace({ onClose }: { onClose: () => void }) {
 
 function AiBar({ questions, unconfirmed }: { questions: number; unconfirmed: number }) {
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-line bg-white px-5 py-3">
-      <label className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-surface px-3.5 py-2 ring-1 ring-line focus-within:ring-2 focus-within:ring-accent">
-        <Sparkles className="size-5 shrink-0 text-accent" aria-hidden />
+    <div className="flex shrink-0 items-center gap-3 border-b border-edge bg-nav px-5 py-3">
+      <label className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-panel px-3.5 py-2 ring-1 ring-edge focus-within:ring-2 focus-within:ring-mint">
+        <Sparkles className="size-5 shrink-0 text-mint" aria-hidden />
         <span className="sr-only">AIへの指示</span>
         <input
-          className="min-w-0 flex-1 bg-transparent text-[0.98rem] outline-none placeholder:text-muted"
+          className="min-w-0 flex-1 bg-transparent text-[0.98rem] outline-none text-white placeholder:text-subtle"
           defaultValue="売上実績を商品マスタ・部署マスタと結合して、部署別に今月の売上を合計して"
         />
       </label>
-      <Button variant="accent" disabled title="AIによるフロー作成は Phase 2 で実装します">
+      <Button variant="light" disabled title="AIによるフロー作成は Phase 2 で実装します">
         <Sparkles className="size-4" aria-hidden />
         フローを作成
       </Button>
       {questions > 0 && (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-[0.88rem] font-bold text-accent ring-1 ring-accent/30">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/10 px-3 py-1.5 text-[0.88rem] font-bold text-mint ring-1 ring-mint/35">
           <CircleHelp className="size-4" aria-hidden />
           AIからの確認 {questions}件
         </span>
       )}
-      <span className="mx-1 h-8 w-px bg-line" aria-hidden />
+      <span className="mx-1 h-8 w-px bg-edge" aria-hidden />
       <div className="flex flex-col items-end">
         <Button variant="primary" disabled title={`未確定のノードが${unconfirmed}件あります`}>
           <Play className="size-4" aria-hidden />
@@ -117,18 +117,18 @@ function AiBar({ questions, unconfirmed }: { questions: number; unconfirmed: num
 
 function FlowPanel({ nodes, selectedId, onSelect }: { nodes: SampleNode[]; selectedId: string; onSelect: (id: string) => void }) {
   return (
-    <aside className="flex min-h-0 flex-col border-r border-line bg-surface">
+    <aside className="flex min-h-0 flex-col border-r border-edge bg-nav">
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <PanelTitle title="入力ファイル" aside={`${SAMPLE_INPUTS.length}件 割当済み`} />
         <ul className="mb-5 space-y-1.5">
           {SAMPLE_INPUTS.map((f) => (
-            <li key={f.label} className="flex items-center gap-2.5 rounded-lg bg-white px-3 py-2 ring-1 ring-line">
-              <FileSpreadsheet className="size-4.5 shrink-0 text-success" aria-hidden />
+            <li key={f.label} className="flex items-center gap-2.5 rounded-lg bg-panel px-3 py-2 ring-1 ring-edge">
+              <FileSpreadsheet className="size-4.5 shrink-0 text-mint" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[0.88rem] font-bold">{f.label}</p>
-                <p className="truncate text-[0.78rem] text-muted">{f.file}</p>
+                <p className="truncate text-[0.78rem] text-subtle">{f.file}</p>
               </div>
-              <span className="shrink-0 text-[0.78rem] text-muted tabular-nums">{f.rows}</span>
+              <span className="shrink-0 text-[0.78rem] text-subtle tabular-nums">{f.rows}</span>
             </li>
           ))}
         </ul>
@@ -141,19 +141,19 @@ function FlowPanel({ nodes, selectedId, onSelect }: { nodes: SampleNode[]; selec
             const def = NODE_STATUS[n.status]
             return (
               <li key={n.node_id} className="relative pb-2.5 last:pb-0">
-                {i < nodes.length - 1 && <span className="absolute top-12 bottom-0 left-[1.6rem] w-0.5 bg-line" aria-hidden />}
+                {i < nodes.length - 1 && <span className="absolute top-12 bottom-0 left-[1.6rem] w-0.5 bg-mint/30" aria-hidden />}
                 <button
                   type="button"
                   onClick={() => onSelect(n.node_id)}
                   aria-current={active ? 'true' : undefined}
                   className={
-                    'relative flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left ring-1 transition-shadow focus-visible:outline-2 focus-visible:outline-accent ' +
-                    (active ? 'shadow-md ring-2 ring-accent' : `${def.ring} hover:shadow-sm`) +
-                    (n.status === 'ai_proposed' || n.status === 'pending' ? ' bg-[linear-gradient(90deg,var(--color-accent-soft),#fff_45%)]' : '')
+                    'relative flex w-full items-center gap-3 overflow-hidden rounded-xl bg-card py-2.5 pr-3 pl-4 text-left text-ink transition-shadow focus-visible:outline-2 focus-visible:outline-mint ' +
+                    (active ? 'shadow-[0_0_0_2px_#38D9AD,0_0_28px_-4px_rgba(56,217,173,0.55)]' : 'ring-1 ring-black/10 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.35)]')
                   }
                 >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface ring-1 ring-line">
-                    <Icon className="size-4.5 text-navy" aria-hidden />
+                  <span className={`absolute inset-y-0 left-0 w-1.5 ${def.stripe}`} aria-hidden />
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-paper ring-1 ring-line">
+                    <Icon className="size-4.5 text-forest" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[0.75rem] text-muted">
@@ -170,8 +170,8 @@ function FlowPanel({ nodes, selectedId, onSelect }: { nodes: SampleNode[]; selec
         </ol>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 border-t border-line bg-white px-3 py-2">
-        <Button variant="ghost" size="sm" disabled title="ノードの追加は Phase 3 で実装します">
+      <div className="flex shrink-0 items-center gap-1 border-t border-edge bg-nav px-3 py-2">
+        <Button variant="ghostDark" size="sm" disabled title="ノードの追加は Phase 3 で実装します">
           <Plus className="size-4" aria-hidden />
           処理を追加
         </Button>
@@ -191,7 +191,7 @@ function IconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) 
       disabled
       title={`${label}（Phase 3 で実装します）`}
       aria-label={label}
-      className="grid size-9 place-items-center rounded-lg text-ink disabled:cursor-not-allowed disabled:opacity-40"
+      className="grid size-9 place-items-center rounded-lg text-subtle hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
     >
       <Icon className="size-4.5" aria-hidden />
     </button>
@@ -201,8 +201,8 @@ function IconButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) 
 function PanelTitle({ title, aside }: { title: string; aside?: string }) {
   return (
     <div className="mb-2 flex items-baseline justify-between px-1">
-      <h2 className="text-[0.85rem] font-bold tracking-wide text-muted">{title}</h2>
-      {aside && <span className="text-[0.78rem] text-muted">{aside}</span>}
+      <h2 className="text-[0.85rem] font-bold tracking-wide text-subtle">{title}</h2>
+      {aside && <span className="text-[0.78rem] text-subtle">{aside}</span>}
     </div>
   )
 }
@@ -222,17 +222,17 @@ function DetailPanel({ node, index, onConfirm }: { node: SampleNode; index: numb
   const needsConfirm = node.status === 'ai_proposed' || node.status === 'pending'
 
   return (
-    <section className="flex min-h-0 flex-col bg-white">
+    <section className="light-panel flex min-h-0 flex-col">
       <div className="shrink-0 border-b border-line px-6 pt-4">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-accent-soft ring-1 ring-accent/20">
-            <Icon className="size-5 text-accent" aria-hidden />
+          <span className="grid size-10 place-items-center rounded-lg bg-mint-soft ring-1 ring-forest/20">
+            <Icon className="size-5 text-forest" aria-hidden />
           </span>
           <div className="min-w-0">
             <p className="text-[0.8rem] text-muted">
               ステップ {index + 1} ・ {NODE_TYPE_LABEL[node.node_type]}
             </p>
-            <h2 className="truncate text-[1.2rem] font-bold text-navy">{node.node_name}</h2>
+            <h2 className="truncate text-[1.2rem] font-bold text-ink">{node.node_name}</h2>
           </div>
           <StatusBadge status={node.status} className="ml-2" />
         </div>
@@ -245,8 +245,8 @@ function DetailPanel({ node, index, onConfirm }: { node: SampleNode; index: numb
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={
-                '-mb-px border-b-2 px-4 py-2 text-[0.92rem] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-accent ' +
-                (tab === t.id ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-ink')
+                '-mb-px border-b-2 px-4 py-2 text-[0.92rem] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-forest ' +
+                (tab === t.id ? 'border-mint text-forest' : 'border-transparent text-muted hover:text-ink')
               }
             >
               {t.label}
@@ -268,19 +268,19 @@ function SettingsTab({ node, needsConfirm, onConfirm }: { node: SampleNode; need
   return (
     <div className="max-w-3xl space-y-5">
       {needsConfirm && (
-        <div className="rounded-xl bg-accent-soft p-4 ring-1 ring-accent/25">
-          <p className="flex items-center gap-2 font-bold text-accent">
+        <div className="rounded-xl bg-mint-soft p-4 ring-1 ring-forest/25">
+          <p className="flex items-center gap-2 font-bold text-forest">
             <Sparkles className="size-4.5" aria-hidden />
             AIの提案です。内容を確認して確定してください。
           </p>
           {node.question && (
-            <div className="mt-3 rounded-lg bg-white p-3.5 ring-1 ring-accent/20">
+            <div className="mt-3 rounded-lg bg-paper p-3.5 ring-1 ring-forest/20">
               <p className="flex gap-2 text-[0.95rem]">
-                <CircleHelp className="mt-0.5 size-4.5 shrink-0 text-accent" aria-hidden />
+                <CircleHelp className="mt-0.5 size-4.5 shrink-0 text-forest" aria-hidden />
                 {node.question.text}
               </p>
               <div className="mt-3 flex gap-2 pl-6">
-                <Button variant="accent" size="sm" onClick={onConfirm}>
+                <Button variant="primary" size="sm" onClick={onConfirm}>
                   {node.question.yes}
                 </Button>
                 <Button variant="secondary" size="sm" disabled title="設定の変更は Phase 3 で実装します">
@@ -292,7 +292,7 @@ function SettingsTab({ node, needsConfirm, onConfirm }: { node: SampleNode; need
         </div>
       )}
       {node.status === 'unset' && (
-        <p className="rounded-xl bg-surface p-4 text-[0.95rem] ring-1 ring-line">
+        <p className="rounded-xl bg-paper p-4 text-[0.95rem] ring-1 ring-line">
           <span className="font-bold">未設定の項目があります。</span>必要な項目を入力すると、このステップを確定できます。
         </p>
       )}
@@ -302,11 +302,11 @@ function SettingsTab({ node, needsConfirm, onConfirm }: { node: SampleNode; need
           <div key={p.label} className="grid grid-cols-[10rem_minmax(0,1fr)] items-center gap-4 px-4 py-3">
             <dt className="text-[0.9rem] font-bold text-muted">{p.label}</dt>
             <dd className="flex items-center gap-2">
-              <span className={`flex-1 rounded-lg px-3 py-1.5 ring-1 ${p.ai && needsConfirm ? 'bg-accent-soft/60 ring-accent/30' : 'bg-surface ring-line'}`}>
+              <span className={`flex-1 rounded-lg px-3 py-1.5 ring-1 ${p.ai && needsConfirm ? 'bg-mint-soft ring-forest/30' : 'bg-paper ring-line'}`}>
                 {p.value}
               </span>
               {p.ai && needsConfirm && (
-                <span className="inline-flex shrink-0 items-center gap-1 text-[0.78rem] font-bold text-accent">
+                <span className="inline-flex shrink-0 items-center gap-1 text-[0.78rem] font-bold text-forest">
                   <Sparkles className="size-3.5" aria-hidden />
                   AI提案
                 </span>
@@ -332,13 +332,13 @@ function SettingsTab({ node, needsConfirm, onConfirm }: { node: SampleNode; need
 
 function CountsBox({ counts }: { counts: NonNullable<SampleNode['counts']> }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-surface px-4 py-3 ring-1 ring-line">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-paper px-4 py-3 ring-1 ring-line">
       <span className="text-[0.88rem] font-bold text-muted">件数の変化</span>
       <span className="text-[1.05rem] font-bold tabular-nums">
         {counts.before} <span className="text-muted">→</span> {counts.after}
       </span>
       {counts.note && (
-        <span className="rounded-full bg-warning-soft px-2.5 py-0.5 text-[0.85rem] font-bold text-warning ring-1 ring-warning/30">
+        <span className="rounded-full bg-warning-soft px-2.5 py-0.5 text-[0.85rem] font-bold text-warning-ink ring-1 ring-warning/30">
           {counts.note}
         </span>
       )}
@@ -358,19 +358,19 @@ function PreviewTab({ node }: { node: SampleNode }) {
         <span className="text-muted">
           表示：先頭{p.shown}行 ／ 全{p.total}行
         </span>
-        <span className="ml-auto inline-flex items-center gap-1.5 text-[0.85rem] text-success">
-          <span className="size-2.5 rounded-sm bg-success" aria-hidden />
+        <span className="ml-auto inline-flex items-center gap-1.5 text-[0.85rem] text-forest">
+          <span className="size-2.5 rounded-sm bg-mint" aria-hidden />
           追加された列
         </span>
       </div>
       <div className="overflow-x-auto rounded-xl ring-1 ring-line">
         <table className="w-full text-[0.92rem]">
           <thead>
-            <tr className="bg-surface">
+            <tr className="bg-card">
               {p.columns.map((c) => (
                 <th
                   key={c.name}
-                  className={`border-b border-line px-3 py-2 text-left font-bold whitespace-nowrap ${c.added ? 'bg-success-soft text-success' : 'text-muted'} ${c.numeric ? 'text-right' : ''}`}
+                  className={`border-b border-line px-3 py-2 text-left font-bold whitespace-nowrap ${c.added ? 'bg-mint-soft text-forest' : 'text-muted'} ${c.numeric ? 'text-right' : ''}`}
                 >
                   {c.added && '＋ '}
                   {c.name}
@@ -385,7 +385,7 @@ function PreviewTab({ node }: { node: SampleNode }) {
                 <tr key={ri} className={`border-t border-line ${unmatched ? 'bg-warning-soft/60' : ''}`}>
                   {r.map((v, ci) => (
                     <td key={ci} className={`px-3 py-2 whitespace-nowrap ${p.columns[ci].numeric ? 'text-right tabular-nums' : ''}`}>
-                      {v === null ? <span className="text-[0.85rem] font-bold text-warning">未照合</span> : <span className="whitespace-pre">{v}</span>}
+                      {v === null ? <span className="text-[0.85rem] font-bold text-warning-ink">未照合</span> : <span className="whitespace-pre">{v}</span>}
                     </td>
                   ))}
                 </tr>
@@ -394,7 +394,7 @@ function PreviewTab({ node }: { node: SampleNode }) {
           </tbody>
         </table>
       </div>
-      <p className="flex gap-2 rounded-lg bg-warning-soft px-3.5 py-2.5 text-[0.9rem] text-warning ring-1 ring-warning/25">
+      <p className="flex gap-2 rounded-lg bg-warning-soft px-3.5 py-2.5 text-[0.9rem] text-warning-ink ring-1 ring-warning/25">
         <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span>
           未照合の行は削除せず残しています。「C-3300 」のように<span className="font-bold">末尾に空白</span>
@@ -416,7 +416,7 @@ function DiffTab({ node }: { node: SampleNode }) {
   return (
     <dl className="grid max-w-3xl grid-cols-2 gap-3">
       {items.map((it) => (
-        <div key={it.k} className="rounded-xl bg-surface px-4 py-3 ring-1 ring-line">
+        <div key={it.k} className="rounded-xl bg-paper px-4 py-3 ring-1 ring-line">
           <dt className="text-[0.85rem] font-bold text-muted">{it.k}</dt>
           <dd className="mt-1 text-[1.02rem] font-bold">{it.v}</dd>
         </div>
@@ -426,7 +426,7 @@ function DiffTab({ node }: { node: SampleNode }) {
 }
 
 function EmptyNote({ text }: { text: string }) {
-  return <p className="max-w-2xl rounded-xl bg-surface px-4 py-6 text-center text-muted ring-1 ring-line">{text}</p>
+  return <p className="max-w-2xl rounded-xl bg-paper px-4 py-6 text-center text-muted ring-1 ring-line">{text}</p>
 }
 
 /* ---------- 下：検証結果・処理ログ ---------- */
@@ -435,7 +435,7 @@ function ResultsPanel({ unconfirmed }: { unconfirmed: number }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'checks' | 'log'>('checks')
   return (
-    <section className="shrink-0 border-t border-line bg-white">
+    <section className="shrink-0 border-t border-edge bg-nav">
       <div className="flex h-12 items-center gap-4 px-5">
         <div className="flex gap-1" role="tablist">
           {(
@@ -454,29 +454,29 @@ function ResultsPanel({ unconfirmed }: { unconfirmed: number }) {
                 setOpen(true)
               }}
               className={
-                'rounded-md px-3 py-1.5 text-[0.9rem] font-bold focus-visible:outline-2 focus-visible:outline-accent ' +
-                (tab === id ? 'bg-surface text-navy' : 'text-muted hover:text-ink')
+                'rounded-md px-3 py-1.5 text-[0.9rem] font-bold focus-visible:outline-2 focus-visible:outline-mint ' +
+                (tab === id ? 'bg-panel text-white' : 'text-subtle hover:text-white')
               }
             >
               {label}
             </button>
           ))}
         </div>
-        <p className="text-[0.9rem] text-muted">
+        <p className="text-[0.9rem] text-subtle">
           まだ実行していません。未確定のステップ（{unconfirmed}件）をすべて確定すると実行できます。
         </p>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[0.88rem] font-bold text-accent hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent"
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[0.88rem] font-bold text-mint hover:bg-mint/10 focus-visible:outline-2 focus-visible:outline-mint"
         >
           {open ? <ChevronDown className="size-4" aria-hidden /> : <ChevronUp className="size-4" aria-hidden />}
           {open ? '閉じる' : '詳細を開く'}
         </button>
       </div>
       {open && (
-        <div className="border-t border-line px-5 py-4 text-[0.92rem] text-muted">
+        <div className="border-t border-edge px-5 py-4 text-[0.92rem] text-subtle">
           {tab === 'checks'
             ? '実行すると、ここに「結論 → 重要な検証結果 → 詳細」の順で結果を表示します（件数・重複・欠損・結合漏れ・金額の差異）。'
             : '実行すると、各ステップの処理件数と所要時間をここに記録します。'}

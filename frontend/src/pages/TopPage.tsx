@@ -20,7 +20,7 @@ import { Button } from '../components/ui/Button'
 
 export default function TopPage() {
   return (
-    <div className="min-h-screen overflow-x-clip">
+    <div className="min-h-screen overflow-x-clip bg-canvas">
       <SiteHeader />
       <main>
         <Hero />
@@ -40,26 +40,25 @@ const HERO_POINTS = ['Excel（.xlsx）・CSVに対応', 'AIの提案は確認し
 
 function Hero() {
   return (
-    <section className="relative bg-navy text-white">
-      {/* 控えめな背景装飾：方眼と、右上の淡い光 */}
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:40px_40px]" />
-      <div className="pointer-events-none absolute -top-40 right-0 h-[480px] w-[640px] bg-[radial-gradient(closest-side,rgba(22,132,91,0.22),transparent)]" />
+    <section className="relative">
+      {/* 控えめな背景装飾：細い方眼と、右側のミントの光 */}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-12 sm:px-8 lg:pt-12 lg:pb-14 xl:grid-cols-[minmax(0,1fr)_600px] xl:gap-12">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-12 sm:px-8 lg:pt-12 lg:pb-14 xl:grid-cols-[minmax(0,1fr)_640px] xl:gap-10">
         <div>
-          <p className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1 text-[0.85rem] font-bold text-mint ring-1 ring-white/15">
+          <p className="mb-5 inline-flex items-center gap-1.5 rounded-full bg-mint/10 px-3 py-1 text-[0.85rem] font-bold text-mint ring-1 ring-mint/30">
             <Sparkles className="size-4" aria-hidden />
             Excel定型業務の自動化 × AI
           </p>
           {/* 2行で必ず区切る（行の途中では改行しない）。スマートフォンでは文字を小さくして収める */}
-          <h1 className="text-[1.95rem] leading-[1.25] font-bold tracking-tight sm:text-[2.9rem] xl:text-[3.05rem]">
+          <h1 className="text-[1.95rem] leading-[1.22] font-bold tracking-tight text-white sm:text-[2.9rem] xl:text-[3.1rem]">
             <span className="whitespace-nowrap">そのExcel作業、</span>
             <br />
             <span className="whitespace-nowrap">
               次からは<span className="text-mint">ワンクリック。</span>
             </span>
           </h1>
-          <p className="mt-5 max-w-[34rem] text-[1.07rem] leading-relaxed text-white/80">
+          <p className="mt-5 max-w-[34rem] text-[1.07rem] leading-relaxed text-subtle">
             複数のExcelから必要な列を抽出し、結合・集計・照合。AIが処理フローを提案し、一度作った手順は何度でも再利用できます。
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -72,7 +71,7 @@ function Hero() {
               自分のExcelで試す
             </Button>
           </div>
-          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-[0.9rem] text-white/75">
+          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-[0.9rem] text-subtle">
             {HERO_POINTS.map((p) => (
               <li key={p} className="inline-flex items-center gap-1.5">
                 <Check className="size-4 text-mint" aria-hidden />
@@ -82,7 +81,7 @@ function Hero() {
           </ul>
         </div>
 
-        {/* 幅640px以上：重ね合わせの図／スマートフォン：縦並びの簡易版 */}
+        {/* 幅640px以上：フロー図／スマートフォン：縦並びの簡易版 */}
         <div className="hidden justify-center sm:flex xl:justify-end">
           <HeroVisual />
         </div>
@@ -96,26 +95,23 @@ function Hero() {
 
 /* ================= 3つの特長 ================= */
 
-type Feature = { icon: LucideIcon; tone: string; title: string; body: string; points: string[] }
+type Feature = { icon: LucideIcon; title: string; body: string; points: string[] }
 
 const FEATURES: Feature[] = [
   {
     icon: Sparkles,
-    tone: 'bg-accent text-white',
     title: 'AIでフロー作成',
     body: '日本語で業務を説明すると、AIが処理手順を提案します。結合キーなど重要な条件は、人が確認してから確定します。',
-    points: ['関数やマクロの知識は不要', '提案と確定済みを色で区別'],
+    points: ['関数やマクロの知識は不要', 'AIの提案と確定済みを区別して表示'],
   },
   {
     icon: ShieldCheck,
-    tone: 'bg-success text-white',
     title: 'データ品質を検証',
     body: '重複、欠損、結合漏れ、集計結果の不整合を自動で検出。重大な問題があれば処理を止め、原因と直し方を示します。',
     points: ['結合前後の件数・金額を照合', '未照合レコードを一覧で確認'],
   },
   {
     icon: RefreshCw,
-    tone: 'bg-navy text-white',
     title: '何度でも再実行',
     body: '一度作った処理フローを保存し、翌月は新しいExcelを指定するだけ。列名の変更などは実行前に知らせます。',
     points: ['フローはファイルで保存・共有', '担当者が替わっても同じ手順'],
@@ -124,28 +120,28 @@ const FEATURES: Feature[] = [
 
 function Features() {
   return (
-    <section id="features" className="scroll-mt-16 bg-white">
+    <section id="features" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:py-20">
         <SectionHeading
           eyebrow="特長"
           title="Excel作業の「手間」と「不安」を、まとめて解消"
           lead="作業を自動化するだけでなく、結果が正しいかを確かめ、同じ手順を繰り返し使えるようにします。"
         />
-        <div className="mt-10 grid gap-10 md:grid-cols-3 md:gap-0 md:divide-x md:divide-line">
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
           {FEATURES.map((f, i) => (
-            <div key={f.title} className="md:px-8 md:first:pl-0 md:last:pr-0">
-              <div className="flex items-center gap-3">
-                <span className={`grid size-12 place-items-center rounded-xl shadow-sm ${f.tone}`}>
+            <div key={f.title} className="group rounded-2xl bg-panel p-6 ring-1 ring-edge transition-colors hover:ring-mint/40">
+              <div className="flex items-center justify-between">
+                <span className="grid size-12 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
                   <f.icon className="size-6" aria-hidden />
                 </span>
-                <span className="text-[0.85rem] font-bold text-muted">0{i + 1}</span>
+                <span className="text-[0.85rem] font-bold text-subtle/60 tabular-nums">0{i + 1}</span>
               </div>
-              <h3 className="mt-4 text-[1.3rem] font-bold text-navy">{f.title}</h3>
-              <p className="mt-2 leading-relaxed text-ink/85">{f.body}</p>
-              <ul className="mt-4 space-y-1.5">
+              <h3 className="mt-5 text-[1.3rem] font-bold text-white">{f.title}</h3>
+              <p className="mt-2 leading-relaxed text-subtle">{f.body}</p>
+              <ul className="mt-5 space-y-1.5 border-t border-edge pt-4">
                 {f.points.map((p) => (
-                  <li key={p} className="flex items-center gap-2 text-[0.92rem] text-ink/80">
-                    <Check className="size-4 shrink-0 text-success" aria-hidden />
+                  <li key={p} className="flex items-center gap-2 text-[0.92rem] text-white/85">
+                    <Check className="size-4 shrink-0 text-mint" aria-hidden />
                     {p}
                   </li>
                 ))}
@@ -164,7 +160,7 @@ const OTHER_USES = ['月次売上集計', 'マスタとの照合', '在庫差異
 
 function UseCases() {
   return (
-    <section id="usecases" className="scroll-mt-16 border-y border-line bg-surface">
+    <section id="usecases" className="scroll-mt-16 bg-canvas">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-8 lg:grid-cols-[22rem_minmax(0,1fr)] lg:gap-14 lg:py-20">
         <div>
           <SectionHeading
@@ -172,10 +168,10 @@ function UseCases() {
             title="バラバラなExcelから、必要な列だけを集めて1つに"
             lead="支店や担当者ごとに列の並びや名前が違うファイルでも、使う列を対応付けて1つの表に統合できます。足りない列があれば、統合前に知らせます。"
           />
-          <p className="mt-6 mb-2 text-[0.85rem] font-bold text-muted">こんな業務にも</p>
+          <p className="mt-6 mb-2 text-[0.85rem] font-bold text-subtle">こんな業務にも</p>
           <ul className="flex flex-wrap gap-2">
             {OTHER_USES.map((u) => (
-              <li key={u} className="rounded-full bg-white px-3 py-1 text-[0.88rem] ring-1 ring-line">
+              <li key={u} className="rounded-full bg-panel px-3 py-1 text-[0.88rem] text-white/90 ring-1 ring-edge">
                 {u}
               </li>
             ))}
@@ -217,7 +213,7 @@ const DEMOS: Demo[] = [
 
 function Demos() {
   return (
-    <section id="demo" className="scroll-mt-16 bg-white">
+    <section id="demo" className="scroll-mt-16 border-y border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:py-20">
         <SectionHeading
           eyebrow="デモ"
@@ -226,22 +222,22 @@ function Demos() {
         />
         <div className="mt-10 grid gap-6 lg:grid-cols-2">
           {DEMOS.map((d) => (
-            <article key={d.title} className="flex flex-col rounded-2xl bg-surface p-6 ring-1 ring-line sm:p-7">
+            <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-6 ring-1 ring-edge sm:p-7">
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-[1.3rem] font-bold text-navy">{d.title}</h3>
+                <h3 className="text-[1.3rem] font-bold text-white">{d.title}</h3>
                 {d.status === 'coming_soon' && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-soft px-2.5 py-0.5 text-[0.8rem] font-bold text-warning ring-1 ring-warning/30">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2.5 py-0.5 text-[0.8rem] font-bold text-warning ring-1 ring-warning/40">
                     <Clock3 className="size-3.5" aria-hidden />
                     準備中
                   </span>
                 )}
               </div>
-              <p className="mt-2 leading-relaxed text-ink/85">{d.summary}</p>
+              <p className="mt-2 leading-relaxed text-subtle">{d.summary}</p>
 
-              <div className="mt-5 grid flex-1 items-start gap-3 sm:grid-cols-[1fr_auto_1fr]">
-                <IoList label="入力するファイル" items={d.inputs} icon={FileSpreadsheet} iconClass="text-success" />
-                <ArrowRight className="mx-auto mt-8 hidden size-5 text-muted sm:block" aria-hidden />
-                <IoList label="得られる結果" items={d.outputs} icon={Check} iconClass="text-accent" />
+              <div className="mt-5 grid flex-1 items-stretch gap-3 sm:grid-cols-[1fr_auto_1fr]">
+                <IoList label="入力するファイル" items={d.inputs} icon={FileSpreadsheet} />
+                <ArrowRight className="mx-auto hidden size-5 self-center text-mint sm:block" aria-hidden />
+                <IoList label="得られる結果" items={d.outputs} icon={Check} />
               </div>
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -249,7 +245,7 @@ function Demos() {
                   <Play className="size-4" aria-hidden />
                   このデモを始める
                 </Button>
-                {d.status === 'coming_soon' && <span className="text-[0.88rem] text-muted">公開準備が整い次第、ここから開始できます。</span>}
+                {d.status === 'coming_soon' && <span className="text-[0.88rem] text-subtle">公開準備が整い次第、ここから開始できます。</span>}
               </div>
             </article>
           ))}
@@ -259,14 +255,14 @@ function Demos() {
   )
 }
 
-function IoList({ label, items, icon: Icon, iconClass }: { label: string; items: string[]; icon: LucideIcon; iconClass: string }) {
+function IoList({ label, items, icon: Icon }: { label: string; items: string[]; icon: LucideIcon }) {
   return (
-    <div className="h-full rounded-xl bg-white p-4 ring-1 ring-line">
-      <p className="mb-2 text-[0.82rem] font-bold text-muted">{label}</p>
+    <div className="rounded-xl bg-canvas/70 p-4 ring-1 ring-edge">
+      <p className="mb-2 text-[0.82rem] font-bold text-subtle">{label}</p>
       <ul className="space-y-1.5">
         {items.map((it) => (
-          <li key={it} className="flex items-center gap-2 text-[0.92rem]">
-            <Icon className={`size-4 shrink-0 ${iconClass}`} aria-hidden />
+          <li key={it} className="flex items-center gap-2 text-[0.92rem] text-white/90">
+            <Icon className="size-4 shrink-0 text-mint" aria-hidden />
             {it}
           </li>
         ))}
@@ -298,22 +294,20 @@ const CAUTIONS: { icon: LucideIcon; text: string }[] = [
 
 function TryOwnExcel() {
   return (
-    <section id="try" className="relative scroll-mt-16 overflow-hidden bg-navy text-white">
-      <div className="pointer-events-none absolute -bottom-40 -left-20 h-[420px] w-[620px] bg-[radial-gradient(closest-side,rgba(37,99,166,0.35),transparent)]" />
+    <section id="try" className="relative scroll-mt-16 overflow-hidden bg-canvas">
+      <div className="pointer-events-none absolute -bottom-48 -left-24 h-[460px] w-[680px] bg-[radial-gradient(closest-side,rgba(56,217,173,0.14),transparent)]" />
       <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-8 lg:grid-cols-2 lg:gap-14 lg:py-20">
         <div>
           <p className="text-[0.88rem] font-bold text-mint">はじめ方</p>
-          <h2 className="mt-2 text-[1.9rem] leading-snug font-bold sm:text-[2.2rem]">自分のExcelで試す</h2>
-          <p className="mt-3 leading-relaxed text-white/75">いつもの業務ファイルで、3ステップで始められます。</p>
+          <h2 className="mt-2 text-[1.9rem] leading-snug font-bold text-white sm:text-[2.2rem]">自分のExcelで試す</h2>
+          <p className="mt-3 leading-relaxed text-subtle">いつもの業務ファイルで、3ステップで始められます。</p>
           <ol className="mt-7 space-y-4">
             {STEPS_TO_START.map((s, i) => (
               <li key={s.title} className="flex gap-4">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/10 font-bold text-mint ring-1 ring-white/20">
-                  {i + 1}
-                </span>
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-mint/12 font-bold text-mint ring-1 ring-mint/35">{i + 1}</span>
                 <div>
-                  <p className="font-bold">{s.title}</p>
-                  <p className="text-[0.92rem] text-white/65">{s.body}</p>
+                  <p className="font-bold text-white">{s.title}</p>
+                  <p className="text-[0.92rem] text-subtle">{s.body}</p>
                 </div>
               </li>
             ))}
@@ -326,9 +320,10 @@ function TryOwnExcel() {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 text-ink shadow-xl sm:p-7">
-          <h3 className="text-[1.1rem] font-bold text-navy">対応形式</h3>
-          <dl className="mt-3 divide-y divide-line rounded-lg ring-1 ring-line">
+        {/* 対応形式・注意は「読む」情報なので明るいパネルにする */}
+        <div className="light-panel rounded-2xl p-6 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] sm:p-7">
+          <h3 className="text-[1.1rem] font-bold">対応形式</h3>
+          <dl className="mt-3 divide-y divide-line rounded-lg bg-paper ring-1 ring-line">
             {SPECS.map((s) => (
               <div key={s.k} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[9rem_1fr]">
                 <dt className="text-[0.88rem] font-bold text-muted">{s.k}</dt>
@@ -336,11 +331,11 @@ function TryOwnExcel() {
               </div>
             ))}
           </dl>
-          <h3 className="mt-6 text-[1.1rem] font-bold text-navy">ご利用上の注意</h3>
+          <h3 className="mt-6 text-[1.1rem] font-bold">ご利用上の注意</h3>
           <ul className="mt-3 space-y-2.5">
             {CAUTIONS.map((c) => (
               <li key={c.text} className="flex gap-2.5 text-[0.92rem] leading-relaxed">
-                <c.icon className="mt-0.5 size-4.5 shrink-0 text-accent" aria-hidden />
+                <c.icon className="mt-0.5 size-4.5 shrink-0 text-forest" aria-hidden />
                 {c.text}
               </li>
             ))}
@@ -356,9 +351,9 @@ function TryOwnExcel() {
 function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: string; lead: string }) {
   return (
     <div className="max-w-3xl">
-      <p className="text-[0.88rem] font-bold text-accent">{eyebrow}</p>
-      <h2 className="mt-2 text-[1.75rem] leading-snug font-bold text-navy sm:text-[2.1rem]">{title}</h2>
-      <p className="mt-3 leading-relaxed text-ink/80">{lead}</p>
+      <p className="text-[0.88rem] font-bold text-mint">{eyebrow}</p>
+      <h2 className="mt-2 text-[1.75rem] leading-snug font-bold text-white sm:text-[2.1rem]">{title}</h2>
+      <p className="mt-3 leading-relaxed text-subtle">{lead}</p>
     </div>
   )
 }

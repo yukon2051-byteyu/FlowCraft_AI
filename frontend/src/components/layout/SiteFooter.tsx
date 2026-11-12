@@ -3,7 +3,7 @@ import { Logo } from '../brand/Logo'
 
 export function SiteFooter() {
   return (
-    <footer className="bg-navy text-white/70">
+    <footer className="border-t border-edge bg-nav text-subtle">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 sm:px-8 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2">
           <Logo />
@@ -16,7 +16,7 @@ export function SiteFooter() {
             <a href="/#try" className="hover:text-white">データの取り扱い</a>
             <Link to="/dev/diagnostics" className="hover:text-white">システム状態（開発者向け）</Link>
           </nav>
-          <p className="text-white/50">© 2026 FlowCraft AI ・ 転職用ポートフォリオとして開発中の製品です</p>
+          <p className="text-subtle/70">© 2026 FlowCraft AI ・ 転職用ポートフォリオとして開発中の製品です</p>
         </div>
       </div>
     </footer>

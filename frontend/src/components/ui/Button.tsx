@@ -2,29 +2,36 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
 /**
- * 製品全体で使う共通ボタン。
- * 見た目の種類（variant）をここで一元管理し、画面ごとに色や形がずれないようにする。
+ * 製品全体で使う共通ボタン。見た目の種類（variant）をここで一元管理する。
  *
- * - primary     ：その画面で一番押してほしい操作（緑）
- * - accent      ：主要だが「開始」以外の操作（青。例：フローを作成）
- * - secondary   ：明るい背景の上の補助操作（白地＋青枠）
- * - outlineDark ：ネイビー背景の上の補助操作（白枠）
- * - ghost       ：ツールバーなど控えめな操作
+ * 暗い面の上：
+ *   - primary     ：その画面で一番押してほしい操作（ミント）
+ *   - light       ：重要だが主役ではない操作（白）
+ *   - outlineDark ：補助操作（白枠）
+ *   - ghostDark   ：ツールバーなど控えめな操作
+ * 明るい面の上：
+ *   - primary     ：（同上・ミント）
+ *   - dark        ：重要だが主役ではない操作（濃色）
+ *   - secondary   ：補助操作（白地＋枠）
+ *   - ghost       ：控えめな操作
+ *   - danger      ：削除などの取り消せない操作
  */
-export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'outlineDark' | 'ghost'
+export type ButtonVariant = 'primary' | 'light' | 'outlineDark' | 'ghostDark' | 'dark' | 'secondary' | 'ghost' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 const base =
   'inline-flex items-center justify-center gap-2 rounded-full font-bold whitespace-nowrap transition-colors duration-150 ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 select-none'
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint select-none'
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-success text-white shadow-sm hover:bg-[#106b49] focus-visible:outline-success',
-  accent: 'bg-accent text-white shadow-sm hover:bg-accent-hover focus-visible:outline-accent',
-  secondary:
-    'bg-white text-accent ring-1 ring-inset ring-accent/40 hover:bg-accent-soft hover:ring-accent focus-visible:outline-accent',
-  outlineDark: 'text-white ring-1 ring-inset ring-white/40 hover:bg-white/10 hover:ring-white/70 focus-visible:outline-white',
-  ghost: 'text-ink hover:bg-surface focus-visible:outline-accent',
+  primary: 'bg-mint text-on-mint shadow-[0_0_0_1px_rgba(56,217,173,0.4),0_8px_24px_-8px_rgba(56,217,173,0.55)] hover:bg-mint-hover',
+  light: 'bg-white text-ink hover:bg-card',
+  outlineDark: 'text-white ring-1 ring-inset ring-white/25 hover:bg-white/8 hover:ring-white/50',
+  ghostDark: 'text-subtle hover:bg-white/8 hover:text-white',
+  dark: 'bg-ink text-white hover:bg-[#25332f] focus-visible:outline-forest',
+  secondary: 'bg-paper text-ink ring-1 ring-inset ring-line hover:ring-forest/50 hover:bg-mint-soft/50 focus-visible:outline-forest',
+  ghost: 'text-ink hover:bg-ink/6 focus-visible:outline-forest',
+  danger: 'bg-error-ink text-white hover:bg-[#962e2e] focus-visible:outline-error',
 }
 
 const sizes: Record<ButtonSize, string> = {
@@ -33,7 +40,7 @@ const sizes: Record<ButtonSize, string> = {
   lg: 'h-13 px-7 text-[1.05rem]',
 }
 
-const disabledStyle = 'opacity-45 cursor-not-allowed pointer-events-none'
+const disabledStyle = 'opacity-40 cursor-not-allowed pointer-events-none shadow-none'
 
 type Props = {
   children: ReactNode

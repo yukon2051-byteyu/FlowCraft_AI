@@ -1,29 +1,50 @@
 @import "tailwindcss";
 
 /*
- * FlowCraft AI のデザイントークン（色・文字の決まりごと）
- * 仕様書 15.1 のカラーパレットをここ1か所で定義し、画面ではクラス名で使う。
- * 例：bg-navy（背景ネイビー）、text-accent（アクセントブルーの文字）、border-error
+ * FlowCraft AI デザイントークン（v2：ブラック × ミント）
+ * 色はここでだけ定義し、画面ではクラス名（bg-canvas, text-mint など）で使う。
+ *
+ * 使い分けの原則
+ *   ミント   ：主要操作・選択中・フローの進行（＋AIの確認事項）
+ *   グリーン ：正常完了（確定・検証OK）
+ *   アンバー ：警告　／　レッド：エラー　／　グレー：無効・未設定
+ *   明るいパネル：データ・設定など「読む・入力する」領域に限って使う
+ * 状態は色だけでなく、必ずアイコンと文字を併用する。
  */
 @theme {
-  --color-navy: #14263d;
-  --color-navy-soft: #1d3452; /* ネイビー上のカード */
-  --color-navy-line: #2c4766; /* ネイビー上の枠線 */
-  --color-accent: #2563a6;
-  --color-accent-hover: #1d4f86;
-  --color-accent-soft: #e8f0f9; /* AI提案ノードの背景など、アクセントの淡色 */
-  --color-surface: #f5f7fa; /* 画面の背景 */
-  --color-card: #ffffff;
-  --color-ink: #1e293b; /* 本文 */
-  --color-muted: #64748b; /* 補助文字・未設定状態 */
-  --color-line: #dde3ea; /* 枠線 */
-  --color-success: #16845b;
-  --color-success-soft: #e7f4ee;
-  --color-mint: #7fd3ae; /* ネイビー背景の上で使う、明るいグリーン */
-  --color-warning: #b7791f;
-  --color-warning-soft: #fbf3e4;
-  --color-error: #c24141;
-  --color-error-soft: #fbeaea;
+  /* --- 暗い面 --- */
+  --color-canvas: #111113; /* 全体背景 */
+  --color-nav: #18181b; /* ナビゲーション・サイドバー */
+  --color-panel: #222326; /* ダークパネル */
+  --color-panel-hi: #2b2c30; /* ダークパネル（ホバー・一段明るい面） */
+  --color-edge: #34363b; /* 暗い面の境界線 */
+  --color-subtle: #b8bebc; /* 暗い面の補助文字 */
+
+  /* --- 明るい面（データ・設定を読む領域） --- */
+  --color-card: #f7f9f8; /* 明るいカード */
+  --color-paper: #ffffff; /* カード内の表・入力欄 */
+  --color-line: #dde3e0; /* 明るい面の境界線 */
+  --color-ink: #17211e; /* 明るい面のメイン文字 */
+  --color-muted: #5e6966; /* 明るい面の補助文字 */
+
+  /* --- アクセント --- */
+  --color-mint: #38d9ad;
+  --color-mint-hover: #62e4c0;
+  --color-mint-soft: #ddf6ee; /* 明るい面でのミントの下地 */
+  --color-forest: #135f50; /* 深いグリーン。明るい面ではミントの代わりに文字色として使う */
+  --color-on-mint: #08201a; /* ミントの上の文字 */
+
+  /* --- 状態 --- */
+  --color-success: #2fa866;
+  --color-success-ink: #1d7442;
+  --color-success-soft: #e2f4e9;
+  --color-warning: #e5a34b;
+  --color-warning-ink: #8a5710;
+  --color-warning-soft: #fbefdd;
+  --color-error: #e36565;
+  --color-error-ink: #af3838;
+  --color-error-soft: #fbe7e7;
+  --color-idle: #8a918f; /* 無効・未設定 */
 
   --font-sans: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
 }
@@ -31,6 +52,7 @@
 /* 小さすぎる文字を避ける（仕様 15.5）：本文の基準を15pxにする */
 html {
   font-size: 15px;
+  color-scheme: dark;
 }
 
 /* ページ内リンクで滑らかにスクロール（動きを減らす設定の利用者には適用しない） */
@@ -41,7 +63,13 @@ html {
 }
 
 body {
-  @apply bg-surface text-ink font-sans antialiased;
+  @apply bg-canvas text-white font-sans antialiased;
+}
+
+/* 明るいパネルの中は文字色・フォーム部品を明るい面用に切り替える */
+.light-panel {
+  @apply bg-card text-ink;
+  color-scheme: light;
 }
 
 /* ヒーロー図の接続線が流れて見えるアニメーション */

@@ -7,7 +7,7 @@ type Props = {
   onFiles: (files: File[]) => void
   disabled?: boolean
   disabledReason?: string
-  /** compact：ファイル読込後に一覧の下へ置く小さい版 */
+  /** compact：ファイル読込後、暗いサイドバーに置く小さい版 */
   compact?: boolean
 }
 
@@ -31,16 +31,26 @@ export function Dropzone({ onFiles, disabled = false, disabledReason, compact = 
     if (!disabled) setOver(true)
   }
 
-  const frame =
-    'rounded-xl border-2 border-dashed text-center transition-colors ' +
-    (disabled
-      ? 'border-line bg-surface'
+  // 大きい版は明るいパネルの中、小さい版は暗いサイドバーの中に置く
+  const frame = compact
+    ? disabled
+      ? 'border-edge bg-panel/40'
       : over
-        ? 'border-accent bg-accent-soft'
-        : 'border-accent/35 bg-accent-soft/40 hover:border-accent/60')
+        ? 'border-mint bg-mint/10'
+        : 'border-edge bg-panel/40 hover:border-mint/50'
+    : disabled
+      ? 'border-line bg-paper'
+      : over
+        ? 'border-forest bg-mint-soft'
+        : 'border-forest/30 bg-mint-soft/40 hover:border-forest/60'
 
   return (
-    <div onDrop={onDrop} onDragOver={onDragOver} onDragLeave={() => setOver(false)} className={`${frame} ${compact ? 'px-4 py-5' : 'px-6 py-10'}`}>
+    <div
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={() => setOver(false)}
+      className={`rounded-xl border-2 border-dashed text-center transition-colors ${frame} ${compact ? 'px-4 py-5' : 'px-6 py-10'}`}
+    >
       <input
         ref={input}
         type="file"
@@ -56,9 +66,9 @@ export function Dropzone({ onFiles, disabled = false, disabledReason, compact = 
       />
       {compact ? (
         <>
-          <p className="text-[0.88rem] text-muted">ここにドラッグ＆ドロップ、または</p>
+          <p className="text-[0.88rem] text-subtle">ここにドラッグ＆ドロップ、または</p>
           <div className="mt-2 flex justify-center">
-            <Button variant="secondary" size="sm" onClick={pick} disabled={disabled} title={disabledReason}>
+            <Button variant="outlineDark" size="sm" onClick={pick} disabled={disabled} title={disabledReason}>
               <Upload className="size-4" aria-hidden />
               ファイルを追加
             </Button>
@@ -66,13 +76,13 @@ export function Dropzone({ onFiles, disabled = false, disabledReason, compact = 
         </>
       ) : (
         <>
-          <span className="mx-auto grid size-14 place-items-center rounded-full bg-white text-accent shadow-sm ring-1 ring-accent/20">
+          <span className="mx-auto grid size-14 place-items-center rounded-full bg-paper text-forest shadow-sm ring-1 ring-forest/20">
             <Upload className="size-6" aria-hidden />
           </span>
-          <p className="mt-4 text-[1.1rem] font-bold text-navy">ここにファイルをドラッグ＆ドロップ</p>
+          <p className="mt-4 text-[1.1rem] font-bold">ここにファイルをドラッグ＆ドロップ</p>
           <p className="mt-1 text-muted">または</p>
           <div className="mt-3 flex justify-center">
-            <Button variant="accent" onClick={pick} disabled={disabled} title={disabledReason}>
+            <Button variant="primary" onClick={pick} disabled={disabled} title={disabledReason}>
               <FileSpreadsheet className="size-4.5" aria-hidden />
               ファイルを選択
             </Button>

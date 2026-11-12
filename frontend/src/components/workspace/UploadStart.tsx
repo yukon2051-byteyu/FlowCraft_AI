@@ -172,9 +172,9 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!hasAny ? (
           <div className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-            <section className="space-y-4 rounded-2xl bg-white p-7 shadow-sm ring-1 ring-line">
+            <section className="light-panel space-y-4 rounded-2xl p-7 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)]">
               <div>
-                <h1 className="text-[1.5rem] font-bold text-navy">データを読み込む</h1>
+                <h1 className="text-[1.5rem] font-bold">データを読み込む</h1>
                 <p className="mt-1.5 text-ink/80">処理に使うExcel・CSVファイルをすべて読み込んでください。複数ファイルの結合・統合にも対応しています。</p>
               </div>
               <Dropzone onFiles={addFiles} />
@@ -187,8 +187,8 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
           <div className="mx-auto grid max-w-[1500px] gap-6 px-6 py-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
             <aside className="space-y-3">
               <div className="flex items-baseline justify-between px-1">
-                <h2 className="text-[0.85rem] font-bold tracking-wide text-muted">読み込んだファイル</h2>
-                <span className="text-[0.8rem] text-muted tabular-nums">
+                <h2 className="text-[0.85rem] font-bold tracking-wide text-subtle">読み込んだファイル</h2>
+                <span className="text-[0.8rem] text-subtle tabular-nums">
                   {files.length} / {MAX_FILES}
                 </span>
               </div>
@@ -212,7 +212,7 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
                   onDetailChange={(d) => onDetailChange(selected.summary.file_id, d)}
                 />
               ) : (
-                <p className="rounded-2xl bg-white px-6 py-16 text-center text-muted ring-1 ring-line">
+                <p className="rounded-2xl bg-panel px-6 py-16 text-center text-subtle ring-1 ring-edge">
                   {uploading.length ? 'ファイルを解析しています…' : '左の一覧からファイルを選ぶと、中身を確認できます。'}
                 </p>
               )}
@@ -222,14 +222,14 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
       </div>
 
       {files.length > 0 && (
-        <div className="flex shrink-0 items-center gap-4 border-t border-line bg-white px-6 py-3">
+        <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
           <p className="text-[0.92rem]">
             <span className="font-bold">{files.length}ファイル</span>
-            <span className="text-muted">（合計 {totalRows.toLocaleString()}行）を読み込みました。</span>
-            <span className="ml-2 text-muted">列名と型、先頭の行を確認してください。</span>
+            <span className="text-subtle">（合計 {totalRows.toLocaleString()}行）を読み込みました。</span>
+            <span className="ml-2 text-subtle">列名と型、先頭の行を確認してください。</span>
           </p>
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-[0.85rem] text-muted">AIによるフロー作成は開発中です</span>
+            <span className="text-[0.85rem] text-subtle">AIによるフロー作成は開発中です</span>
             <Button variant="primary" disabled title="AIによるフロー作成は Phase 2 で実装します">
               次へ：作業を伝える
               <ArrowRight className="size-4" aria-hidden />
@@ -244,33 +244,33 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
 function SideCards({ onShowSample }: { onShowSample: () => void }) {
   return (
     <aside className="space-y-4">
-      <div className="rounded-2xl bg-white p-5 ring-1 ring-line">
-        <h2 className="flex items-center gap-2 font-bold text-navy">
-          <FileJson className="size-5 text-accent" aria-hidden />
+      <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
+        <h2 className="flex items-center gap-2 font-bold text-white">
+          <FileJson className="size-5 text-mint" aria-hidden />
           保存したフローを使う
         </h2>
-        <p className="mt-1.5 text-[0.92rem] text-ink/80">前回保存したフロー（.json）を開き、新しいファイルで再実行できます。</p>
+        <p className="mt-1.5 text-[0.92rem] text-subtle">前回保存したフロー（.json）を開き、新しいファイルで再実行できます。</p>
         <div className="mt-3">
-          <Button variant="secondary" size="sm" disabled title="フローの読込は開発中です">
+          <Button variant="outlineDark" size="sm" disabled title="フローの読込は開発中です">
             フローを開く
           </Button>
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white p-5 ring-1 ring-line">
-        <h2 className="flex items-center gap-2 font-bold text-navy">
-          <Eye className="size-5 text-accent" aria-hidden />
+      <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
+        <h2 className="flex items-center gap-2 font-bold text-white">
+          <Eye className="size-5 text-mint" aria-hidden />
           編集画面を見てみる
         </h2>
-        <p className="mt-1.5 text-[0.92rem] text-ink/80">サンプルのフローで、フローの確認・設定・プレビュー画面を表示します。</p>
+        <p className="mt-1.5 text-[0.92rem] text-subtle">サンプルのフローで、フローの確認・設定・プレビュー画面を表示します。</p>
         <div className="mt-3">
-          <Button variant="secondary" size="sm" onClick={onShowSample}>
+          <Button variant="outlineDark" size="sm" onClick={onShowSample}>
             サンプルフローで画面を見る
           </Button>
         </div>
       </div>
 
-      <ul className="space-y-2 px-1 text-[0.85rem] text-muted">
+      <ul className="space-y-2 px-1 text-[0.85rem] text-subtle">
         <li className="flex gap-2">
           <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
           AIには列名・型・一部のサンプル値のみ送信します。

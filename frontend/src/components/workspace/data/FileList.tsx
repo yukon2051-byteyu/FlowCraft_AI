@@ -24,7 +24,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`
 }
 
-/** 読み込んだファイルの一覧。選ぶと右側に中身を表示する。削除は確認してから行う。 */
+/** 読み込んだファイルの一覧（暗いサイドバー）。選択中はミントの枠で示す。削除は確認してから行う。 */
 export function FileList({ files, uploading, selectedId, onSelect, onDelete, deletingId }: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
@@ -37,25 +37,26 @@ export function FileList({ files, uploading, selectedId, onSelect, onDelete, del
           <li key={f.file_id}>
             <div
               className={
-                'rounded-xl bg-white ring-1 transition-shadow ' + (active ? 'shadow-md ring-2 ring-accent' : 'ring-line hover:shadow-sm')
+                'rounded-xl ring-1 transition-colors ' +
+                (active ? 'bg-panel-hi shadow-[0_0_0_1px_rgba(56,217,173,0.5),0_0_24px_-6px_rgba(56,217,173,0.45)] ring-mint' : 'bg-panel ring-edge hover:ring-white/20')
               }
             >
               <button
                 type="button"
                 onClick={() => onSelect(f.file_id)}
                 aria-current={active ? 'true' : undefined}
-                className="flex w-full items-start gap-2.5 rounded-xl px-3 pt-3 pb-2 text-left focus-visible:outline-2 focus-visible:outline-accent"
+                className="flex w-full items-start gap-2.5 rounded-xl px-3 pt-3 pb-2 text-left focus-visible:outline-2 focus-visible:outline-mint"
               >
-                <FileSpreadsheet className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
+                <FileSpreadsheet className={`mt-0.5 size-5 shrink-0 ${active ? 'text-mint' : 'text-subtle'}`} aria-hidden />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-bold" title={f.filename}>
+                  <span className="block truncate font-bold text-white" title={f.filename}>
                     {f.filename}
                   </span>
-                  <span className="block text-[0.8rem] text-muted">
+                  <span className="block text-[0.8rem] text-subtle">
                     {f.kind === 'xlsx' ? `Excel・${f.sheets.length}シート` : `CSV・${f.encoding}`} ・ {formatSize(f.size_bytes)}
                   </span>
                   <span className="mt-1 flex flex-wrap items-center gap-x-3 text-[0.82rem]">
-                    <span className="tabular-nums">
+                    <span className="text-white/90 tabular-nums">
                       {rowCount.toLocaleString()}行 × {columnCount}列
                     </span>
                     {warningCount > 0 && (
@@ -67,14 +68,14 @@ export function FileList({ files, uploading, selectedId, onSelect, onDelete, del
                   </span>
                 </span>
               </button>
-              <div className="flex items-center justify-end gap-2 border-t border-line px-3 py-1.5">
+              <div className="flex items-center justify-end gap-2 border-t border-edge px-3 py-1.5">
                 {confirming ? (
                   <>
                     <span className="mr-auto text-[0.82rem] font-bold text-error">このファイルを削除しますか？</span>
                     <button
                       type="button"
                       onClick={() => setConfirmId(null)}
-                      className="rounded-md px-2 py-1 text-[0.82rem] font-bold text-muted hover:bg-surface focus-visible:outline-2 focus-visible:outline-accent"
+                      className="rounded-md px-2 py-1 text-[0.82rem] font-bold text-subtle hover:bg-white/8 hover:text-white focus-visible:outline-2 focus-visible:outline-mint"
                     >
                       キャンセル
                     </button>
@@ -84,7 +85,7 @@ export function FileList({ files, uploading, selectedId, onSelect, onDelete, del
                         setConfirmId(null)
                         onDelete(f.file_id)
                       }}
-                      className="rounded-md bg-error px-2.5 py-1 text-[0.82rem] font-bold text-white hover:bg-[#a83636] focus-visible:outline-2 focus-visible:outline-error"
+                      className="rounded-md bg-error-ink px-2.5 py-1 text-[0.82rem] font-bold text-white hover:bg-[#962e2e] focus-visible:outline-2 focus-visible:outline-error"
                     >
                       削除する
                     </button>
@@ -95,7 +96,7 @@ export function FileList({ files, uploading, selectedId, onSelect, onDelete, del
                     onClick={() => setConfirmId(f.file_id)}
                     disabled={deletingId === f.file_id}
                     aria-label={`${f.filename} を削除`}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[0.82rem] text-muted hover:bg-error-soft hover:text-error focus-visible:outline-2 focus-visible:outline-error disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[0.82rem] text-subtle hover:bg-error/15 hover:text-error focus-visible:outline-2 focus-visible:outline-error disabled:opacity-50"
                   >
                     <Trash2 className="size-3.5" aria-hidden />
                     削除
@@ -107,11 +108,11 @@ export function FileList({ files, uploading, selectedId, onSelect, onDelete, del
         )
       })}
       {uploading.map((name, i) => (
-        <li key={`${name}-${i}`} className="flex items-center gap-2.5 rounded-xl bg-white px-3 py-3 ring-1 ring-line">
-          <LoaderCircle className="size-5 shrink-0 animate-spin text-accent" aria-hidden />
+        <li key={`${name}-${i}`} className="flex items-center gap-2.5 rounded-xl bg-panel px-3 py-3 ring-1 ring-edge">
+          <LoaderCircle className="size-5 shrink-0 animate-spin text-mint" aria-hidden />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-bold">{name}</span>
-            <span className="block text-[0.8rem] text-muted">読み込み・解析中…</span>
+            <span className="block truncate font-bold text-white">{name}</span>
+            <span className="block text-[0.8rem] text-subtle">読み込み・解析中…</span>
           </span>
         </li>
       ))}
