@@ -41,6 +41,12 @@ type FlowState = {
   addNode: (node: Omit<FlowNode, 'node_id'>, index?: number) => string
   /** 処理ステップを追加する（after のステップの下。null なら最後。出力ステップより下には置かない）。追加したIDを返す */
   addStep: (type: NodeType, after: string | null) => string
+  /** 処理の設定を変える。確認済みだったステップは「設定が必要」に戻す（変えた内容を確かめ直すため） */
+  setParams: (nodeId: string, params: Record<string, unknown>) => void
+  /** ステップの名前を変える */
+  renameNode: (nodeId: string, name: string) => void
+  /** 設定を確認済みにする */
+  confirmNode: (nodeId: string) => void
   /** 使うデータを変える（上にあるステップの結果だけ選べる） */
   setNodeInputs: (nodeId: string, refs: string[]) => Result
   updateNode: (nodeId: string, patch: Partial<Omit<FlowNode, 'node_id'>>) => void
@@ -99,6 +105,21 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     const index = insertIndex(nodes, after)
     return get().addNode(newStep(nodes, type, index, STEP_TYPES[type].name), index)
   },
+
+  setParams: (nodeId, params) =>
+    set((s) => ({
+      flow: {
+        ...s.flow,
+        nodes: s.flow.nodes.map((n) =>
+          n.node_id === nodeId ? { ...n, parameters: params, confirmation_status: n.confirmation_status === 'confirmed' ? 'unset' : n.confirmation_status } : n,
+        ),
+      },
+    })),
+
+  renameNode: (nodeId, name) => set((s) => ({ flow: { ...s.flow, nodes: s.flow.nodes.map((n) => (n.node_id === nodeId ? { ...n, node_name: name } : n)) } })),
+
+  confirmNode: (nodeId) =>
+    set((s) => ({ flow: { ...s.flow, nodes: s.flow.nodes.map((n) => (n.node_id === nodeId ? { ...n, confirmation_status: 'confirmed', open_questions: [] } : n)) } })),
 
   setNodeInputs: (nodeId, refs) => {
     const r = setInputs(get().flow.nodes, nodeId, refs)

@@ -5,6 +5,7 @@
  */
 
 import { SCHEMA_VERSION } from './types'
+import { defaultParams, syncParams } from './params'
 import type { Dependency, FlowDoc, FlowNode, NodeType } from './types'
 
 export const ENGINE_VERSION = '0.1.0'
@@ -184,15 +185,16 @@ export function newStep(nodes: FlowNode[], type: NodeType, index: number, name: 
   const last = above.at(-1)?.output_reference ?? UNSELECTED
   const count = type === 'join' || type === 'concat' ? 2 : 1
   const refs = Array.from({ length: count }, (_, i) => (i === 0 ? last : UNSELECTED))
-  return {
+  const step: Omit<FlowNode, 'node_id'> = {
     node_type: type,
     node_name: name,
-    parameters: {},
+    parameters: defaultParams(type),
     input_references: refs,
     output_reference: type === 'output' ? null : nextId('r', nodes.flatMap((n) => (n.output_reference ? [n.output_reference] : []))),
     confirmation_status: 'unset',
     open_questions: [],
   }
+  return { ...step, parameters: syncParams({ ...step, node_id: '' }, nodes) }
 }
 
 /** index のステップが使えるデータ（自分より上のステップの結果）。 */
@@ -214,7 +216,14 @@ export function setInputs(nodes: FlowNode[], nodeId: string, refs: string[]): { 
   const allowed = new Set(dataChoices(nodes, index).map((c) => c.ref))
   const bad = refs.find((r) => r !== UNSELECTED && !allowed.has(r))
   if (bad !== undefined) return { error: '使えるのは、このステップより上にあるステップの結果だけです。' }
-  return { nodes: nodes.map((n) => (n.node_id === nodeId ? { ...n, input_references: refs } : n)) }
+  // 縦にまとめる・出力の設定（表ごとの設定）を、使うデータの並びにそろえる
+  return {
+    nodes: nodes.map((n) => {
+      if (n.node_id !== nodeId) return n
+      const changed = { ...n, input_references: refs }
+      return { ...changed, parameters: syncParams(changed, nodes) }
+    }),
+  }
 }
 
 /** 保存用に整える：ステップどうしのつながりの記録を計算し直し、版数と更新日時を進める。 */

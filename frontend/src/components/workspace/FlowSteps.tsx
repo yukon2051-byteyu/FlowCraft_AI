@@ -1,9 +1,14 @@
-import { ArrowDown, ArrowLeft, ArrowUp, CornerDownRight, Plus, ScanSearch, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowDown, ArrowLeft, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
+import { stepIndexOf, validateFlow } from '../../api/flows'
 import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
-import { dataChoices, describeInputs, UNSELECTED, usedBy } from '../../flow/ops'
+import { dataChoices, describeInputs, snapshot, UNSELECTED, usedBy } from '../../flow/ops'
+import { inferColumns, paramProblems, summarize } from '../../flow/params'
+import type { FlowDoc } from '../../flow/types'
+import { StepSettings } from './StepSettings'
 import { useFlowStore } from '../../flow/store'
 import type { FlowNode, NodeType } from '../../flow/types'
 import { isAvailable } from '../../content/featureStatus'
@@ -32,10 +37,26 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
     setAddAt(null)
   }
 
+  // 各ステップで使える列と、設定の不足（画面ですぐに判定）
+  const columns = inferColumns(flow)
+  const inputsOf = (node: FlowNode) => node.input_references.map((r) => columns[r] ?? null)
+  const problems = Object.fromEntries(flow.nodes.map((n) => [n.node_id, paramProblems(n, inputsOf(n))]))
+  const check = useServerCheck(flow)
+  // サーバーの指摘は、画面の判定で不足がないステップにだけ表示する（設定途中の「項目がありません」を並べないため）
+  const serverProblems = (node: FlowNode, i: number) =>
+    problems[node.node_id].length ? [] : [...(check.byIndex[i] ?? []), ...(check.byNode[node.node_id] ?? [])]
+  const selectedIndex = flow.nodes.findIndex((n) => n.node_id === selectedId)
+  const selected = selectedIndex >= 0 ? flow.nodes[selectedIndex] : null
+  const stepName = (ref: string) => {
+    const at = flow.nodes.findIndex((n) => n.output_reference === ref)
+    return at >= 0 ? `ステップ${at + 1}の結果：${flow.nodes[at].node_name}` : '（まだ選んでいません）'
+  }
+
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
+        <div className="mx-auto grid max-w-[1400px] items-start gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_27rem]">
+        <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-start gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-[1.5rem] font-bold text-white">作業手順</h1>
@@ -65,6 +86,8 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
                   nodes={flow.nodes}
                   labels={labels}
                   definitionColumns={flow.input_definitions.find((d) => d.input_id === node.parameters.input_id)?.columns}
+                  summary={summarize(node)}
+                  problemCount={problems[node.node_id].length + serverProblems(node, i).length}
                   selected={node.node_id === selectedId}
                   onSelect={() => selectNode(node.node_id)}
                   onAddBelow={() => setAddAt(addAt === node.node_id ? null : node.node_id)}
@@ -86,6 +109,26 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
             </div>
           )}
         </div>
+
+        {/* 選んだステップの設定 */}
+        {/* 設定が長いときは、この欄の中だけをスクロールする（画面の上下の帯の高さを除く） */}
+        <div className="lg:sticky lg:top-0 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto lg:rounded-2xl">
+          {selected ? (
+            <StepSettings
+              key={selected.node_id}
+              node={selected}
+              index={selectedIndex}
+              inputs={inputsOf(selected)}
+              inputNames={selected.input_references.map(stepName)}
+              problems={problems[selected.node_id]}
+              serverProblems={serverProblems(selected, selectedIndex)}
+              definitionColumns={flow.input_definitions.find((d) => d.input_id === selected.parameters.input_id)?.columns}
+            />
+          ) : (
+            <p className="rounded-2xl bg-panel px-6 py-10 text-center text-subtle ring-1 ring-edge">ステップを選ぶと、ここで設定できます。</p>
+          )}
+        </div>
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
@@ -93,6 +136,7 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="size-4" aria-hidden />
           使う列と形式の設定に戻る
         </Button>
+        <CheckSummary check={check} nodes={flow.nodes} problems={problems} />
       </div>
     </>
   )
@@ -104,13 +148,15 @@ type CardProps = {
   nodes: FlowNode[]
   labels: Record<string, string>
   definitionColumns?: { name: string; type: keyof typeof COLUMN_TYPE_LABEL; required?: boolean }[]
+  summary: string | null
+  problemCount: number
   selected: boolean
   onSelect: () => void
   onAddBelow: () => void
   canAddBelow: boolean
 }
 
-function StepCard({ node, index, nodes, labels, definitionColumns, selected, onSelect, onAddBelow, canAddBelow }: CardProps) {
+function StepCard({ node, index, nodes, labels, definitionColumns, summary, problemCount, selected, onSelect, onAddBelow, canAddBelow }: CardProps) {
   const moveNode = useFlowStore((s) => s.moveNode)
   const removeNode = useFlowStore((s) => s.removeNode)
   const setNodeInputs = useFlowStore((s) => s.setNodeInputs)
@@ -174,6 +220,19 @@ function StepCard({ node, index, nodes, labels, definitionColumns, selected, onS
         <p className="mt-2 text-[0.88rem] text-ink/85">
           <span className="font-bold">使う列（{definitionColumns.length}列）：</span>
           {definitionColumns.map((c) => `${c.name}（${COLUMN_TYPE_LABEL[c.type]}${c.required ? '・必ずある' : ''}）`).join('、')}
+        </p>
+      )}
+
+      {summary && (
+        <p className="mt-2 text-[0.9rem] text-ink">
+          <span className="font-bold">処理内容：</span>
+          {summary}
+        </p>
+      )}
+      {problemCount > 0 && node.confirmation_status !== 'confirmed' && (
+        <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-warning-ink">
+          <TriangleAlert className="size-4" aria-hidden />
+          設定が必要なことが{problemCount}件あります（選ぶと右側に表示）
         </p>
       )}
 
@@ -311,5 +370,76 @@ function IconButton({ label, disabled, onClick, children }: { label: string; dis
     >
       {children}
     </button>
+  )
+}
+
+/* ---------- 作業手順のチェック（サーバー） ---------- */
+
+type ServerCheck = {
+  status: 'checking' | 'done' | 'failed'
+  /** 形の誤り（ステップの番号ごと） */
+  byIndex: Record<number, string[]>
+  /** つながりの誤り（ステップのIDごと） */
+  byNode: Record<string, string[]>
+  /** ステップに結び付かない誤り */
+  general: string[]
+}
+
+/** 入力が落ち着いてから（0.4秒）サーバーで作業手順をチェックする */
+function useServerCheck(flow: FlowDoc): ServerCheck {
+  const [settled, setSettled] = useState(flow)
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(flow), 400)
+    return () => clearTimeout(t)
+  }, [flow])
+  const q = useQuery({ queryKey: ['validate', snapshot(settled)], queryFn: () => validateFlow(settled) })
+  const byIndex: Record<number, string[]> = {}
+  const byNode: Record<string, string[]> = {}
+  const general: string[] = []
+  for (const e of q.data?.schema_errors ?? []) {
+    const i = stepIndexOf(e.location)
+    if (i === null) general.push(e.message)
+    else (byIndex[i] ??= []).push(`作業手順のチェック：${e.message}（${e.location.split('.').slice(2).join('.') || '設定'}）`)
+  }
+  for (const issue of q.data?.issues ?? []) {
+    if (issue.severity !== 'error') continue
+    if (issue.node_id) (byNode[issue.node_id] ??= []).push(`作業手順のチェック：${issue.message}`)
+    else general.push(issue.message)
+  }
+  const status = q.isError ? 'failed' : q.isFetching || settled !== flow ? 'checking' : 'done'
+  return { status, byIndex, byNode, general }
+}
+
+function CheckSummary({ check, nodes, problems }: { check: ServerCheck; nodes: FlowNode[]; problems: Record<string, string[]> }) {
+  const needSetting = nodes.filter((n) => problems[n.node_id].length > 0).length
+  const unconfirmed = nodes.filter((n) => n.confirmation_status !== 'confirmed').length
+  const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
+  let tone = 'text-subtle'
+  let icon = <LoaderCircle className="size-4 animate-spin" aria-hidden />
+  let text = '作業手順をチェックしています…'
+  if (check.status === 'failed') {
+    tone = 'text-error'
+    icon = <TriangleAlert className="size-4" aria-hidden />
+    text = '作業手順のチェックができませんでした。時間をおいて、もう一度お試しください'
+  } else if (check.status === 'done') {
+    if (needSetting > 0) {
+      tone = 'text-warning'
+      icon = <TriangleAlert className="size-4" aria-hidden />
+      text = `設定が必要なステップが${needSetting}個あります`
+    } else if (serverCount > 0) {
+      tone = 'text-error'
+      icon = <TriangleAlert className="size-4" aria-hidden />
+      text = `作業手順のチェックで問題が${serverCount}件見つかりました${check.general.length ? `：${check.general[0]}` : ''}`
+    } else {
+      tone = 'text-success'
+      icon = <CircleCheck className="size-4" aria-hidden />
+      text = unconfirmed ? `作業手順の形に問題はありません（確認済みでないステップ：${unconfirmed}個）` : '作業手順の形に問題はありません。すべてのステップが確認済みです'
+    }
+  }
+  return (
+    <p className={`ml-auto flex items-center gap-1.5 text-[0.88rem] ${tone}`} role="status" aria-label="作業手順のチェック">
+      {icon}
+      {text}
+    </p>
   )
 }
