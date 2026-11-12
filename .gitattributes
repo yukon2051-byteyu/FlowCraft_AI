@@ -2,3 +2,6 @@
 * text=auto eol=lf
 *.xlsx binary
 *.png binary
+# テスト用のデータファイルは、改行コードなどを一切変換せずそのまま保存する
+frontend/e2e/fixtures/** binary
+*.csv binary
