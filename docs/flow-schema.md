@@ -17,6 +17,8 @@
 | データは持たない | Excelの中身は一切含めない。入力は「どんな列が必要か」だけを定義する |
 | 参照名で接続 | ノードは「どのデータを使い（`input_references`）、どのデータを作るか（`output_reference`）」を名前で持つ |
 
+> **予定（1.1）**：完了基準（`completion_criteria`）と実行のたびに指定する値（`run_parameters`）を追加する。設計は [completion-criteria.md](completion-criteria.md) §3。1.0 のファイルは自動で 1.1 として読む。実装はタスク 2-1。
+
 ## 2. トップレベル
 
 | 項目 | 型 | 必須 | 説明 |
