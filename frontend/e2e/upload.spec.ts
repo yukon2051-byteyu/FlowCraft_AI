@@ -104,3 +104,14 @@ test('旧URL /workspace を開くと、作る画面 /build へ転送される（
   await expect(page).toHaveURL(/\/build\?view=sample$/)
   await expect(page.getByText('サンプル表示中')).toBeVisible()
 })
+
+test('始め方は2つ。見直し（カイゼン診断）は任意で、開発中のあいだは選べない', async ({ page }) => {
+  const routes = page.getByRole('radiogroup', { name: '始め方' })
+  await expect(routes.getByRole('radio', { name: /すぐにExcel作業を自動化する/ })).toHaveAttribute('aria-checked', 'true')
+  const review = routes.getByRole('radio', { name: /作業の見直しから始める/ })
+  await expect(review).toHaveAttribute('aria-disabled', 'true')
+  await expect(review).toContainText('開発中')
+  // 見直しを選ばなくても、そのままファイルを読み込める
+  await page.getByTestId('file-input').first().setInputFiles(fixture('sales_sample.xlsx'))
+  await expect(page.getByText('1ファイル')).toBeVisible()
+})

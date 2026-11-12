@@ -89,7 +89,8 @@ function Hero() {
               デモを体験する
             </Button>
           </div>
-          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-edge pt-5 text-[0.92rem] text-white/85">
+          <p className="mt-3 text-[0.9rem] text-subtle">見直しは任意。すぐに自動化から始めることもできます。</p>
+          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-edge pt-5 text-[0.92rem] text-white/85">
             {HERO_POINTS.map((p) => (
               <li key={p} className="inline-flex items-center gap-1.5">
                 <Check className="size-4 text-mint" aria-hidden />
@@ -99,7 +100,7 @@ function Hero() {
           </ul>
           <p className="mt-3 inline-flex items-center gap-1.5 text-[0.82rem] text-subtle">
             <Clock3 className="size-3.5 text-warning" aria-hidden />
-            現在は開発中です。各機能の提供状況は、このページの「開発中」の表示でご確認ください。
+            一部の機能は開発中です（各所に「開発中」と表示）。
           </p>
         </div>
 
@@ -167,7 +168,7 @@ function Reasons() {
               </ol>
               <p className="mt-4 flex items-start gap-1.5 text-[0.88rem] text-subtle">
                 <CircleHelp className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
-                「不要」とは決めつけません。規程や監査で必要な作業もあるため、判断は利用者が行います。
+                使うかどうかは自由です。「不要」とは決めつけず、規程や監査で必要な作業もあるため、判断は利用者が行います。
               </p>
             </div>
           </article>
@@ -211,7 +212,7 @@ function Stages() {
   return (
     <section id="flow" className="scroll-mt-16 bg-canvas">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-        <SectionHeading eyebrow="使い方" title="自動化だけでは終わらない" lead="月次の売上集計を例にした、FlowCraft AI での進め方です。" />
+        <SectionHeading eyebrow="使い方" title="自動化だけでは終わらない" lead="月次の売上集計を例にした進め方です。見直し（1・2）は任意で、手順が決まっている作業は「実行する」から始められます。途中で切り替えても、作った内容は残ります。" />
         <ol className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {STAGES.map((s, i) => (
             <li key={s.title} className="relative flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge">

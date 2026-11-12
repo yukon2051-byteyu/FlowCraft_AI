@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, Copy, Eye, FolderOpen, KeyRound, Lock } from 'lucide-react'
+import { ArrowRight, Clock3, Copy, Eye, FolderOpen, KeyRound, Lock, ScanSearch, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { isAvailable } from '../../content/featureStatus'
 import type { FeatureKey } from '../../content/featureStatus'
@@ -187,10 +187,11 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine }: Props
           <div className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <section className="light-panel space-y-4 rounded-2xl p-7 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)]">
               <div>
-                <p className="text-[0.85rem] font-bold text-forest">新しい作業手順を作る</p>
+                <p className="text-[0.85rem] font-bold text-forest">新しい作業を始める</p>
                 <h1 className="mt-0.5 text-[1.5rem] font-bold">データを読み込む</h1>
                 <p className="mt-1.5 text-ink/80">処理に使うExcel・CSVファイルをすべて読み込んでください。複数ファイルの結合・統合にも対応しています。</p>
               </div>
+              <RouteChooser />
               <Dropzone onFiles={addFiles} />
               <p className="text-center text-[0.88rem] text-muted">.xlsx ／ .csv（UTF-8・Shift_JIS）・最大5ファイル・1ファイル10MB・合計10万行まで</p>
               {notices}
@@ -256,6 +257,41 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine }: Props
         </div>
       )}
     </>
+  )
+}
+
+/**
+ * 始め方の2つのルート（カイゼン診断は任意）。
+ *   A. すぐにExcel作業を自動化する：このままファイルを読み込む
+ *   B. 作業の見直しから始める：カイゼン診断（開発中のため選べない。見せかけの画面は作らない）
+ * どちらを選んでも、同じ処理エンジンと同じ品質の確認を使う。途中で切り替えても、読み込んだファイルや作った手順は残す。
+ */
+function RouteChooser() {
+  const kaizenReady = isAvailable('kaizen')
+  return (
+    <div role="radiogroup" aria-label="始め方" className="grid gap-2 sm:grid-cols-2">
+      <div role="radio" aria-checked="true" className="rounded-xl bg-mint-soft p-3.5 ring-2 ring-forest/60">
+        <p className="flex items-center gap-2 font-bold text-forest">
+          <Zap className="size-4.5" aria-hidden />
+          すぐにExcel作業を自動化する
+        </p>
+        <p className="mt-1 text-[0.88rem] text-ink/80">手順が決まっている作業は、このままファイルを読み込んで始められます。</p>
+      </div>
+      <div
+        role="radio"
+        aria-checked="false"
+        aria-disabled={!kaizenReady}
+        title={kaizenReady ? undefined : '作業の見直し（カイゼン診断）は開発中のため、まだ選べません'}
+        className="rounded-xl bg-card p-3.5 ring-1 ring-line"
+      >
+        <p className="flex flex-wrap items-center gap-2 font-bold text-ink/70">
+          <ScanSearch className="size-4.5" aria-hidden />
+          作業の見直しから始める
+          <DevBadge feature="kaizen" tone="light" />
+        </p>
+        <p className="mt-1 text-[0.88rem] text-muted">必要性・ムダ・重複している工程を確かめてから、自動化に進みます（任意）。</p>
+      </div>
+    </div>
   )
 }
 

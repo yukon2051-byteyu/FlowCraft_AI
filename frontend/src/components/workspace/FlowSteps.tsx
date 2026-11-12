@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowUp, CornerDownRight, Plus, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, CornerDownRight, Plus, ScanSearch, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
@@ -6,7 +6,9 @@ import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
 import { dataChoices, describeInputs, UNSELECTED, usedBy } from '../../flow/ops'
 import { useFlowStore } from '../../flow/store'
 import type { FlowNode, NodeType } from '../../flow/types'
+import { isAvailable } from '../../content/featureStatus'
 import { Button } from '../ui/Button'
+import { DevBadge } from '../ui/DevBadge'
 import { StatusBadge } from '../ui/StatusBadge'
 
 /**
@@ -34,9 +36,24 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
-          <div>
-            <h1 className="text-[1.5rem] font-bold text-white">作業手順</h1>
-            <p className="mt-1 text-subtle">処理ステップは上から順に実行されます。各ステップは、それより上のステップの結果だけを使えます。</p>
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[1.5rem] font-bold text-white">作業手順</h1>
+              <p className="mt-1 text-subtle">処理ステップは上から順に実行されます。各ステップは、それより上のステップの結果だけを使えます。</p>
+            </div>
+            {/* 自動化の途中から、作業の見直し（カイゼン診断）へ切り替える入口。作った手順はそのまま残す */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outlineDark"
+                size="sm"
+                disabled={!isAvailable('kaizen')}
+                title={isAvailable('kaizen') ? undefined : '作業の見直し（カイゼン診断）は開発中です。使えるようになっても、作った手順はそのまま残ります'}
+              >
+                <ScanSearch className="size-4" aria-hidden />
+                この作業を見直す
+              </Button>
+              <DevBadge feature="kaizen" />
+            </div>
           </div>
 
           <ol className="space-y-3" aria-label="処理ステップ">
