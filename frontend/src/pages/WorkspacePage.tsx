@@ -11,6 +11,7 @@ import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { buildFromChoices } from '../flow/define'
 import type { InputChoice } from '../flow/define'
+import { editHint } from '../flow/hints'
 import { useFlowStore } from '../flow/store'
 
 /** 作る画面の中の表示：ファイルの確認 → 使う列と形式を決める → 作業手順 */
@@ -34,6 +35,9 @@ export default function WorkspacePage() {
   const [screen, setScreen] = useState<Screen>('data')
   const [sources, setSources] = useState<DefineSource[] | null>(null)
   const startFromInputs = useFlowStore((s) => s.startFromInputs)
+  const nodes = useFlowStore((s) => s.flow.nodes)
+  // 作り直すと消えてしまう、追加済みの処理ステップの数
+  const addedSteps = nodes.filter((n) => n.node_type !== 'load').length
 
   const start = (choices: InputChoice[]) => {
     const built = buildFromChoices(choices)
@@ -57,7 +61,7 @@ export default function WorkspacePage() {
               skipped={screen === 'data' ? [] : SKIP_AI}
               hint={
                 screen === 'edit'
-                  ? '読み込みのステップができました。続けて処理ステップを追加します（開発中）'
+                  ? editHint(nodes)
                   : screen === 'define'
                     ? '作業手順で使う列と、データの形式を決めてください'
                     : fileCount === 0
@@ -78,7 +82,7 @@ export default function WorkspacePage() {
             </div>
             {sources && (
               <div className={screen === 'define' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
-                <DefineInputs key={sourcesKey(sources)} sources={sources} onBack={() => setScreen('data')} onStart={start} />
+                <DefineInputs key={sourcesKey(sources)} sources={sources} onBack={() => setScreen('data')} onStart={start} replaceCount={addedSteps} />
               </div>
             )}
             {screen === 'edit' && <FlowSteps onBack={() => setScreen('define')} />}

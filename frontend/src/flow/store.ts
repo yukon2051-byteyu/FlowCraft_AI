@@ -8,8 +8,20 @@
  */
 
 import { create } from 'zustand'
-import { createFlow, moveNode as moveNodeOp, nextId, normalizeFlow, prepareForSave, removeNode as removeNodeOp, snapshot } from './ops'
-import type { Binding, FlowDoc, FlowNode, InputDefinition } from './types'
+import { STEP_TYPES } from './catalog'
+import {
+  createFlow,
+  insertIndex,
+  moveNode as moveNodeOp,
+  newStep,
+  nextId,
+  normalizeFlow,
+  prepareForSave,
+  removeNode as removeNodeOp,
+  setInputs,
+  snapshot,
+} from './ops'
+import type { Binding, FlowDoc, FlowNode, InputDefinition, NodeType } from './types'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -27,6 +39,10 @@ type FlowState = {
   /** 「新しく作る」：入力の定義・割当・読み込みステップで、作業手順の最初の形を作る（既存のステップは置き換える） */
   startFromInputs: (defs: InputDefinition[], bindings: Binding[], loadNodes: Omit<FlowNode, 'node_id'>[]) => void
   addNode: (node: Omit<FlowNode, 'node_id'>, index?: number) => string
+  /** 処理ステップを追加する（after のステップの下。null なら最後。出力ステップより下には置かない）。追加したIDを返す */
+  addStep: (type: NodeType, after: string | null) => string
+  /** 使うデータを変える（上にあるステップの結果だけ選べる） */
+  setNodeInputs: (nodeId: string, refs: string[]) => Result
   updateNode: (nodeId: string, patch: Partial<Omit<FlowNode, 'node_id'>>) => void
   removeNode: (nodeId: string) => Result
   moveNode: (nodeId: string, toIndex: number) => Result
@@ -78,13 +94,36 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     return id
   },
 
+  addStep: (type, after) => {
+    const nodes = get().flow.nodes
+    const index = insertIndex(nodes, after)
+    return get().addNode(newStep(nodes, type, index, STEP_TYPES[type].name), index)
+  },
+
+  setNodeInputs: (nodeId, refs) => {
+    const r = setInputs(get().flow.nodes, nodeId, refs)
+    if ('error' in r) return { ok: false, error: r.error }
+    set((s) => ({ flow: { ...s.flow, nodes: r.nodes } }))
+    return { ok: true }
+  },
+
   updateNode: (nodeId, patch) =>
     set((s) => ({ flow: { ...s.flow, nodes: s.flow.nodes.map((n) => (n.node_id === nodeId ? { ...n, ...patch } : n)) } })),
 
   removeNode: (nodeId) => {
     const r = removeNodeOp(get().flow.nodes, nodeId)
     if ('error' in r) return { ok: false, error: r.error }
-    set((s) => ({ flow: { ...s.flow, nodes: r.nodes }, selectedNodeId: s.selectedNodeId === nodeId ? null : s.selectedNodeId }))
+    set((s) => {
+      // 読み込みステップを消したら、どこからも使われなくなった入力の定義と割当も消す
+      const usedInputs = new Set(r.nodes.filter((n) => n.node_type === 'load').map((n) => String(n.parameters.input_id)))
+      const defs = s.flow.input_definitions.filter((d) => usedInputs.has(d.input_id))
+      const bindings = Object.fromEntries(Object.entries(s.bindings).filter(([id]) => usedInputs.has(id)))
+      return {
+        flow: { ...s.flow, nodes: r.nodes, input_definitions: defs },
+        bindings,
+        selectedNodeId: s.selectedNodeId === nodeId ? null : s.selectedNodeId,
+      }
+    })
     return { ok: true }
   },
 

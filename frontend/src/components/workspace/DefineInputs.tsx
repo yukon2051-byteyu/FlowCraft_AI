@@ -30,6 +30,8 @@ type Props = {
   sources: DefineSource[]
   onBack: () => void
   onStart: (choices: InputChoice[]) => void
+  /** すでに追加した処理ステップの数。作り直すと消えるため、ボタンの近くで知らせる */
+  replaceCount?: number
 }
 
 /**
@@ -37,7 +39,7 @@ type Props = {
  * 形式を変えるたびに、サーバーで全件を変換してみて、変換できない値があれば行番号つきで示す。
  * （実行時の読み込みと同じ変換を使うので、「ここではOKだったのに実行で失敗する」ことはない）
  */
-export function DefineInputs({ sources, onBack, onStart }: Props) {
+export function DefineInputs({ sources, onBack, onStart, replaceCount = 0 }: Props) {
   const [choices, setChoices] = useState<InputChoice[]>(() => sources.map(initialChoice))
   const samples = Object.fromEntries(sources.map((s) => [s.summary.file_id, Object.fromEntries(s.detail.columns.map((c) => [c.name, c]))]))
 
@@ -219,6 +221,9 @@ export function DefineInputs({ sources, onBack, onStart }: Props) {
           ファイルの確認に戻る
         </Button>
         <div className="ml-auto flex min-w-0 items-center gap-3">
+          {canStart && replaceCount > 0 && (
+            <p className="text-right text-[0.85rem] text-warning">作り直すと、追加した処理ステップ（{replaceCount}個）は消えます</p>
+          )}
           {!canStart && (
             <ul className="min-w-0 text-right text-[0.85rem] text-warning" aria-label="まだ進めない理由">
               {reasons.map((r) => (
@@ -227,7 +232,7 @@ export function DefineInputs({ sources, onBack, onStart }: Props) {
             </ul>
           )}
           <Button variant="primary" disabled={!canStart} onClick={() => onStart(choices)} title={canStart ? undefined : reasons.join('\n')}>
-            この内容で作業手順を作り始める
+            {replaceCount > 0 ? 'この内容で作り直す' : 'この内容で作業手順を作り始める'}
             <ArrowRight className="size-4" aria-hidden />
           </Button>
         </div>

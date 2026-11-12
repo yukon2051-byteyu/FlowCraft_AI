@@ -63,7 +63,7 @@ describe('作る画面の状態管理', () => {
   it('移動・削除が決まりに反するときは、状態を変えずに理由を返す', () => {
     store().openFlow(DEMO)
     const before = store().flow.nodes.map((n) => n.node_id)
-    expect(store().moveNode('n4', 1)).toEqual({ ok: false, error: expect.stringContaining('より下にあるステップ') })
+    expect(store().moveNode('n4', 1)).toEqual({ ok: false, error: expect.stringContaining('の結果を使うため、それより上には動かせません') })
     expect(store().removeNode('n6')).toEqual({ ok: false, error: expect.any(String) })
     expect(store().flow.nodes.map((n) => n.node_id)).toEqual(before)
     expect(selectIsDirty(store())).toBe(false)

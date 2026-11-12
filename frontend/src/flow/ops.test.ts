@@ -70,7 +70,7 @@ describe('並べ替え（上にあるデータしか使えない）', () => {
 
   it('使うデータより上へは移動できず、理由を示す', () => {
     const r = moveNode(DEMO.nodes, 'n4', 1)
-    expect(r).toEqual({ error: expect.stringContaining('より下にあるステップ') })
+    expect(r).toEqual({ error: expect.stringContaining('の結果を使うため、それより上には動かせません') })
   })
 
   it('「Excelに出力する」より下には置けない', () => {

@@ -15,7 +15,7 @@ const BANNED = /ノード|フロー|Phase|確定|真偽値|プレビュー|JSON|
 test('読み込んだファイルから、使う列と形式を決めて作業手順を作り始める', async ({ page }) => {
   await page.goto('/build')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
-  await expect(page.getByText('3ファイル')).toBeVisible()
+  await expect(page.getByText('3ファイル')).toBeVisible({ timeout: 20_000 }) // 複数ファイルの解析は、並行実行中だと時間がかかる
 
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
   await expect(page.getByRole('heading', { name: '使う列と、データの形式を決める' })).toBeVisible()
@@ -67,7 +67,7 @@ test('読み込んだファイルから、使う列と形式を決めて作業�
 test('入力の名前が重なると、理由を示して進めない', async ({ page }) => {
   await page.goto('/build')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo('売上実績_2026-11.xlsx')])
-  await expect(page.getByText('2ファイル')).toBeVisible()
+  await expect(page.getByText('2ファイル')).toBeVisible({ timeout: 20_000 }) // 複数ファイルの解析は、並行実行中だと時間がかかる
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
 
   await expect(page.getByRole('list', { name: 'まだ進めない理由' })).toContainText('入力の名前「売上実績」が重なっています')

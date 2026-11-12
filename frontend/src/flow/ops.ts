@@ -5,7 +5,7 @@
  */
 
 import { SCHEMA_VERSION } from './types'
-import type { Dependency, FlowDoc, FlowNode } from './types'
+import type { Dependency, FlowDoc, FlowNode, NodeType } from './types'
 
 export const ENGINE_VERSION = '0.1.0'
 
@@ -86,6 +86,7 @@ export function describeInputs(nodes: FlowNode[], index: number, inputLabels: Re
     return [`読み込むファイル：${inputLabels[id] ?? id}`]
   }
   return node.input_references.map((ref) => {
+    if (ref === UNSELECTED) return '（まだ選んでいません）'
     const at = nodes.findIndex((n) => n.output_reference === ref)
     return at >= 0 ? `ステップ${at + 1}の結果` : `（見つからないデータ：${ref}）`
   })
@@ -127,7 +128,23 @@ export function moveNode(nodes: FlowNode[], nodeId: string, toIndex: number): { 
   const [node] = next.splice(from, 1)
   next.splice(toIndex, 0, node)
   const check = checkOrder(next)
-  return check.ok ? { nodes: next } : { error: check.reason }
+  if (check.ok) return { nodes: next }
+
+  // 理由は、いま画面に表示している番号で伝える（移動後の番号だと、画面と食い違って分かりにくい）
+  const label = (i: number) => `ステップ${i + 1}「${nodes[i].node_name}」`
+  const outIdx = nodes.findIndex((n) => n.node_type === 'output')
+  if (node.node_type === 'output' || (outIdx >= 0 && toIndex >= outIdx)) {
+    return { error: '「Excelに出力する」ステップは、作業手順の最後に置いてください。' }
+  }
+  if (toIndex < from) {
+    const producer = nodes.findIndex((n, i) => i >= toIndex && i < from && n.output_reference && node.input_references.includes(n.output_reference))
+    if (producer >= 0) return { error: `このステップは${label(producer)}の結果を使うため、それより上には動かせません。` }
+  } else {
+    const ref = node.output_reference
+    const user = nodes.findIndex((n, i) => i > from && i <= toIndex && ref !== null && n.input_references.includes(ref))
+    if (user >= 0) return { error: `このステップの結果を${label(user)}が使っているため、それより下には動かせません。` }
+  }
+  return { error: check.reason }
 }
 
 /** ステップを削除する。そのステップの結果を使っているステップがあれば削除しない。 */
@@ -140,6 +157,64 @@ export function removeNode(nodes: FlowNode[], nodeId: string): { nodes: FlowNode
     return { error: `この結果をステップ${users.map((u) => u.i + 1).join('・')}が使っているため、削除できません。先にそちらを変更してください。` }
   }
   return { nodes: nodes.filter((n) => n.node_id !== nodeId) }
+}
+
+/* ---------- タスク1-3：処理ステップの追加・使うデータの変更 ---------- */
+
+/** まだ選んでいない「使うデータ」の欄。参照名の形式を満たさないので、サーバーの検証で必ず止まる */
+export const UNSELECTED = ''
+
+/**
+ * 新しいステップを置く位置。「Excelに出力する」は常に最後なので、その下には置かない。
+ * after：このステップの下に置く（null なら最後）
+ */
+export function insertIndex(nodes: FlowNode[], after: string | null): number {
+  const outIdx = nodes.findIndex((n) => n.node_type === 'output')
+  const at = after === null ? nodes.length : nodes.findIndex((n) => n.node_id === after) + 1
+  if (at <= 0) return outIdx >= 0 ? outIdx : nodes.length
+  return outIdx >= 0 ? Math.min(at, outIdx) : at
+}
+
+/**
+ * 追加するステップの初期値。使うデータは「すぐ上のステップの結果」を選んでおく
+ * （「表を組み合わせる」の2つ目以降は、利用者が選ぶまで空欄）。
+ */
+export function newStep(nodes: FlowNode[], type: NodeType, index: number, name: string): Omit<FlowNode, 'node_id'> {
+  const above = nodes.slice(0, index).filter((n) => n.output_reference)
+  const last = above.at(-1)?.output_reference ?? UNSELECTED
+  const count = type === 'join' || type === 'concat' ? 2 : 1
+  const refs = Array.from({ length: count }, (_, i) => (i === 0 ? last : UNSELECTED))
+  return {
+    node_type: type,
+    node_name: name,
+    parameters: {},
+    input_references: refs,
+    output_reference: type === 'output' ? null : nextId('r', nodes.flatMap((n) => (n.output_reference ? [n.output_reference] : []))),
+    confirmation_status: 'unset',
+    open_questions: [],
+  }
+}
+
+/** index のステップが使えるデータ（自分より上のステップの結果）。 */
+export function dataChoices(nodes: FlowNode[], index: number): { ref: string; step: number; name: string }[] {
+  return nodes.slice(0, index).flatMap((n, i) => (n.output_reference ? [{ ref: n.output_reference, step: i + 1, name: n.node_name }] : []))
+}
+
+/** index のステップの結果を使っているステップの番号（1始まり）。枝分かれを一覧で示すため。 */
+export function usedBy(nodes: FlowNode[], index: number): number[] {
+  const ref = nodes[index].output_reference
+  if (!ref) return []
+  return nodes.flatMap((n, i) => (n.input_references.includes(ref) ? [i + 1] : []))
+}
+
+/** 使うデータを変える。自分より下のステップの結果や、自分自身の結果は選べない。 */
+export function setInputs(nodes: FlowNode[], nodeId: string, refs: string[]): { nodes: FlowNode[] } | { error: string } {
+  const index = nodes.findIndex((n) => n.node_id === nodeId)
+  if (index < 0) return { error: 'ステップが見つかりません。' }
+  const allowed = new Set(dataChoices(nodes, index).map((c) => c.ref))
+  const bad = refs.find((r) => r !== UNSELECTED && !allowed.has(r))
+  if (bad !== undefined) return { error: '使えるのは、このステップより上にあるステップの結果だけです。' }
+  return { nodes: nodes.map((n) => (n.node_id === nodeId ? { ...n, input_references: refs } : n)) }
 }
 
 /** 保存用に整える：ステップどうしのつながりの記録を計算し直し、版数と更新日時を進める。 */
