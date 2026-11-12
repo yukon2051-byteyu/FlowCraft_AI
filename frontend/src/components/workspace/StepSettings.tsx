@@ -1,4 +1,5 @@
 import { CircleCheck, Plus, TriangleAlert, X } from 'lucide-react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
 import { STEP_TYPES } from '../../flow/catalog'
@@ -39,6 +40,7 @@ import { useFlowStore } from '../../flow/store'
 import type { ColumnType, FlowNode } from '../../flow/types'
 import { Button } from '../ui/Button'
 import { StatusBadge } from '../ui/StatusBadge'
+import { StepPreview } from './run/StepPreview'
 
 type Props = {
   node: FlowNode
@@ -67,6 +69,8 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
   const cols = inputs[0] ?? []
   const all = [...problems, ...serverProblems]
   const confirmed = node.confirmation_status === 'confirmed'
+  // 「設定」と「処理前後のデータ」（テスト実行）の切り替え
+  const [tab, setTab] = useState<'settings' | 'preview'>('settings')
 
   let form: ReactNode
   switch (node.node_type) {
@@ -140,6 +144,32 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
         </label>
       </div>
 
+      <div className="flex gap-1 border-b border-line px-5" role="tablist" aria-label={`ステップ${index + 1}の表示`}>
+        {(
+          [
+            ['settings', '設定'],
+            ['preview', '処理前後のデータ'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`-mb-px border-b-2 px-3 py-2 text-[0.88rem] font-bold ${tab === key ? 'border-forest text-forest' : 'border-transparent text-muted hover:text-ink'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'preview' ? (
+        <div className="px-5 py-4">
+          <StepPreview node={node} index={index} />
+        </div>
+      ) : (
+        <>
       <div className="space-y-4 px-5 py-4">{form}</div>
 
       <div className="border-t border-line px-5 py-3">
@@ -167,6 +197,8 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
           </Button>
         )}
       </div>
+        </>
+      )}
     </section>
   )
 }

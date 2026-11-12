@@ -13,6 +13,6 @@ export function editHint(nodes: FlowNode[]): string {
   if (noInput >= 0) return `ステップ${noInput + 1}「${nodes[noInput].node_name}」で使うデータを選んでください`
   if (!nodes.some((n) => n.node_type === 'output')) return `最後に「${STEP_TYPES.output.name}」を追加してください`
   const unset = nodes.findIndex((n) => n.confirmation_status !== 'confirmed')
-  if (unset >= 0) return `ステップ${unset + 1}「${nodes[unset].node_name}」の設定が必要です（設定の画面は開発中）`
-  return '作業手順ができました。テスト実行で結果を確かめます（開発中）'
+  if (unset >= 0) return `ステップ${unset + 1}「${nodes[unset].node_name}」の設定が必要です。ステップを選び、右側で設定してください`
+  return '作業手順ができました。「作業手順全体を実行する」で結果を確かめてください'
 }

@@ -35,7 +35,8 @@ RELATION_LABEL = {
     "many_to_one": "多対1",
     "many_to_many": "多対多",
 }
-HOW_LABEL = {"inner": "内部結合（両方にある行だけ）", "left": "左結合（左の行をすべて残す）", "right": "右結合（右の行をすべて残す）", "outer": "完全外部結合（両方の行をすべて残す）"}
+# 画面の言葉（docs/ui-terminology.md）に合わせる。左＝元の表、右＝付け加える表
+HOW_LABEL = {"inner": "両方の表で照合できた行だけ残す方法", "left": "元の表の行をすべて残す方法", "right": "付け加える表の行をすべて残す方法", "outer": "両方の表の行をすべて残す方法"}
 
 Key = tuple[Any, ...]
 
@@ -83,7 +84,7 @@ def _norm_zero(v: Any) -> Any:
 
 
 CAUSES = [
-    ("TRIM", "前後の空白を取り除くと一致します", _norm_trim, "「キーの前後の空白を除いて照合する」を有効にするか、元データの空白を削除してください。"),
+    ("TRIM", "前後の空白を取り除くと一致します", _norm_trim, "設定の「照合するとき、値の前後の空白を無視する」を有効にするか、元データの空白を削除してください。"),
     ("WIDTH", "全角・半角の違いをそろえると一致します", lambda v: _norm_trim(_norm_width(v)), "元データの全角・半角をそろえてください。"),
     ("CASE", "大文字・小文字の違いをそろえると一致します", lambda v: _norm_case(_norm_trim(_norm_width(v))), "元データの大文字・小文字をそろえてください。"),
     ("LEADING_ZERO", "先頭の0の有無をそろえると一致します（例：00123 と 123）", lambda v: _norm_zero(_norm_trim(v)), "両方を同じ桁数の文字列にそろえてください（数値として読み込まれていないか確認）。"),
@@ -119,14 +120,14 @@ def run_join(node: JoinNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
     left_label, right_label = node.input_references
 
     # ---------- ① 事前検査 ----------
-    require_columns(left, lcols, f"{name}（左：{left_label}）")
-    require_columns(right, rcols, f"{name}（右：{right_label}）")
+    require_columns(left, lcols, f"{name}（元の表）")
+    require_columns(right, rcols, f"{name}（付け加える表）")
     for lc, rc in zip(lcols, rcols):
         lt, rt = left.type_of(lc), right.type_of(rc)
         if lt != rt and {lt, rt} != {"integer", "decimal"}:
             raise fail(
                 "KEY_TYPE_MISMATCH",
-                f"「{name}」：照合に使う列のデータの形式が、2つの表で違います（左「{lc}」：{TYPE_LABEL[lt]}、右「{rc}」：{TYPE_LABEL[rt]}）。",
+                f"「{name}」：照合に使う列のデータの形式が、2つの表で違います（元の表「{lc}」：{TYPE_LABEL[lt]}、付け加える表「{rc}」：{TYPE_LABEL[rt]}）。",
                 cause="形式が違うと、見た目が同じでも一致しません（例：文字の「00123」と数値の123）。",
                 how_to_fix="情報を付け加える前に「データの形式をそろえる」処理で、照合に使う列を同じ形式（コードなら文字）にそろえてください。",
             )
@@ -155,19 +156,19 @@ def run_join(node: JoinNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
     right_must_be_unique = expected in ("one_to_one", "many_to_one")
     violations = []
     if left_must_be_unique and l_dup:
-        violations.append(("左", left_label, l_dup))
+        violations.append(("元の表", left_label, l_dup))
     if right_must_be_unique and r_dup:
-        violations.append(("右", right_label, r_dup))
+        violations.append(("付け加える表", right_label, r_dup))
     if violations:
         parts = []
         for side, label, d in violations:
             ex = "、".join(f"「{e['key']}」{e['count']}件" for e in dup_examples(d)[:5])
-            parts.append(f"{side}（{label}）のキーが重複しています：{len(d):,}種類（例：{ex}）")
+            parts.append(f"{side}で、照合に使う列の値が重複しています：{len(d):,}種類（例：{ex}）")
         raise fail(
             "RELATIONSHIP_MISMATCH",
             f"「{name}」：想定した関係（{RELATION_LABEL[expected]}）と、実際のデータの関係（{RELATION_LABEL[actual]}）が違います。",
             cause=" ／ ".join(parts) + "。このまま結合すると行が増え、金額が重複して集計されます。",
-            how_to_fix="マスタの重複を解消するか、結合キーを見直してください。重複が正しい場合は、想定する関係を変更してください。",
+            how_to_fix="マスタの重複を解消するか、照合に使う列を見直してください。重複が正しい場合は、設定の「照合に使う列の値は、それぞれの表に何行ありますか？」を変更してください。",
             expected=expected,
             actual=actual,
             left_duplicates=dup_examples(l_dup),
@@ -271,7 +272,7 @@ def run_join(node: JoinNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
     issues.append(
         info(
             "JOINED",
-            f"{HOW_LABEL[p.how]}で結合しました。結合前 {base_rows:,}行 → 結合後 {result.row_count:,}行"
+            f"{HOW_LABEL[p.how]}で情報を付け加えました。結合前 {base_rows:,}行 → 結合後 {result.row_count:,}行"
             f"（{'+' if change >= 0 else ''}{change:,}行）。関係：{RELATION_LABEL[actual]}（想定：{RELATION_LABEL[expected]}）",
             **summary,
         )
@@ -280,8 +281,8 @@ def run_join(node: JoinNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
         issues.append(
             warning(
                 "ROWS_MULTIPLIED",
-                f"キーの重複により、行が{multiplied:,}行増えています（想定した関係：{RELATION_LABEL[expected]}）。",
-                cause="同じキーに複数の行が対応したため、行が複製されています。",
+                f"照合に使う列の値の重複により、行が{multiplied:,}行増えています（想定した関係：{RELATION_LABEL[expected]}）。",
+                cause="同じ値に複数の行が対応したため、行が複製されています。",
                 how_to_fix="金額を集計する場合は、重複して数えていないか確認してください。",
                 multiplied_rows=multiplied,
             )
@@ -317,8 +318,8 @@ def _output_columns(
         if out in specs:
             raise fail(
                 "COLUMN_NAME_CONFLICT",
-                f"「{name}」：右の列「{c}」の名前が、接尾辞を付けても左の列と重なります（{out}）。",
-                how_to_fix="接尾辞を変えるか、結合の前に列名を変更してください。",
+                f"「{name}」：付け加える表の列「{c}」の名前が、文字を付けても元の表の列と重なります（{out}）。",
+                how_to_fix="設定の「名前が重なった列に付ける文字」を変えるか、付け加える前に列の名前を変えてください。",
             )
         cols.append(out)
         specs[out] = right.specs[c]
@@ -352,7 +353,7 @@ def _amount_checks(
                 raise fail(
                     "AMOUNT_MISMATCH",
                     f"「{name}」：結合の前後で「{c}」の合計が一致しません（前：{before:,}、後：{after:,}）。",
-                    how_to_fix="結果を使わず、結合キーと関係の設定を確認してください。",
+                    how_to_fix="結果を使わず、照合に使う列と、想定した行数（関係）の設定を確認してください。",
                     **detail,
                 )
             issues.append(info("AMOUNT_MATCHED", f"「{c}」の合計は結合の前後で一致しています（{after:,}）。", **detail))
@@ -362,7 +363,7 @@ def _amount_checks(
                 raise fail(
                     "AMOUNT_MISMATCH",
                     f"「{name}」：照合できた行の「{c}」の合計が、結合後の合計と一致しません。",
-                    how_to_fix="結果を使わず、結合キーと関係の設定を確認してください。",
+                    how_to_fix="結果を使わず、照合に使う列と、想定した行数（関係）の設定を確認してください。",
                     **detail,
                 )
             excluded = before - after

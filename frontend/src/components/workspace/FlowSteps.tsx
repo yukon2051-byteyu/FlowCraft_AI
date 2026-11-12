@@ -1,9 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowLeft, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { ArrowDown, ArrowLeft, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Play, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
-import { stepIndexOf, validateFlow } from '../../api/flows'
+import { ApiError } from '../../api/client'
+import type { ApiErrorBody } from '../../api/client'
+import { runFlow, stepIndexOf, validateFlow } from '../../api/flows'
+import type { RunSummary } from '../../api/flows'
+import { ErrorNotice } from '../ui/ErrorNotice'
 import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
 import { dataChoices, describeInputs, snapshot, UNSELECTED, usedBy } from '../../flow/ops'
 import { inferColumns, paramProblems, summarize } from '../../flow/params'
@@ -22,7 +26,7 @@ import { StatusBadge } from '../ui/StatusBadge'
  * つながりを壊す操作は行わず、理由をそのステップのすぐ下に表示する。
  * 各ステップの細かい設定（列・条件など）はタスク1-4・1-5で作る。
  */
-export function FlowSteps({ onBack }: { onBack: () => void }) {
+export function FlowSteps({ onBack, onRan }: { onBack: () => void; onRan: (run: RunSummary, snap: string) => void }) {
   const flow = useFlowStore((s) => s.flow)
   const selectedId = useFlowStore((s) => s.selectedNodeId)
   const selectNode = useFlowStore((s) => s.selectNode)
@@ -45,6 +49,27 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
   // サーバーの指摘は、画面の判定で不足がないステップにだけ表示する（設定途中の「項目がありません」を並べないため）
   const serverProblems = (node: FlowNode, i: number) =>
     problems[node.node_id].length ? [] : [...(check.byIndex[i] ?? []), ...(check.byNode[node.node_id] ?? [])]
+  const bindings = useFlowStore((s) => s.bindings)
+  const [runError, setRunError] = useState<ApiErrorBody | null>(null)
+  const runMutation = useMutation({
+    mutationFn: () => runFlow(flow, Object.values(bindings)),
+    onMutate: () => setRunError(null),
+    onSuccess: (run) => onRan(run, snapshot(flow)),
+    onError: (e) => setRunError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '実行できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),
+  })
+  // 全体を実行できない理由（押せないボタンの近くに表示する）
+  const notConfirmed = flow.nodes.filter((n) => n.confirmation_status !== 'confirmed').length
+  const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
+  const runBlocker =
+    flow.nodes.length === 0
+      ? '処理ステップがありません'
+      : notConfirmed
+        ? `確認済みでないステップが${notConfirmed}個あるため、まだ実行できません`
+        : check.status !== 'done'
+          ? '作業手順のチェックが終わるまでお待ちください'
+          : serverCount
+            ? '作業手順のチェックで見つかった問題を直してください'
+            : null
   const selectedIndex = flow.nodes.findIndex((n) => n.node_id === selectedId)
   const selected = selectedIndex >= 0 ? flow.nodes[selectedIndex] : null
   const stepName = (ref: string) => {
@@ -137,7 +162,19 @@ export function FlowSteps({ onBack }: { onBack: () => void }) {
           使う列と形式の設定に戻る
         </Button>
         <CheckSummary check={check} nodes={flow.nodes} problems={problems} />
+        <div className="flex items-center gap-3">
+          {runBlocker && <span className="text-[0.82rem] text-subtle">{runBlocker}</span>}
+          <Button variant="primary" size="sm" disabled={runBlocker !== null || runMutation.isPending} onClick={() => runMutation.mutate()} title={runBlocker ?? undefined}>
+            {runMutation.isPending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
+            作業手順全体を実行する
+          </Button>
+        </div>
       </div>
+      {runError && (
+        <div className="shrink-0 border-t border-edge bg-nav px-6 pb-3">
+          <ErrorNotice error={runError} onDismiss={() => setRunError(null)} />
+        </div>
+      )}
     </>
   )
 }

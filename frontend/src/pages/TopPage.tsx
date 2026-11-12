@@ -337,7 +337,7 @@ function TryOwnExcel() {
   return (
     <section id="try" className="relative scroll-mt-16 overflow-hidden bg-canvas">
       <div className="pointer-events-none absolute -bottom-48 -left-24 h-[460px] w-[680px] bg-[radial-gradient(closest-side,rgba(56,217,173,0.12),transparent)]" />
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-14 lg:py-14">
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-14 lg:py-14">
         <div>
           <SectionHeading
             eyebrow="自分のExcelで試す"
@@ -368,26 +368,32 @@ function TryOwnExcel() {
           </div>
         </div>
 
-        {/* 対応形式・AIの利用条件は「読む」情報なので明るいパネルにする */}
-        <div className="light-panel self-start rounded-2xl p-6 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] sm:p-7">
-          <h3 className="text-[1.1rem] font-bold">対応形式</h3>
-          <dl className="mt-3 divide-y divide-line rounded-lg bg-paper ring-1 ring-line">
+        {/*
+          対応形式・AIの利用条件は、必要なときに確かめる補足情報。
+          以前は明るいパネルで左側のボタンより目立っていたため、暗い面にそろえ、横幅もやや狭くした
+        */}
+        <div className="self-start rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6" aria-label="対応形式とAI機能の利用について">
+          <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-white">
+            <FileSpreadsheet className="size-5 text-mint" aria-hidden />
+            対応形式
+          </h3>
+          <dl className="mt-3 divide-y divide-edge rounded-xl ring-1 ring-edge">
             {SPECS.map((s) => (
-              <div key={s.k} className="grid gap-1 px-4 py-2.5 sm:grid-cols-[9rem_1fr]">
-                <dt className="text-[0.88rem] font-bold text-muted">{s.k}</dt>
-                <dd className="text-[0.95rem]">{s.v}</dd>
+              <div key={s.k} className="grid gap-0.5 px-4 py-2.5 sm:grid-cols-[8.5rem_1fr] sm:gap-3">
+                <dt className="text-[0.86rem] font-bold text-subtle">{s.k}</dt>
+                <dd className="text-[0.92rem] text-white/90">{s.v}</dd>
               </div>
             ))}
           </dl>
-          <div className="mt-5 rounded-xl bg-mint-soft p-4 ring-1 ring-forest/20">
-            <p className="flex items-center gap-2 font-bold text-forest">
+          <div className="mt-4 rounded-xl bg-mint-deep p-4 ring-1 ring-mint-line">
+            <p className="flex items-center gap-2 font-bold text-mint-title">
               <KeyRound className="size-4.5" aria-hidden />
               AI機能の利用について
             </p>
-            <p className="mt-1.5 text-[0.92rem] leading-relaxed">
-              AIによる作業手順の作成や改善の提案には、<span className="font-bold">AI使用パスワード</span>が必要です。AIを使う操作のときにだけ入力を求めます。
+            <p className="mt-1.5 text-[0.9rem] leading-relaxed text-mint-body">
+              AIによる作業手順の作成や改善の提案には、<span className="font-bold text-white">AI使用パスワード</span>が必要です。AIを使う操作のときにだけ入力を求めます。
             </p>
-            <p className="mt-1 text-[0.92rem] leading-relaxed text-muted">ファイルの読み込みや、Excelの加工・集計など、AIを使わない機能はパスワードなしで使えます。</p>
+            <p className="mt-1 text-[0.88rem] leading-relaxed text-subtle">ファイルの読み込みや、Excelの加工・集計など、AIを使わない機能はパスワードなしで使えます。</p>
           </div>
         </div>
       </div>

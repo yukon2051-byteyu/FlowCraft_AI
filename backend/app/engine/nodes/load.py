@@ -4,7 +4,9 @@
 - 列名の対応付け（column_mapping）：新しいファイルで列名が変わった場合に使う
 - 必須列がない → エラー（似た列名を候補として示す）
 - 型に変換できない値がある → エラー（列ごとの件数と、Excel上の行番号・値の例を示す）
-- 入力定義にない列 → 文字列として残す（使わなくても削除しない）
+- 入力定義にない列（「使わない」とした列・新しく増えた列）→ 読み込まない。読み込まなかった列名は記録する
+  （2026-11-12 変更。以前は文字列として残していたが、画面で「使わない」とした列が結果に出る、
+    翌月のファイルで列が増えると結果が変わる、という食い違いがあったため）
 """
 
 from __future__ import annotations
@@ -101,6 +103,7 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
     specs: dict[str, ColumnSpec] = {}
     data: dict[str, list[object]] = {}
     failures: dict[str, dict[str, object]] = {}
+    skipped: list[str] = []
     defined = {c.name: c for c in definition.columns}
 
     for name in names:
@@ -124,9 +127,7 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
             specs[name] = ColumnSpec(col.type, col.scale)
             data[name] = converted
         else:
-            columns.append(name)
-            specs[name] = ColumnSpec("string")
-            data[name] = [to_string(v) for v in values]
+            skipped.append(name)
 
     if failures:
         type_label = {"integer": "整数", "decimal": "小数", "date": "日付", "boolean": "はい／いいえ", "string": "文字"}
@@ -150,6 +151,15 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
             data[col.name] = [None] * n_rows
             issues.append(EngineIssue("OPTIONAL_COLUMN_ADDED", "info", f"任意の列「{col.name}」がファイルにないため、空欄の列として追加しました。"))
 
+    if skipped:
+        issues.append(
+            EngineIssue(
+                "COLUMNS_NOT_LOADED",
+                "info",
+                f"使わない列（{len(skipped)}列）は読み込みませんでした：{'、'.join(skipped[:10])}{' など' if len(skipped) > 10 else ''}",
+                details={"columns": skipped},
+            )
+        )
     issues.append(
         EngineIssue("LOADED", "info", f"「{file.filename}」（{sheet_name}）から{n_rows:,}行を読み込みました。", details={"file": file.filename, "sheet": sheet_name})
     )

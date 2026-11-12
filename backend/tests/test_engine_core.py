@@ -283,9 +283,9 @@ def test_load_converts_types_without_losing_codes():
     assert t.data["売上日"] == [date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)]
     assert t.data["数量"] == [2, 1, 5]
     assert t.data["金額"] == [Decimal("3000.5"), Decimal("980.0"), Decimal("7500.0")]
-    # 入力定義にない列も削除しない（文字列として残す）
-    assert t.data["担当者"] == ["山田", "佐藤", "鈴木"]
-    assert t.specs["担当者"].type == "string"
+    # 入力定義にない列（使わない列）は読み込まず、読み込まなかったことを記録する
+    assert "担当者" not in t.columns
+    assert any(i.code == "COLUMNS_NOT_LOADED" and i.details["columns"] == ["担当者"] for i in r.nodes[0].issues)
     assert r.nodes[0].output_rows == 3
     assert r.can_export
     assert [(o.sheet_name, o.reference) for o in r.outputs] == [("明細", "sales")]
@@ -422,6 +422,7 @@ def test_pipeline_load_filter_sort_select_output():
     assert r.status == "success", [i.message for n in r.nodes for i in n.issues]
     assert ex.tables["final"].rows() == [["00123", Decimal("7500.0")], ["00123", Decimal("3000.5")]]
     assert [n.output_rows for n in r.nodes[:4]] == [3, 2, 2, 2]
-    assert r.nodes[3].removed_columns == ["売上日", "数量", "備考", "担当者"]
+    # 「担当者」は入力定義にないため、読み込み時点で除かれている
+    assert r.nodes[3].removed_columns == ["売上日", "数量", "備考"]
     # 同じ入力なら最終結果の指紋も毎回同じ
     assert run(flow).result.fingerprints["final"] == r.fingerprints["final"]

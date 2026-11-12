@@ -9,13 +9,15 @@ import { UploadStart } from '../components/workspace/UploadStart'
 import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
+import { RunResults } from '../components/workspace/run/RunResults'
+import type { RunSummary } from '../api/flows'
 import { buildFromChoices } from '../flow/define'
 import type { InputChoice } from '../flow/define'
 import { editHint } from '../flow/hints'
 import { useFlowStore } from '../flow/store'
 
 /** 作る画面の中の表示：ファイルの確認 → 使う列と形式を決める → 作業手順 */
-type Screen = 'data' | 'define' | 'edit'
+type Screen = 'data' | 'define' | 'edit' | 'result'
 
 const SKIP_AI = [{ step: 2, reason: 'AIで作業手順を作る機能は開発中のため、今回は自分で作ります' }]
 
@@ -34,6 +36,8 @@ export default function WorkspacePage() {
   const [sampleHint, setSampleHint] = useState('')
   const [screen, setScreen] = useState<Screen>('data')
   const [sources, setSources] = useState<DefineSource[] | null>(null)
+  // 直近の全体の実行結果と、実行したときの作業手順（実行後に変更したかを判定するため）
+  const [lastRun, setLastRun] = useState<{ run: RunSummary; snap: string } | null>(null)
   const startFromInputs = useFlowStore((s) => s.startFromInputs)
   const nodes = useFlowStore((s) => s.flow.nodes)
   // 作り直すと消えてしまう、追加済みの処理ステップの数
@@ -57,10 +61,12 @@ export default function WorkspacePage() {
         ) : (
           <>
             <Stepper
-              current={screen === 'edit' ? 3 : 1}
+              current={screen === 'result' ? 4 : screen === 'edit' ? 3 : 1}
               skipped={screen === 'data' ? [] : SKIP_AI}
               hint={
-                screen === 'edit'
+                screen === 'result'
+                  ? '実行結果を確かめてください。Excelへの出力は次のタスクで使えるようになります'
+                  : screen === 'edit'
                   ? editHint(nodes)
                   : screen === 'define'
                     ? '作業手順で使う列と、データの形式を決めてください'
@@ -85,7 +91,16 @@ export default function WorkspacePage() {
                 <DefineInputs key={sourcesKey(sources)} sources={sources} onBack={() => setScreen('data')} onStart={start} replaceCount={addedSteps} />
               </div>
             )}
-            {screen === 'edit' && <FlowSteps onBack={() => setScreen('define')} />}
+            {screen === 'edit' && (
+              <FlowSteps
+                onBack={() => setScreen('define')}
+                onRan={(run, snap) => {
+                  setLastRun({ run, snap })
+                  setScreen('result')
+                }}
+              />
+            )}
+            {screen === 'result' && lastRun && <RunResults run={lastRun.run} snap={lastRun.snap} onBack={() => setScreen('edit')} />}
           </>
         )}
       </div>
