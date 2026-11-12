@@ -82,6 +82,14 @@ npm run build
 npm run lint
 ```
 
+E2Eテスト（実際のブラウザで画面を操作するテスト。バックエンドと画面のサーバーは自動で起動します）：
+
+```powershell
+cd frontend
+npx playwright install chromium   # 初回のみ
+npm run test:e2e
+```
+
 画面幅ごとのスクリーンショットとレイアウト自動チェック（開発サーバー起動中に実行）：
 
 ```powershell

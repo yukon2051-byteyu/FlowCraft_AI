@@ -1,4 +1,5 @@
 import { Monitor } from 'lucide-react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Button } from '../components/ui/Button'
 import { AppHeader } from '../components/workspace/AppHeader'
@@ -14,6 +15,7 @@ import { UploadStart } from '../components/workspace/UploadStart'
 export default function WorkspacePage() {
   const [params, setParams] = useSearchParams()
   const sample = params.get('view') === 'sample'
+  const [fileCount, setFileCount] = useState(0)
 
   return (
     <>
@@ -26,8 +28,15 @@ export default function WorkspacePage() {
           </>
         ) : (
           <>
-            <Stepper current={1} hint="処理に使うExcel・CSVファイルを読み込んでください" />
-            <UploadStart onShowSample={() => setParams({ view: 'sample' })} />
+            <Stepper
+              current={1}
+              hint={
+                fileCount === 0
+                  ? '処理に使うExcel・CSVファイルを読み込んでください'
+                  : '列名と型、先頭の行を確認してください（必要なファイルはすべて読み込みましたか？）'
+              }
+            />
+            <UploadStart onShowSample={() => setParams({ view: 'sample' })} onFileCountChange={setFileCount} />
           </>
         )}
       </div>

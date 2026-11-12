@@ -40,3 +40,5 @@ backend/data/usage/
 .idea/
 Thumbs.db
 .DS_Store
+!frontend/e2e/fixtures/*.xlsx
+!frontend/e2e/fixtures/*.csv
