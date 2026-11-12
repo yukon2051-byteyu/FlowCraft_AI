@@ -34,11 +34,28 @@ Excelの加工・集計・照合をAIで自動化するWebアプリケーショ�
 
 ## 使い方
 
-（Phase 1で記載予定）
+### 必要なもの
+- Python 3.12
+- Node.js 24（フロントエンド。Phase 1で追加予定）
+
+### バックエンドの起動（Windows / PowerShell）
+
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+ブラウザで http://127.0.0.1:8000/api/health を開き、`"status":"ok"` と表示されれば起動できています。
+API仕様の一覧は http://127.0.0.1:8000/docs で確認できます。
 
 ## テスト方法
 
-（Phase 1で記載予定）
+```powershell
+cd backend
+.venv\Scripts\python.exe -m pytest -v
+```
 
 ## 設計資料
 

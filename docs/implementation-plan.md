@@ -79,3 +79,4 @@
 | 2026-11-12 | 設計書・実装計画 v0.1 作成 | 完了 | 確認事項 Q1〜Q5 を提示 |
 | 2026-11-12 | 設計 v1.0 確定 | 完了 | Q1〜Q5 回答を反映 |
 | 2026-11-12 | 1-1 Git初期化・.gitignore・.env.example・README雛形 | 完了 | `.env` / `.env.*` が除外されることを `git check-ignore` で確認。リモート未設定のためpushなし |
+| 2026-11-12 | 1-2 バックエンド雛形 | 完了 | Python 3.12.10仮想環境、FastAPI、`/api/health`。pytest 6件成功。実サーバー起動で `/api/health`・`/docs` の応答を確認。非推奨警告に従い httpx→httpx2 に変更 |
