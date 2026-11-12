@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
@@ -11,5 +12,10 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:8000',
     },
+  },
+  // 画面側の単体テスト（Vitest）。ブラウザを使うE2Eテスト（e2e/）とは分けて実行する
+  test: {
+    include: ['src/**/*.test.ts'],
+    environment: 'node',
   },
 })

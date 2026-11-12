@@ -32,7 +32,7 @@ export function SiteHeader() {
           <a href="/#demo" className="hidden rounded-md px-3 py-2 text-[0.95rem] font-bold text-mint hover:text-mint-hover lg:inline">
             デモを見る
           </a>
-          <Button to="/workspace" variant="outlineDark" size="sm">
+          <Button to="/build" variant="outlineDark" size="sm">
             <span className="sm:hidden">試してみる</span>
             <span className="hidden sm:inline">自分のExcelで試す</span>
           </Button>

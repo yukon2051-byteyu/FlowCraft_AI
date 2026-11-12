@@ -30,8 +30,8 @@ async function expectNoJargon(page: Page) {
 
 for (const [label, path] of [
   ['TOP', '/'],
-  ['開始画面', '/workspace'],
-  ['作業手順の画面（サンプル）', '/workspace?view=sample'],
+  ['開始画面', '/build'],
+  ['作業手順の画面（サンプル）', '/build?view=sample'],
 ] as const) {
   test(`${label}に専門用語が表示されない`, async ({ page }) => {
     await page.goto(path)
@@ -41,7 +41,7 @@ for (const [label, path] of [
 }
 
 test('「次の操作」の案内が、回答・確認に合わせて変わる', async ({ page }) => {
-  await page.goto('/workspace?view=sample')
+  await page.goto('/build?view=sample')
   const hint = page.locator('p', { hasText: '次の操作：' })
   await expect(hint).toContainText('ステップ3の確認が必要です。商品コードの重複について回答してください')
 
@@ -62,7 +62,7 @@ test('「次の操作」の案内が、回答・確認に合わせて変わる',
 })
 
 test('用語の説明はマウスでもキーボードでも読める', async ({ page }) => {
-  await page.goto('/workspace?view=sample')
+  await page.goto('/build?view=sample')
   const tip = page.getByRole('button', { name: '照合に使う列の説明' })
   await tip.hover()
   await expect(page.getByRole('tooltip')).toContainText('2つの表で同じ値が入っている列')

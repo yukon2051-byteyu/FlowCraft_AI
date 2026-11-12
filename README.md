@@ -74,6 +74,13 @@ cd backend
 .venv\Scripts\python.exe -m pytest -v
 ```
 
+フロントエンドの単体テスト（作業手順の操作・状態管理）：
+
+```powershell
+cd frontend
+npm test
+```
+
 フロントエンド（型チェック・ビルド・コードチェック）：
 
 ```powershell
@@ -105,8 +112,8 @@ node scripts/screenshots.mjs screenshots
 | URL | 画面 |
 |---|---|
 | `/` | TOP（製品紹介） |
-| `/workspace` | ワークスペース（ファイル読込 → フロー編集）。PC専用 |
-| `/workspace?view=sample` | サンプルフローでの編集画面表示 |
+| `/build` | 作る画面（ファイル読込 → 作業手順の作成）。PC専用。旧URL `/workspace` は自動で転送 |
+| `/build?view=sample` | サンプルの作業手順での画面表示 |
 | `/dev/diagnostics` | 開発者向けのシステム状態 |
 
 ## 設計資料

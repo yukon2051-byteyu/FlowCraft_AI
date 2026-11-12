@@ -20,8 +20,8 @@ const VIEWPORTS = [
 
 const PAGES = [
   { name: 'top', path: '/' },
-  { name: 'workspace', path: '/workspace' },
-  { name: 'workspace-sample', path: '/workspace?view=sample' },
+  { name: 'workspace', path: '/build' },
+  { name: 'workspace-sample', path: '/build?view=sample' },
 ]
 
 const browser = await chromium.launch()

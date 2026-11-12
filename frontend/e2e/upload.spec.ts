@@ -11,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const fixture = (name: string) => path.join(here, 'fixtures', name)
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/workspace')
+  await page.goto('/build')
 })
 
 test('Excelを読み込むと、列・型・先頭の行が表示される', async ({ page }) => {
@@ -97,4 +97,10 @@ test('ファイルは確認してから削除される', async ({ page }) => {
   await list.getByRole('button', { name: 'dept_sjis.csv を削除' }).click()
   await list.getByRole('button', { name: '削除する' }).click()
   await expect(page.getByRole('heading', { name: 'データを読み込む' })).toBeVisible()
+})
+
+test('旧URL /workspace を開くと、作る画面 /build へ転送される（指定も引き継ぐ）', async ({ page }) => {
+  await page.goto('/workspace?view=sample')
+  await expect(page).toHaveURL(/\/build\?view=sample$/)
+  await expect(page.getByText('サンプル表示中')).toBeVisible()
 })

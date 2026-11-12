@@ -78,7 +78,7 @@ function Hero() {
               <Play className="size-4.5" aria-hidden />
               デモを体験する
             </Button>
-            <Button to="/workspace" variant="outlineDark" size="lg">
+            <Button to="/build" variant="outlineDark" size="lg">
               <Upload className="size-4.5" aria-hidden />
               自分のExcelで試す
             </Button>
@@ -303,7 +303,7 @@ function TryOwnExcel() {
             ))}
           </ol>
           <div className="mt-7">
-            <Button to="/workspace" variant="primary" size="lg">
+            <Button to="/build" variant="primary" size="lg">
               <Upload className="size-4.5" aria-hidden />
               自分のExcelで試す
             </Button>
