@@ -4,6 +4,8 @@
 - 版：v1.0（2026-11-12・D1 は推奨案 (a) で確定）
 - 前提：[architecture.md](architecture.md)・[flow-schema.md](flow-schema.md)・[analytics-design.md](analytics-design.md)・[ui-terminology.md](ui-terminology.md)
 
+> **2026-11-12 追記（製品方針 Ver.3.0）**：本機能は Phase 7 に移動。第1段階（複製・列構成の比較・手動の変更・新しい手順として保存）→ 第2段階（AIの変更候補・差分表示・選択的な適用・変更後の検証）の順に進める。先に「同じ業務の毎月の入力の変化」への対応（Phase 2）を優先する。理由は [product-review.md](product-review.md) §11。
+
 ## 1. 既存機能の調査結果（指示書 Phase 1）
 
 | 対象 | 現状 | この機能での再利用 |
