@@ -1,15 +1,20 @@
-import { CircleCheck, Columns3, FileOutput, Funnel, GitMerge, Merge, SendHorizontal, Sheet, Sparkles, TriangleAlert } from 'lucide-react'
+import { ArrowRight, ChartColumn, CircleCheck, Columns3, Combine, FileOutput, RefreshCw, SendHorizontal, Sheet, Sigma, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 
 /*
- * ヒーロー右側の製品ビジュアル。
- * 「Excelファイル → 処理フロー → 集計結果」の流れを、ミントの接続線でつないで表現する。
- * 処理カード・データ・グラフは明るいパネル、入力ファイルとAI指示は暗いパネル。
- * 実際のFlowCraft AIの処理（読込 → 整形・結合 → 品質検証 → 出力）と同じ流れにしている。
+ * ヒーロー右側の製品ビジュアル（TOP改修 Ver.2.0 §4）。
+ *
+ *   Excel・CSV ──→ 作業手順（処理ステップ）──→ 集計表 / グラフ / 分析結果
+ *                      ↑ AIは「手順を提案」するだけ
+ *                      ↻ 作業手順を保存・再実行
+ *
+ * AIの指示欄は「作業手順」のカードだけにつなぎ、データや数値にはつながない
+ * （計算するのはAIではなく処理エンジンであることを、図の上でも正しく表すため）。
+ * 処理カードは暗いパネル、データ・グラフ・分析結果は明るいパネル。
  *
  * PC・タブレット（幅640px以上）：640×460px の構図（HeroVisual）
- * スマートフォン：縦に並べた簡易版（HeroVisualCompact）
+ * スマートフォン：4つの段階を並べた簡易版（HeroVisualCompact）
  */
 
 const W = 640
@@ -17,36 +22,39 @@ const H = 460
 const MINT = '#38D9AD'
 
 const INPUTS = [
-  { name: '売上実績', ext: '.xlsx', y: 150 },
-  { name: '商品マスタ', ext: '.xlsx', y: 214 },
-  { name: '部署マスタ', ext: '.csv', y: 278 },
+  { name: '売上_東京', ext: '.xlsx', y: 150 },
+  { name: '売上_大阪', ext: '.xlsx', y: 214 },
+  { name: '商品マスタ', ext: '.csv', y: 278 },
 ]
-const TILE = { w: 108, h: 52 }
-const MERGE = { x: 160, y: 240 } // 入力が合流する「結合」ノードの中心
-const PREP = { x: 210, y: 166, w: 236, h: 148 } // 「データを整える」カード
-const OUT_X = 486 // 出力カードの左端
+const TILE = { w: 112, h: 52 }
+const FLOW = { x: 156, y: 122, w: 244, h: 214 } // 作業手順のカード
+const OUT_X = 440 // 出力カードの左端
+const OUTS = [
+  { y: 22, h: 162 }, // 集計表
+  { y: 198, h: 118 }, // グラフ
+  { y: 330, h: 104 }, // 分析結果
+]
 
 export function HeroVisual() {
-  const prepRight = PREP.x + PREP.w
-  const prepMidY = PREP.y + PREP.h / 2
+  const flowMidY = FLOW.y + FLOW.h / 2
+  const flowRight = FLOW.x + FLOW.w
   return (
     <div
       className="relative shrink-0"
       style={{ width: W, height: H }}
       role="img"
-      aria-label="FlowCraft AIの処理イメージ：3つのExcelを読み込み、結合・整形・品質検証を経て集計表とレポートを出力する"
+      aria-label="FlowCraft AIの処理イメージ：複数のExcel・CSVを、AIが提案した作業手順で加工・集計し、集計表・グラフ・分析結果を出力する。作業手順は保存して再実行できる"
     >
-      {/* 背景の光（ミント） */}
-      <div className="pointer-events-none absolute top-1/2 left-1/2 h-[420px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(56,217,173,0.16),transparent)]" />
+      <div className="pointer-events-none absolute top-1/2 left-[45%] h-[420px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(56,217,173,0.14),transparent)]" />
 
-      {/* 接続線 */}
       <svg className="pointer-events-none absolute inset-0" width={W} height={H} aria-hidden>
+        {/* 入力 → 作業手順 */}
         {INPUTS.map((f) => {
           const y = f.y + TILE.h / 2
           return (
             <path
               key={f.name}
-              d={`M${TILE.w} ${y} C ${TILE.w + 26} ${y}, ${MERGE.x - 40} ${MERGE.y}, ${MERGE.x - 22} ${MERGE.y}`}
+              d={`M${TILE.w} ${y} C ${TILE.w + 26} ${y}, ${FLOW.x - 26} ${flowMidY}, ${FLOW.x} ${flowMidY}`}
               fill="none"
               stroke={MINT}
               strokeWidth="2"
@@ -55,16 +63,28 @@ export function HeroVisual() {
             />
           )
         })}
-        <path d={`M${MERGE.x + 22} ${MERGE.y} H${PREP.x}`} stroke={MINT} strokeWidth="2" />
-        {/* 整えたデータ → 集計表（上）／レポート（下） */}
-        <path d={`M${prepRight} ${prepMidY} C ${prepRight + 22} ${prepMidY}, ${OUT_X - 24} 120, ${OUT_X} 120`} fill="none" stroke={MINT} strokeWidth="2" />
-        <path d={`M${prepRight} ${prepMidY} C ${prepRight + 22} ${prepMidY}, ${OUT_X - 24} 352, ${OUT_X} 352`} fill="none" stroke={MINT} strokeWidth="2" />
-        <circle cx={prepRight} cy={prepMidY} r="4" fill={MINT} />
-        <path d={`M${OUT_X - 7} 115 L${OUT_X} 120 L${OUT_X - 7} 125`} fill="none" stroke={MINT} strokeWidth="2" />
-        <path d={`M${OUT_X - 7} 347 L${OUT_X} 352 L${OUT_X - 7} 357`} fill="none" stroke={MINT} strokeWidth="2" />
+        {/* AIの指示 → 作業手順（提案だけ。点線で区別） */}
+        <path d={`M${FLOW.x + 60} 86 V${FLOW.y}`} stroke={MINT} strokeWidth="1.5" strokeDasharray="3 4" opacity="0.7" />
+        {/* 作業手順 → 出力 */}
+        {OUTS.map((o) => {
+          const y = o.y + 34
+          return (
+            <g key={o.y}>
+              <path d={`M${flowRight} ${flowMidY} C ${flowRight + 22} ${flowMidY}, ${OUT_X - 22} ${y}, ${OUT_X} ${y}`} fill="none" stroke={MINT} strokeWidth="2" />
+              <path d={`M${OUT_X - 6} ${y - 4} L${OUT_X} ${y} L${OUT_X - 6} ${y + 4}`} fill="none" stroke={MINT} strokeWidth="2" />
+            </g>
+          )
+        })}
+        <circle cx={flowRight} cy={flowMidY} r="4" fill={MINT} />
       </svg>
 
-      {/* 入力ファイル（暗いパネル） */}
+      {/* AIへの指示 */}
+      <PromptBox className="absolute" style={{ left: 120, top: 0, width: 300 }} />
+      <span style={{ left: FLOW.x + 68, top: 92 }} className="absolute text-[0.7rem] font-bold text-mint">
+        AIが手順を提案
+      </span>
+
+      {/* 入力ファイル */}
       {INPUTS.map((f) => (
         <div
           key={f.name}
@@ -81,40 +101,45 @@ export function HeroVisual() {
         </div>
       ))}
 
-      {/* 結合ノード */}
-      <div
-        style={{ left: MERGE.x - 22, top: MERGE.y - 22 }}
-        className="absolute grid size-11 place-items-center rounded-xl bg-white shadow-[0_0_0_4px_rgba(56,217,173,0.18)]"
-        title="結合"
-      >
-        <Merge className="size-5 text-forest" aria-hidden />
-      </div>
-      <span style={{ left: MERGE.x - 22, top: MERGE.y + 28 }} className="absolute w-11 text-center text-[0.68rem] text-subtle">
-        結合
-      </span>
+      <FlowCard className="absolute" style={{ left: FLOW.x, top: FLOW.y, width: FLOW.w, height: FLOW.h }} />
+      <ReusePill className="absolute" style={{ left: FLOW.x, top: FLOW.y + FLOW.h + 14, width: FLOW.w }} />
 
-      {/* 品質検証（暗いピル）＋ データを整える（明るいカード） */}
-      <QualityPill className="absolute" style={{ left: PREP.x, top: PREP.y - 52, width: PREP.w }} />
-      <PrepareCard className="absolute" style={{ left: PREP.x, top: PREP.y, width: PREP.w, height: PREP.h }} />
-
-      {/* 出力：集計表（上）とレポート（下） */}
-      <ResultTable className="absolute" style={{ left: OUT_X, top: 28, width: W - OUT_X }} />
-      <ReportCard className="absolute" style={{ left: OUT_X, top: 300, width: W - OUT_X }} />
-
-      {/* AIへの指示（暗いパネル） */}
-      <PromptBox className="absolute" style={{ left: 24, top: 372, width: 422 }} />
+      <ResultTable className="absolute" style={{ left: OUT_X, top: OUTS[0].y, width: W - OUT_X }} />
+      <ChartCard className="absolute" style={{ left: OUT_X, top: OUTS[1].y, width: W - OUT_X, height: OUTS[1].h }} />
+      <InsightCard className="absolute" style={{ left: OUT_X, top: OUTS[2].y, width: W - OUT_X }} />
     </div>
   )
 }
 
-/** スマートフォン用の簡易版。重ね合わせをやめて縦に並べる。 */
+/** スマートフォン用の簡易版：読み込む → 加工する → 分析する → 出力する */
+const PHASES: { icon: LucideIcon; label: string }[] = [
+  { icon: Sheet, label: '読み込む' },
+  { icon: Combine, label: '加工する' },
+  { icon: ChartColumn, label: '分析する' },
+  { icon: FileOutput, label: '出力する' },
+]
+
 export function HeroVisualCompact() {
   return (
-    <div className="space-y-3" role="img" aria-label="FlowCraft AIの処理イメージ">
-      <PromptBox />
-      <PrepareCard />
-      <QualityPill />
-      <ResultTable />
+    <div className="rounded-2xl bg-panel p-4 ring-1 ring-edge" role="img" aria-label="作業手順のイメージ：読み込む、加工する、分析する、出力する。保存して再実行できる">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="text-[0.9rem] font-bold text-white">作業手順のイメージ</span>
+        <span className="inline-flex items-center gap-1 text-[0.78rem] font-bold text-mint">
+          <RefreshCw className="size-3.5" aria-hidden />
+          保存・再実行できる
+        </span>
+      </div>
+      <ol className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">
+        {PHASES.map(({ icon: Icon, label }, i) => (
+          <li key={label} className="contents">
+            <span className="flex flex-col items-center gap-1 rounded-lg bg-panel-hi px-1 py-2.5">
+              <Icon className="size-4.5 text-mint" aria-hidden />
+              <span className="text-[0.75rem] whitespace-nowrap text-white">{label}</span>
+            </span>
+            {i < PHASES.length - 1 && <ArrowRight className="size-3.5 text-mint" aria-hidden />}
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }
@@ -123,67 +148,51 @@ export function HeroVisualCompact() {
 
 type BoxProps = { className?: string; style?: CSSProperties }
 
-function LightCard({ title, aside, className = '', style, children }: BoxProps & { title: string; aside?: ReactNode; children: ReactNode }) {
+const STEPS: { icon: LucideIcon; label: string }[] = [
+  { icon: Columns3, label: '必要な列を取り出す' },
+  { icon: Combine, label: 'データをまとめる' },
+  { icon: Sigma, label: '売上を集計する' },
+  { icon: ChartColumn, label: 'グラフを作る' },
+]
+
+function FlowCard({ className = '', style }: BoxProps) {
   return (
-    <div style={style} className={`light-panel rounded-xl p-3.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/10 ${className}`}>
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        <span className="text-[0.85rem] font-bold">{title}</span>
-        {aside}
+    <div style={style} className={`rounded-2xl bg-panel p-3 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] ring-1 ring-mint/30 ${className}`}>
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="text-[0.82rem] font-bold text-white">作業手順</span>
+        <span className="text-[0.68rem] text-subtle">4つの処理ステップ</span>
       </div>
-      {children}
+      <ol className="space-y-1.5">
+        {STEPS.map(({ icon: Icon, label }, i) => (
+          <li key={label} className="flex items-center gap-2.5 rounded-lg bg-panel-hi px-2.5 py-2">
+            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-mint text-[0.66rem] font-bold text-on-mint">{i + 1}</span>
+            <Icon className="size-4 shrink-0 text-mint" aria-hidden />
+            <span className="flex-1 text-[0.76rem] whitespace-nowrap text-white">{label}</span>
+            <CircleCheck className="size-3.5 text-[#6fd99b]" aria-label="確認済み" />
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }
 
-const STEPS: { icon: LucideIcon; label: string }[] = [
-  { icon: Columns3, label: '列を抽出' },
-  { icon: Funnel, label: '条件で絞込' },
-  { icon: GitMerge, label: 'マスタと結合' },
-]
-
-function PrepareCard({ className = '', style }: BoxProps) {
+function ReusePill({ className = '', style }: BoxProps) {
   return (
-    <LightCard
-      title="データを整える"
-      className={className}
-      style={style}
-      aside={
-        <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[0.68rem] font-bold text-success-ink">
-          <CircleCheck className="size-3" aria-hidden />
-          確定
-        </span>
-      }
-    >
-      <p className="mb-2.5 text-[0.7rem] text-muted">ステップごとに内容を確認して実行</p>
-      <div className="flex items-start">
-        {STEPS.map(({ icon: Icon, label }, i) => (
-          <div key={label} className="flex flex-1 items-start">
-            <div className="flex flex-1 flex-col items-center gap-1.5">
-              <span className="grid h-12 w-full place-items-center rounded-lg bg-paper ring-1 ring-line">
-                <Icon className="size-5 text-forest" aria-hidden />
-              </span>
-              <span className="text-[0.66rem] whitespace-nowrap text-muted">{label}</span>
-            </div>
-            {i < STEPS.length - 1 && <span className="mt-6 h-0.5 w-2.5 shrink-0 bg-mint" aria-hidden />}
-          </div>
-        ))}
-      </div>
-    </LightCard>
+    <div style={style} className={`flex items-center justify-center gap-1.5 rounded-full bg-mint/10 py-1.5 text-[0.74rem] font-bold text-mint ring-1 ring-mint/30 ${className}`}>
+      <RefreshCw className="size-3.5" aria-hidden />
+      作業手順を保存・再実行
+    </div>
   )
 }
 
-function QualityPill({ className = '', style }: BoxProps) {
+function LightCard({ title, aside, className = '', style, children }: BoxProps & { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <div style={style} className={`flex items-center gap-3 rounded-xl bg-panel px-3 py-2 text-[0.72rem] ring-1 ring-edge ${className}`}>
-      <span className="font-bold text-white">品質検証</span>
-      <span className="inline-flex items-center gap-1 text-[#6fd99b]">
-        <CircleCheck className="size-3.5" aria-label="正常" />
-        件数一致
-      </span>
-      <span className="inline-flex items-center gap-1 font-bold text-warning">
-        <TriangleAlert className="size-3.5" aria-label="警告" />
-        未照合 3件
-      </span>
+    <div style={style} className={`light-panel rounded-xl p-3 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/10 ${className}`}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[0.8rem] font-bold">{title}</span>
+        {aside}
+      </div>
+      {children}
     </div>
   )
 }
@@ -192,14 +201,13 @@ const ROWS = [
   ['営業1部', '12,480'],
   ['営業2部', '9,860'],
   ['EC事業部', '11,032'],
-  ['直販部', '7,215'],
 ]
 
 function ResultTable({ className = '', style }: BoxProps) {
   return (
     <div style={style} className={`light-panel overflow-hidden rounded-xl text-[0.72rem] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/10 ${className}`}>
       <div className="flex items-center justify-between border-b border-line px-3 py-2">
-        <span className="font-bold">部署別 集計</span>
+        <span className="font-bold">部署別 集計表</span>
         <span className="text-[0.64rem] text-muted">千円</span>
       </div>
       <table className="w-full">
@@ -212,7 +220,7 @@ function ResultTable({ className = '', style }: BoxProps) {
           ))}
           <tr className="bg-mint-soft font-bold text-forest">
             <td className="px-3 py-1.5">合計</td>
-            <td className="px-3 py-1.5 text-right tabular-nums">40,587</td>
+            <td className="px-3 py-1.5 text-right tabular-nums">33,372</td>
           </tr>
         </tbody>
       </table>
@@ -220,22 +228,33 @@ function ResultTable({ className = '', style }: BoxProps) {
   )
 }
 
-const BARS = [62, 44, 76, 38, 58, 50, 70]
+const BARS = [62, 44, 76, 38, 58, 70]
 
-function ReportCard({ className = '', style }: BoxProps) {
+function ChartCard({ className = '', style }: BoxProps) {
   return (
-    <LightCard
-      title="売上レポート"
-      className={className}
-      style={style}
-      aside={<FileOutput className="size-3.5 text-muted" aria-label="Excel出力" />}
-    >
-      <div className="flex h-[64px] items-end gap-1.5 border-b border-line">
+    <LightCard title="グラフ" className={className} style={style} aside={<span className="text-[0.64rem] text-muted">部署別売上</span>}>
+      <div className="flex h-[58px] items-end gap-1.5 border-b border-line">
         {BARS.map((h, i) => (
           <span key={i} style={{ height: `${h}%` }} className={`flex-1 rounded-t-[3px] ${i === 2 ? 'bg-mint' : 'bg-forest/80'}`} />
         ))}
       </div>
-      <p className="mt-1.5 text-[0.64rem] text-muted">Excel・4シートで出力</p>
+    </LightCard>
+  )
+}
+
+function InsightCard({ className = '', style }: BoxProps) {
+  return (
+    <LightCard title="分析結果" className={className} style={style}>
+      <ul className="space-y-1 text-[0.72rem]">
+        <li className="flex justify-between">
+          <span className="text-muted">前月比</span>
+          <span className="font-bold text-forest tabular-nums">+8.2%</span>
+        </li>
+        <li className="flex justify-between">
+          <span className="text-muted">売上1位</span>
+          <span className="font-bold">営業1部</span>
+        </li>
+      </ul>
     </LightCard>
   )
 }
@@ -247,8 +266,8 @@ function PromptBox({ className = '', style }: BoxProps) {
         <Sparkles className="size-3.5" aria-hidden />
         AIに日本語で指示
       </div>
-      <div className="flex items-center gap-2 rounded-xl bg-canvas px-3 py-2.5 ring-1 ring-edge">
-        <span className="flex-1 text-[0.82rem] text-white">部署別に今月の売上を集計して</span>
+      <div className="flex items-center gap-2 rounded-xl bg-canvas px-3 py-2 ring-1 ring-edge">
+        <span className="flex-1 text-[0.78rem] text-white">東京と大阪の売上をまとめて、部署別にグラフにして</span>
         <span className="grid size-7 shrink-0 place-items-center rounded-full bg-mint">
           <SendHorizontal className="size-3.5 text-on-mint" aria-hidden />
         </span>

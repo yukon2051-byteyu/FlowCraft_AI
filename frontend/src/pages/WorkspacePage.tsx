@@ -20,7 +20,7 @@ export default function WorkspacePage() {
   return (
     <>
       <div className="hidden h-screen min-h-[640px] flex-col bg-canvas lg:flex">
-        <AppHeader flowName={sample ? '月次売上集計' : '無題のフロー'} unsaved={sample} canExport={false} />
+        <AppHeader flowName={sample ? '月次売上集計' : '無題の作業手順'} unsaved={sample} canExport={false} />
         {sample ? (
           <>
             <Stepper current={3} hint="AIの提案を確認し、すべてのステップを確定してください" />

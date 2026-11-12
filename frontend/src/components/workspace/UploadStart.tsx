@@ -1,4 +1,8 @@
-import { ArrowRight, Clock3, Eye, FileJson, Lock } from 'lucide-react'
+import { ArrowRight, Clock3, Copy, Eye, FolderOpen, KeyRound, Lock } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { isAvailable } from '../../content/featureStatus'
+import type { FeatureKey } from '../../content/featureStatus'
+import { DevBadge } from '../ui/DevBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, hasSession } from '../../api/client'
 import type { ApiErrorBody } from '../../api/client'
@@ -174,7 +178,8 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
           <div className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <section className="light-panel space-y-4 rounded-2xl p-7 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)]">
               <div>
-                <h1 className="text-[1.5rem] font-bold">データを読み込む</h1>
+                <p className="text-[0.85rem] font-bold text-forest">新しい作業手順を作る</p>
+                <h1 className="mt-0.5 text-[1.5rem] font-bold">データを読み込む</h1>
                 <p className="mt-1.5 text-ink/80">処理に使うExcel・CSVファイルをすべて読み込んでください。複数ファイルの結合・統合にも対応しています。</p>
               </div>
               <Dropzone onFiles={addFiles} />
@@ -243,43 +248,70 @@ export function UploadStart({ onShowSample, onFileCountChange }: { onShowSample:
 
 function SideCards({ onShowSample }: { onShowSample: () => void }) {
   return (
-    <aside className="space-y-4">
-      <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
-        <h2 className="flex items-center gap-2 font-bold text-white">
-          <FileJson className="size-5 text-mint" aria-hidden />
-          保存したフローを使う
-        </h2>
-        <p className="mt-1.5 text-[0.92rem] text-subtle">前回保存したフロー（.json）を開き、新しいファイルで再実行できます。</p>
-        <div className="mt-3">
-          <Button variant="outlineDark" size="sm" disabled title="フローの読込は開発中です">
-            フローを開く
-          </Button>
-        </div>
-      </div>
-
-      <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
+    <aside className="space-y-4" aria-label="ほかの始め方">
+      <p className="px-1 text-[0.85rem] font-bold tracking-wide text-subtle">ほかの始め方</p>
+      <StartCard
+        icon={FolderOpen}
+        title="保存した作業手順を使う"
+        body="以前作った作業手順のファイルを開き、新しいファイルで同じ処理を実行します。"
+        action="作業手順を開く"
+        feature="saveReuse"
+      />
+      <StartCard
+        icon={Copy}
+        title="既存の手順をもとに新しく作る"
+        body="保存した作業手順をもとに、別の部署や業務に合わせて内容を変更します。"
+        action="もとにする手順を選ぶ"
+        feature="derive"
+      />
+      <div className="rounded-2xl bg-panel/60 p-5 ring-1 ring-edge">
         <h2 className="flex items-center gap-2 font-bold text-white">
           <Eye className="size-5 text-mint" aria-hidden />
           編集画面を見てみる
         </h2>
-        <p className="mt-1.5 text-[0.92rem] text-subtle">サンプルのフローで、フローの確認・設定・プレビュー画面を表示します。</p>
+        <p className="mt-1.5 text-[0.92rem] text-subtle">サンプルの作業手順で、処理内容の確認・変更の画面を表示します。</p>
         <div className="mt-3">
           <Button variant="outlineDark" size="sm" onClick={onShowSample}>
-            サンプルフローで画面を見る
+            サンプルで画面を見る
           </Button>
         </div>
       </div>
 
       <ul className="space-y-2 px-1 text-[0.85rem] text-subtle">
         <li className="flex gap-2">
+          <KeyRound className="mt-0.5 size-4 shrink-0" aria-hidden />
+          AIを使う操作のときだけ、AI使用パスワードの入力を求めます。読み込み・加工・集計はパスワードなしで使えます。
+        </li>
+        <li className="flex gap-2">
           <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
-          AIには列名・型・一部のサンプル値のみ送信します。
+          AIには列名・データの形式・一部のサンプル値だけを送ります。
         </li>
         <li className="flex gap-2">
           <Clock3 className="mt-0.5 size-4 shrink-0" aria-hidden />
-          データは保存せず、60分で自動削除します。
+          読み込んだデータは保存せず、60分で自動的に削除します。
         </li>
       </ul>
     </aside>
+  )
+}
+
+function StartCard({ icon: Icon, title, body, action, feature }: { icon: LucideIcon; title: string; body: string; action: string; feature: FeatureKey }) {
+  const ready = isAvailable(feature)
+  return (
+    <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="flex items-center gap-2 font-bold text-white">
+          <Icon className="size-5 text-mint" aria-hidden />
+          {title}
+        </h2>
+        <DevBadge feature={feature} />
+      </div>
+      <p className="mt-1.5 text-[0.92rem] text-subtle">{body}</p>
+      <div className="mt-3">
+        <Button variant="outlineDark" size="sm" disabled={!ready} title={ready ? undefined : 'この機能は開発中のため、まだ使えません'}>
+          {action}
+        </Button>
+      </div>
+    </div>
   )
 }
