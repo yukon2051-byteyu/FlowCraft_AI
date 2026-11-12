@@ -4,6 +4,8 @@
 - 版：v1.0（2026-11-12・確認事項 A1〜A5 は推奨案で確定）
 - 前提：[architecture.md](architecture.md)・[flow-schema.md](flow-schema.md)
 
+
+> **2026-11-12 追記（製品方針 Ver.3.0）**：本機能は Phase 6 に移動し、範囲を **前月比・ランキング・構成比、棒グラフ・折れ線グラフ** に絞る。統計（中央値・標準偏差）、時系列の週単位、円グラフ、分析ダッシュボード、AI分析コメントは後回し。理由は [product-review.md](product-review.md) §10。§4 の実装順序は [implementation-plan.md](implementation-plan.md) v2.0 に置き換える。
 ---
 
 ## 1. 方針
