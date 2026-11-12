@@ -46,9 +46,39 @@ export type CalculateParams = {
   on_zero_division: 'warn' | 'error'
 }
 export type OutputParams = { sheets: { reference: string; sheet_name: string }[] }
+export type SortParams = { keys: { column: string; ascending: boolean }[] }
+export type DropColumnsParams = { columns: string[] }
+export type AddConstantParams = { column: string; value: string | null; value_type: ColumnType }
+export type CastSpec = { column: string; to: ColumnType; scale: number | null; date_format: string | null; rounding: Rounding }
+export type CastParams = { casts: CastSpec[]; on_failure: 'error' | 'warn' }
+export type DuplicatesParams = { key_columns: string[]; mode: 'detect' | 'remove'; keep: 'first' | 'last' }
+export type MissingParams = { columns: string[]; mode: 'detect' | 'fill' | 'drop_rows'; fill_value: string | null }
 
-/** 1-4 で設定画面を作った種類（残りの6種は 1-5） */
-export const FORM_TYPES: NodeType[] = ['load', 'filter', 'select_columns', 'rename_columns', 'join', 'concat', 'aggregate', 'calculate', 'output']
+/** 日付の書き方の選択肢（null は既定：2026-10-01・2026/10/01 など一般的な形を受け付ける） */
+export const DATE_FORMATS: { value: string | null; label: string }[] = [
+  { value: null, label: '自動（2026-10-01、2026/10/01 など）' },
+  { value: '%Y%m%d', label: '20261001' },
+  { value: '%Y年%m月%d日', label: '2026年10月01日' },
+]
+
+/** 設定画面がある種類（1-4 で9種、1-5 で残りの6種） */
+export const FORM_TYPES: NodeType[] = [
+  'load',
+  'filter',
+  'sort',
+  'select_columns',
+  'rename_columns',
+  'drop_columns',
+  'add_constant',
+  'cast',
+  'duplicates',
+  'missing',
+  'join',
+  'concat',
+  'aggregate',
+  'calculate',
+  'output',
+]
 
 /* ---------- 表示用の名前 ---------- */
 
@@ -135,6 +165,18 @@ export function defaultParams(type: NodeType): Record<string, unknown> {
       }
     case 'output':
       return { sheets: [] }
+    case 'sort':
+      return { keys: [{ column: '', ascending: true }] }
+    case 'drop_columns':
+      return { columns: [] }
+    case 'add_constant':
+      return { column: '', value: '', value_type: 'string' }
+    case 'cast':
+      return { casts: [{ column: '', to: 'string', scale: null, date_format: null, rounding: 'half_up' }], on_failure: 'error' }
+    case 'duplicates':
+      return { key_columns: [], mode: 'detect', keep: 'first' }
+    case 'missing':
+      return { columns: [], mode: 'detect', fill_value: null }
     default:
       return {}
   }
@@ -397,10 +439,78 @@ export function paramProblems(node: FlowNode, inputs: (Col[] | null)[]): string[
       if (names.some((n, i) => n && names.indexOf(n) !== i)) out.push('シート名が重なっています')
       break
     }
+    case 'sort': {
+      const keys = (p as unknown as SortParams).keys ?? []
+      if (keys.length === 0) out.push('並べ替えに使う列を1つ以上指定してください')
+      keys.forEach((k, i) => {
+        if (!k.column) out.push(`${i + 1}番目：列を選んでください`)
+        else if (!has(k.column)) out.push(`${i + 1}番目：列「${k.column}」がありません`)
+      })
+      const names = keys.map((k) => k.column).filter(Boolean)
+      if (names.some((n, i) => names.indexOf(n) !== i)) out.push('同じ列が2回指定されています')
+      break
+    }
+    case 'drop_columns': {
+      const picked = (p.columns as string[]) ?? []
+      if (picked.length === 0) out.push('消す列を1つ以上選んでください')
+      else if (picked.length >= cols.length) out.push('すべての列は消せません。1列以上残してください')
+      picked.filter((n) => !has(n)).forEach((n) => out.push(`列「${n}」がありません`))
+      break
+    }
+    case 'add_constant': {
+      const ap = p as unknown as AddConstantParams
+      if (!ap.column?.trim()) out.push('追加する列の名前を入力してください')
+      else if (has(ap.column)) out.push(`列「${ap.column}」はすでにあります。別の名前にしてください`)
+      if (ap.value === null || ap.value === '') out.push('入れる値を入力してください')
+      else {
+        const vp = valueProblem(ap.value_type, ap.value)
+        if (vp) out.push(`入れる値：${vp}`)
+      }
+      break
+    }
+    case 'cast': {
+      const cp = p as unknown as CastParams
+      if (!cp.casts?.length) out.push('形式をそろえる列を1つ以上指定してください')
+      ;(cp.casts ?? []).forEach((c, i) => {
+        const at = `${i + 1}つ目：`
+        if (!c.column) out.push(`${at}列を選んでください`)
+        else if (!has(c.column)) out.push(`${at}列「${c.column}」がありません`)
+        else if (typeOf(c.column) === c.to && c.scale === null) out.push(`${at}「${c.column}」はすでに${TYPE_JA[c.to]}です`)
+      })
+      const names = (cp.casts ?? []).map((c) => c.column).filter(Boolean)
+      if (names.some((n, i) => names.indexOf(n) !== i)) out.push('同じ列が2回指定されています')
+      break
+    }
+    case 'duplicates': {
+      const dp = p as unknown as DuplicatesParams
+      if (!dp.key_columns?.length) out.push('重複を判断する列を1つ以上選んでください')
+      ;(dp.key_columns ?? []).filter((n) => !has(n)).forEach((n) => out.push(`列「${n}」がありません`))
+      break
+    }
+    case 'missing': {
+      const mp = p as unknown as MissingParams
+      if (!mp.columns?.length) out.push('空欄を調べる列を1つ以上選んでください')
+      ;(mp.columns ?? []).filter((n) => !has(n)).forEach((n) => out.push(`列「${n}」がありません`))
+      if (mp.mode === 'fill') {
+        if (mp.fill_value === null || mp.fill_value === '') out.push('空欄に入れる値を入力してください')
+        else {
+          // 選んだ列それぞれの形式に合う値か（形式の違う列を一度に埋めることはできない）
+          const types = [...new Set((mp.columns ?? []).map((n) => typeOf(n)).filter(Boolean))] as ColumnType[]
+          for (const t of types) {
+            const vp = valueProblem(t, mp.fill_value)
+            if (vp) {
+              out.push(`空欄に入れる値：${TYPE_JA[t]}の列には ${vp}`)
+              break
+            }
+          }
+        }
+      }
+      break
+    }
     case 'load':
       break
     default:
-      out.push('この処理の設定画面は準備中です（次のタスクで作ります）')
+      out.push('この処理の設定画面は準備中です')
   }
   return out
 }
@@ -448,6 +558,36 @@ export function summarize(node: FlowNode): string | null {
     case 'output': {
       const s = ((p as unknown as OutputParams).sheets ?? []).map((x) => x.sheet_name).filter(Boolean)
       return s.length ? `「${s.join('」「')}」の${s.length}シートを出力する` : null
+    }
+    case 'sort': {
+      const keys = ((p as unknown as SortParams).keys ?? []).filter((k) => k.column)
+      return keys.length ? `${keys.map((k) => `${k.column}の${k.ascending ? '小さい順' : '大きい順'}`).join('、')}に並べ替える` : null
+    }
+    case 'drop_columns': {
+      const c = (p.columns as string[]) ?? []
+      return c.length ? `${c.map((x) => `「${x}」`).join('')}を消す` : null
+    }
+    case 'add_constant': {
+      const ap = p as unknown as AddConstantParams
+      return ap.column && ap.value ? `「${ap.column}」列を追加（すべての行に ${ap.value}）` : null
+    }
+    case 'cast': {
+      const cs = ((p as unknown as CastParams).casts ?? []).filter((c) => c.column)
+      return cs.length ? `${cs.map((c) => `「${c.column}」を${TYPE_JA[c.to]}`).join('、')}にそろえる` : null
+    }
+    case 'duplicates': {
+      const dp = p as unknown as DuplicatesParams
+      if (!dp.key_columns?.length) return null
+      const keys = dp.key_columns.join('・')
+      return dp.mode === 'detect' ? `${keys}の重複を調べる（データは変えない）` : `${keys}の重複を取り除く（${dp.keep === 'first' ? '最初' : '最後'}の行を残す）`
+    }
+    case 'missing': {
+      const mp = p as unknown as MissingParams
+      if (!mp.columns?.length) return null
+      const c = mp.columns.map((x) => `「${x}」`).join('')
+      if (mp.mode === 'detect') return `${c}の空欄を調べる（データは変えない）`
+      if (mp.mode === 'fill') return `${c}の空欄を ${mp.fill_value ?? ''} で埋める`
+      return `${c}が空欄の行を除く`
     }
     default:
       return null

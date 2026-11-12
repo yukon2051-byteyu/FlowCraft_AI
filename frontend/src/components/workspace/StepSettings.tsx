@@ -6,6 +6,7 @@ import {
   AGG_LABEL,
   aggTypes,
   CALC_LABEL,
+  DATE_FORMATS,
   HOW_LABEL,
   OPERATOR_LABEL,
   operatorsFor,
@@ -13,8 +14,13 @@ import {
   ROUNDING_LABEL,
 } from '../../flow/params'
 import type {
+  AddConstantParams,
   AggFunction,
   AggregateParams,
+  CastParams,
+  DuplicatesParams,
+  MissingParams,
+  SortParams,
   CalcOp,
   CalculateParams,
   Col,
@@ -30,7 +36,7 @@ import type {
   Rounding,
 } from '../../flow/params'
 import { useFlowStore } from '../../flow/store'
-import type { FlowNode } from '../../flow/types'
+import type { ColumnType, FlowNode } from '../../flow/types'
 import { Button } from '../ui/Button'
 import { StatusBadge } from '../ui/StatusBadge'
 
@@ -91,8 +97,26 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
     case 'output':
       form = <OutputForm p={p as unknown as OutputParams} names={inputNames} set={set} />
       break
+    case 'sort':
+      form = <SortForm p={p as unknown as SortParams} cols={cols} set={set} />
+      break
+    case 'drop_columns':
+      form = <DropForm picked={(p.columns as string[]) ?? []} cols={cols} set={(columns) => set({ columns })} />
+      break
+    case 'add_constant':
+      form = <AddConstantForm p={p as unknown as AddConstantParams} set={set} />
+      break
+    case 'cast':
+      form = <CastForm p={p as unknown as CastParams} cols={cols} set={set} />
+      break
+    case 'duplicates':
+      form = <DuplicatesForm p={p as unknown as DuplicatesParams} cols={cols} set={set} />
+      break
+    case 'missing':
+      form = <MissingForm p={p as unknown as MissingParams} cols={cols} set={set} />
+      break
     default:
-      form = <p className="text-[0.9rem] text-muted">この処理の設定画面は準備中です（次のタスクで作ります）。</p>
+      form = <p className="text-[0.9rem] text-muted">この処理の設定画面は準備中です。</p>
   }
 
   return (
@@ -631,5 +655,240 @@ function OutputForm({ p, names, set }: { p: OutputParams; names: string[]; set: 
         <p className="text-[0.8rem] text-muted">出力する表を増やすときは、ステップの「表を追加」から選んでください。</p>
       </div>
     </Field>
+  )
+}
+
+/* ---------- 1-5：残りの6種 ---------- */
+
+const TYPE_OPTIONS: ColumnType[] = ['string', 'integer', 'decimal', 'date', 'boolean']
+
+/** 列のチェックボックス一覧（並びは元の表の列の順） */
+function ColumnChecks({ picked, cols, set, label }: { picked: string[]; cols: Col[]; set: (c: string[]) => void; label: (name: string) => string }) {
+  return (
+    <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+      {cols.map((c) => (
+        <li key={c.name}>
+          <label className="flex items-center gap-2 text-[0.9rem]">
+            <input
+              type="checkbox"
+              checked={picked.includes(c.name)}
+              onChange={(e) => set(cols.map((x) => x.name).filter((n) => (n === c.name ? e.target.checked : picked.includes(n))))}
+              aria-label={label(c.name)}
+              className="size-4 accent-[#135f50]"
+            />
+            {c.name}
+          </label>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function SortForm({ p, cols, set }: { p: SortParams; cols: Col[]; set: (p: SortParams) => void }) {
+  const keys = p.keys ?? []
+  const patch = (i: number, x: Partial<SortParams['keys'][number]>) => set({ keys: keys.map((k, j) => (j === i ? { ...k, ...x } : k)) })
+  return (
+    <Field label="並べ替えに使う列（上の列から順に優先）">
+      <div className="space-y-1.5">
+        {keys.map((k, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="w-5 shrink-0 text-center text-[0.8rem] text-muted">{i + 1}</span>
+            <ColumnSelect value={k.column} cols={cols} label={`並べ替え${i + 1}の列`} onChange={(column) => patch(i, { column })} />
+            <select value={k.ascending ? 'asc' : 'desc'} onChange={(e) => patch(i, { ascending: e.target.value === 'asc' })} aria-label={`並べ替え${i + 1}の順番`} className={inputCls}>
+              <option value="asc">小さい順（古い順・あいうえお順）</option>
+              <option value="desc">大きい順（新しい順）</option>
+            </select>
+            {keys.length > 1 && <RemoveButton label={`並べ替え${i + 1}を外す`} onClick={() => set({ keys: keys.filter((_, j) => j !== i) })} />}
+          </div>
+        ))}
+        {keys.length < 10 && <AddButton onClick={() => set({ keys: [...keys, { column: '', ascending: true }] })}>列を追加</AddButton>}
+        <p className="text-[0.8rem] text-muted">空欄の行は最後に並びます。同じ値の行は、元の順番のままです。</p>
+      </div>
+    </Field>
+  )
+}
+
+function DropForm({ picked, cols, set }: { picked: string[]; cols: Col[]; set: (c: string[]) => void }) {
+  return (
+    <Field label={`消す列（${picked.length} ／ ${cols.length}列）`}>
+      <ColumnChecks picked={picked} cols={cols} set={set} label={(n) => `「${n}」を消す`} />
+    </Field>
+  )
+}
+
+function AddConstantForm({ p, set }: { p: AddConstantParams; set: (p: AddConstantParams) => void }) {
+  return (
+    <>
+      <Field label="追加する列の名前">
+        <input value={p.column} onChange={(e) => set({ ...p, column: e.target.value })} aria-label="追加する列の名前" placeholder="例：対象月" className={`${inputCls} w-full`} />
+      </Field>
+      <Field label="データの形式と、すべての行に入れる値">
+        <div className="flex items-center gap-1.5">
+          <select
+            value={p.value_type}
+            onChange={(e) => set({ ...p, value_type: e.target.value as ColumnType, value: e.target.value === 'boolean' ? 'true' : p.value })}
+            aria-label="追加する列のデータの形式"
+            className={inputCls}
+          >
+            {TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {COLUMN_TYPE_LABEL[t]}
+              </option>
+            ))}
+          </select>
+          {p.value_type === 'boolean' ? (
+            <select value={p.value ?? 'true'} onChange={(e) => set({ ...p, value: e.target.value })} aria-label="入れる値" className={`${inputCls} flex-1`}>
+              <option value="true">はい</option>
+              <option value="false">いいえ</option>
+            </select>
+          ) : (
+            <input
+              value={p.value ?? ''}
+              onChange={(e) => set({ ...p, value: e.target.value })}
+              aria-label="入れる値"
+              placeholder={p.value_type === 'date' ? '例：2026-10-01' : p.value_type === 'string' ? '例：2026年10月' : '例：100'}
+              className={`${inputCls} min-w-0 flex-1`}
+            />
+          )}
+        </div>
+      </Field>
+    </>
+  )
+}
+
+function CastForm({ p, cols, set }: { p: CastParams; cols: Col[]; set: (p: CastParams) => void }) {
+  const casts = p.casts ?? []
+  const patch = (i: number, x: Partial<CastParams['casts'][number]>) => set({ ...p, casts: casts.map((c, j) => (j === i ? { ...c, ...x } : c)) })
+  return (
+    <>
+      <Field label="形式をそろえる列">
+        <div className="space-y-2">
+          {casts.map((c, i) => {
+            const from = cols.find((x) => x.name === c.column)?.type
+            return (
+              <div key={i} className="space-y-1.5 rounded-lg bg-card/60 p-2 ring-1 ring-line">
+                <div className="flex items-center gap-1.5">
+                  <ColumnSelect value={c.column} cols={cols} label={`${i + 1}つ目の列`} onChange={(column) => patch(i, { column })} />
+                  {casts.length > 1 && <RemoveButton label={`${i + 1}つ目を外す`} onClick={() => set({ ...p, casts: casts.filter((_, j) => j !== i) })} />}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[0.85rem]">
+                  <span className="text-muted">{from ? `${COLUMN_TYPE_LABEL[from]} →` : '→'}</span>
+                  <select
+                    value={c.to}
+                    onChange={(e) => patch(i, { to: e.target.value as ColumnType, scale: null, date_format: null })}
+                    aria-label={`${i + 1}つ目の変換後の形式`}
+                    className={inputCls}
+                  >
+                    {TYPE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {COLUMN_TYPE_LABEL[t]}
+                      </option>
+                    ))}
+                  </select>
+                  {c.to === 'decimal' && (
+                    <select
+                      value={c.scale === null ? '' : String(c.scale)}
+                      onChange={(e) => patch(i, { scale: e.target.value === '' ? null : Number(e.target.value) })}
+                      aria-label={`${i + 1}つ目の小数の桁数`}
+                      className={inputCls}
+                    >
+                      <option value="">桁数はそのまま</option>
+                      {[0, 1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          小数{n}桁
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {c.to === 'decimal' && c.scale !== null && (
+                    <select value={c.rounding} onChange={(e) => patch(i, { rounding: e.target.value as Rounding })} aria-label={`${i + 1}つ目の端数の処理`} className={inputCls}>
+                      {(Object.keys(ROUNDING_LABEL) as Rounding[]).map((r) => (
+                        <option key={r} value={r}>
+                          {ROUNDING_LABEL[r]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {c.to === 'date' && (
+                    <select
+                      value={c.date_format ?? ''}
+                      onChange={(e) => patch(i, { date_format: e.target.value || null })}
+                      aria-label={`${i + 1}つ目の日付の書き方`}
+                      className={inputCls}
+                    >
+                      {DATE_FORMATS.map((f) => (
+                        <option key={f.label} value={f.value ?? ''}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <AddButton onClick={() => set({ ...p, casts: [...casts, { column: '', to: 'string', scale: null, date_format: null, rounding: 'half_up' }] })}>列を追加</AddButton>
+        </div>
+      </Field>
+      <Field label="変換できない値があったとき">
+        <select value={p.on_failure} onChange={(e) => set({ ...p, on_failure: e.target.value as 'error' | 'warn' })} aria-label="変換できない値があったとき" className={`${inputCls} w-full`}>
+          <option value="error">作業を止める（行番号を表示）</option>
+          <option value="warn">空欄にして、件数と行番号をお知らせする</option>
+        </select>
+      </Field>
+    </>
+  )
+}
+
+function DuplicatesForm({ p, cols, set }: { p: DuplicatesParams; cols: Col[]; set: (p: DuplicatesParams) => void }) {
+  return (
+    <>
+      <Field label="重複を判断する列（選んだ列の値がすべて同じ行を、重複とみなす）">
+        <ColumnChecks picked={p.key_columns} cols={cols} set={(key_columns) => set({ ...p, key_columns })} label={(n) => `「${n}」で重複を判断する`} />
+      </Field>
+      <Field label="重複があったとき">
+        <select value={p.mode} onChange={(e) => set({ ...p, mode: e.target.value as 'detect' | 'remove' })} aria-label="重複があったとき" className={`${inputCls} w-full`}>
+          <option value="detect">調べてお知らせするだけ（データは変えない）</option>
+          <option value="remove">重複した行を取り除く</option>
+        </select>
+        {p.mode === 'remove' && (
+          <select value={p.keep} onChange={(e) => set({ ...p, keep: e.target.value as 'first' | 'last' })} aria-label="残す行" className={`${inputCls} w-full`}>
+            <option value="first">最初に出てくる行を残す</option>
+            <option value="last">最後に出てくる行を残す</option>
+          </select>
+        )}
+      </Field>
+    </>
+  )
+}
+
+function MissingForm({ p, cols, set }: { p: MissingParams; cols: Col[]; set: (p: MissingParams) => void }) {
+  return (
+    <>
+      <Field label="空欄を調べる列">
+        <ColumnChecks picked={p.columns} cols={cols} set={(columns) => set({ ...p, columns })} label={(n) => `「${n}」の空欄を調べる`} />
+      </Field>
+      <Field label="空欄があったとき">
+        <select
+          value={p.mode}
+          onChange={(e) => {
+            const mode = e.target.value as MissingParams['mode']
+            set({ ...p, mode, fill_value: mode === 'fill' ? (p.fill_value ?? '') : null })
+          }}
+          aria-label="空欄があったとき"
+          className={`${inputCls} w-full`}
+        >
+          <option value="detect">調べてお知らせするだけ（データは変えない）</option>
+          <option value="fill">決めた値で埋める</option>
+          <option value="drop_rows">空欄がある行を除く</option>
+        </select>
+        {p.mode === 'fill' && (
+          <>
+            <input value={p.fill_value ?? ''} onChange={(e) => set({ ...p, fill_value: e.target.value })} aria-label="空欄に入れる値" placeholder="例：0" className={`${inputCls} w-full`} />
+            <p className="text-[0.8rem] text-muted">空欄を0とみなしてよいかは、業務によって違います。埋めた件数と行は、実行結果に記録されます。</p>
+          </>
+        )}
+      </Field>
+    </>
   )
 }

@@ -151,3 +151,54 @@ describe('一覧に出す処理内容', () => {
     expect(summarize(node('f', 'filter', ['in1'], 'r', defaultParams('filter')))).toBeNull()
   })
 })
+
+describe('1-5：残りの6種', () => {
+  const cols = inferColumns(flow)
+  const one = (type: FlowNode['node_type'], parameters: Record<string, unknown>) => node('x', type, ['in1'], 'rx', parameters)
+  const problems = (type: FlowNode['node_type'], parameters: Record<string, unknown>) => paramProblems(one(type, parameters), [cols.in1])
+
+  it('初期値のままでは、何が足りないかを示す', () => {
+    expect(problems('sort', defaultParams('sort'))).toEqual(['1番目：列を選んでください'])
+    expect(problems('drop_columns', defaultParams('drop_columns'))).toEqual(['消す列を1つ以上選んでください'])
+    expect(problems('add_constant', defaultParams('add_constant'))).toEqual(['追加する列の名前を入力してください', '入れる値を入力してください'])
+    expect(problems('cast', defaultParams('cast'))).toEqual(['1つ目：列を選んでください'])
+    expect(problems('duplicates', defaultParams('duplicates'))).toEqual(['重複を判断する列を1つ以上選んでください'])
+    expect(problems('missing', defaultParams('missing'))).toEqual(['空欄を調べる列を1つ以上選んでください'])
+  })
+
+  it('並べ替え：同じ列を2回は指定できない', () => {
+    expect(problems('sort', { keys: [{ column: '数量', ascending: true }, { column: '数量', ascending: false }] })).toEqual(['同じ列が2回指定されています'])
+  })
+
+  it('不要な列を消す：すべての列は消せない', () => {
+    expect(problems('drop_columns', { columns: ['売上日', '商品コード', '数量', '売上金額'] })).toEqual(['すべての列は消せません。1列以上残してください'])
+  })
+
+  it('同じ値の列を追加する：既存の列名は使えない・値は形式に合わせる', () => {
+    expect(problems('add_constant', { column: '数量', value: '1', value_type: 'integer' })).toEqual(['列「数量」はすでにあります。別の名前にしてください'])
+    expect(problems('add_constant', { column: '対象月', value: '10月', value_type: 'date' })).toEqual(['入れる値：日付は 2026-10-01 または 2026/10/01 の形で入力してください'])
+    expect(problems('add_constant', { column: '対象月', value: '2026年10月', value_type: 'string' })).toEqual([])
+  })
+
+  it('データの形式をそろえる：すでに同じ形式の列は指摘する', () => {
+    const c = (column: string, to: string) => ({ casts: [{ column, to, scale: null, date_format: null, rounding: 'half_up' }], on_failure: 'error' })
+    expect(problems('cast', c('数量', 'integer'))).toEqual(['1つ目：「数量」はすでに整数です'])
+    expect(problems('cast', c('数量', 'decimal'))).toEqual([])
+    // 変換後の列の形式が、後ろのステップで使える列に反映される
+    const cast = node('n9', 'cast', ['in1'], 'r9', c('数量', 'decimal'))
+    expect(inferColumns({ nodes: [load1, cast], input_definitions: defs }).r9?.find((x) => x.name === '数量')?.type).toBe('decimal')
+  })
+
+  it('空欄を埋める：選んだ列の形式に合わない値は使えない（空欄を黙って0にしない）', () => {
+    expect(problems('missing', { columns: ['数量'], mode: 'fill', fill_value: '' })).toEqual(['空欄に入れる値を入力してください'])
+    expect(problems('missing', { columns: ['数量', '商品コード'], mode: 'fill', fill_value: 'なし' })).toEqual(['空欄に入れる値：整数の列には 数値（半角）で入力してください'])
+    expect(problems('missing', { columns: ['数量'], mode: 'fill', fill_value: '0' })).toEqual([])
+    expect(problems('missing', { columns: ['数量'], mode: 'drop_rows', fill_value: null })).toEqual([])
+  })
+
+  it('処理内容の文', () => {
+    expect(summarize(one('sort', { keys: [{ column: '売上金額', ascending: false }] }))).toBe('売上金額の大きい順に並べ替える')
+    expect(summarize(one('duplicates', { key_columns: ['伝票番号'], mode: 'detect', keep: 'first' }))).toBe('伝票番号の重複を調べる（データは変えない）')
+    expect(summarize(one('missing', { columns: ['数量'], mode: 'fill', fill_value: '0' }))).toBe('「数量」の空欄を 0 で埋める')
+  })
+})

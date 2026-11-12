@@ -129,3 +129,61 @@ test('よく使う9種の処理を画面から設定し、作業手順のチェ�
   const texts = (await page.locator('body').innerText()).split('\n')
   expect(texts.filter((t) => BANNED.test(t))).toEqual([])
 })
+
+test('残りの6種（並べ替え・列を消す・同じ値の列・形式・重複・空欄）を設定し、作業手順のチェックを通る', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.goto('/build')
+  await page.getByTestId('file-input').first().setInputFiles(demo('売上実績_2026-10.xlsx'))
+  await expect(page.getByText('1ファイル')).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
+  await page.getByRole('button', { name: 'この内容で作業手順を作り始める' }).click()
+
+  // 2 並べ替える
+  await addAtEnd(page, '並べ替える')
+  await panel(page, 2).getByRole('combobox', { name: '並べ替え1の列' }).selectOption('売上金額')
+  await panel(page, 2).getByRole('combobox', { name: '並べ替え1の順番' }).selectOption('desc')
+  await confirm(page, 2)
+  await expect(card(page, 2)).toContainText('売上金額の大きい順に並べ替える')
+
+  // 3 不要な列を消す
+  await addAtEnd(page, '不要な列を消す')
+  await panel(page, 3).getByRole('checkbox', { name: '「備考」を消す' }).check()
+  await confirm(page, 3)
+
+  // 4 同じ値の列を追加する
+  await addAtEnd(page, '同じ値の列を追加する')
+  await panel(page, 4).getByRole('textbox', { name: '追加する列の名前' }).fill('対象月')
+  await panel(page, 4).getByRole('textbox', { name: '入れる値' }).fill('2026年10月')
+  await confirm(page, 4)
+
+  // 5 データの形式をそろえる
+  await addAtEnd(page, 'データの形式をそろえる')
+  await panel(page, 5).getByRole('combobox', { name: '1つ目の列' }).selectOption('数量')
+  await panel(page, 5).getByRole('combobox', { name: '1つ目の変換後の形式' }).selectOption('decimal')
+  await panel(page, 5).getByRole('combobox', { name: '1つ目の小数の桁数' }).selectOption('1')
+  await confirm(page, 5)
+
+  // 6 重複を調べる・取り除く（調べるだけ）
+  await addAtEnd(page, '重複を調べる・取り除く')
+  await panel(page, 6).getByRole('checkbox', { name: '「伝票番号」で重複を判断する' }).check()
+  await confirm(page, 6)
+  await expect(card(page, 6)).toContainText('伝票番号の重複を調べる（データは変えない）')
+
+  // 7 空欄を調べる・埋める：形式に合わない値では埋められない
+  await addAtEnd(page, '空欄を調べる・埋める')
+  const p7 = panel(page, 7)
+  await p7.getByRole('checkbox', { name: '「数量」の空欄を調べる' }).check()
+  await p7.getByRole('combobox', { name: '空欄があったとき' }).selectOption('fill')
+  await p7.getByRole('textbox', { name: '空欄に入れる値' }).fill('なし')
+  await expect(p7.getByRole('list', { name: '設定が必要なこと' })).toContainText('小数の列には 数値（半角）で入力してください')
+  await p7.getByRole('textbox', { name: '空欄に入れる値' }).fill('0')
+  await confirm(page, 7)
+
+  // 8 Excelに出力する
+  await addAtEnd(page, 'Excelに出力する')
+  await confirm(page, 8)
+
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toHaveText('作業手順の形に問題はありません。すべてのステップが確認済みです', { timeout: 10_000 })
+  const texts = (await page.locator('body').innerText()).split('\n')
+  expect(texts.filter((t) => BANNED.test(t))).toEqual([])
+})
