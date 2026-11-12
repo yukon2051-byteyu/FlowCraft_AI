@@ -6,6 +6,7 @@ from app.engine.nodes import (  # noqa: F401  （登録のための読み込み�
     columns,
     concat,
     filter,
+    join,
     load,
     output,
     quality_nodes,
