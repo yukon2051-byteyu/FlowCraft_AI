@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     max_file_size_mb: int = Field(default=10, ge=1)
     max_total_rows: int = Field(default=100_000, ge=1)
     max_intermediate_rows: int = Field(default=500_000, ge=1)
+    max_columns: int = Field(default=500, ge=1)
+    max_uncompressed_mb: int = Field(default=100, ge=1)  # xlsx展開後の上限（ZIP爆弾対策）
 
     # ----- セッション・実行 -----
     session_ttl_minutes: int = Field(default=60, ge=1)
