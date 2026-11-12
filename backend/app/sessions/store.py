@@ -30,6 +30,8 @@ class Session:
     last_access: float
     # ファイルID → 解析済みデータ。中身の型はファイル管理（タスク1-8）で決める
     files: dict[str, Any] = field(default_factory=dict)
+    # 実行ID → 実行結果（直近の数回分だけ保持。ディスクには保存しない）
+    runs: dict[str, Any] = field(default_factory=dict)
 
 
 class SessionStore:

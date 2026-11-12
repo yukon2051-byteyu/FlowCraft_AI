@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import ENGINE_VERSION
-from app.api import files, health, session
+from app.api import files, flows, health, session
 from app.config import Settings, get_settings
 from app.errors import AppError, install_error_handlers
 from app.sessions.store import SessionStore
@@ -81,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(session.router, prefix="/api")
     app.include_router(files.router, prefix="/api")
+    app.include_router(flows.router, prefix="/api")
     return app
 
 
