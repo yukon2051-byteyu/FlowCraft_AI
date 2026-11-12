@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, CircleCheck, CircleMinus, CircleX, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CircleCheck, CircleMinus, CircleX, FileOutput, LoaderCircle, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { ApiError } from '../../../api/client'
+import type { ApiErrorBody } from '../../../api/client'
 import { fetchRun } from '../../../api/flows'
 import type { RunSummary, StepRun } from '../../../api/flows'
 import { snapshot } from '../../../flow/ops'
@@ -24,7 +25,18 @@ const STEP_STATUS: Record<string, { label: string; icon: typeof CircleCheck; cls
   skipped: { label: '実行していない', icon: CircleMinus, cls: 'bg-ink/6 text-muted ring-ink/15' },
 }
 
-export function RunResults({ run, snap, onBack }: { run: RunSummary; snap: string; onBack: () => void }) {
+type Props = {
+  run: RunSummary
+  snap: string
+  onBack: () => void
+  onExport: () => void
+  exporting: boolean
+  /** 出力したファイルの名前（この実行で出力済みのとき） */
+  exportedName: string | null
+  exportError: ApiErrorBody | null
+}
+
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -62,6 +74,29 @@ export function RunResults({ run, snap, onBack }: { run: RunSummary; snap: strin
               </p>
             )}
             <p className="mt-3 text-[0.82rem] text-subtle">業務の完了基準による判定（正常・注意・重大）は、完了基準の機能ができてから表示します（開発中）。</p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-edge pt-4">
+              <Button variant={run.status === 'failed' ? 'outlineDark' : 'primary'} onClick={onExport} disabled={exporting}>
+                {exporting ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileOutput className="size-4" aria-hidden />}
+                {run.status === 'failed' ? '確認結果をExcelに出力する（調査用）' : 'Excelに出力する'}
+              </Button>
+              <span className="text-[0.85rem] text-subtle">
+                {run.status === 'failed'
+                  ? '処理結果のシートは含めず、「確認結果」と「処理の記録」だけを出力します。'
+                  : '処理結果のシートに加えて、「確認結果」と「処理の記録」のシートも出力します。'}
+              </span>
+            </div>
+            {exportedName && (
+              <p className="mt-2 flex items-center gap-1.5 text-[0.88rem] text-success" role="status">
+                <CircleCheck className="size-4" aria-hidden />
+                「{exportedName}」を保存しました（ブラウザのダウンロード先をご確認ください）。
+              </p>
+            )}
+            {exportError && (
+              <div className="mt-3">
+                <ErrorNotice error={exportError} />
+              </div>
+            )}
           </section>
 
           {run.flow_issues.length > 0 && (
@@ -82,7 +117,7 @@ export function RunResults({ run, snap, onBack }: { run: RunSummary; snap: strin
           {run.outputs.length > 0 && (
             <section className="light-panel rounded-2xl p-5" aria-label="出力する表">
               <h2 className="font-bold">出力する表</h2>
-              <p className="mt-0.5 text-[0.85rem] text-muted">Excelへの出力は、次のタスク（1-7）で使えるようになります。</p>
+              <p className="mt-0.5 text-[0.85rem] text-muted">先頭の一部を表示しています。すべての行は「Excelに出力する」で保存できます。</p>
               <div className="mt-3 mb-2 flex flex-wrap gap-1" role="tablist" aria-label="出力するシート">
                 {run.outputs.map((o, i) => (
                   <button

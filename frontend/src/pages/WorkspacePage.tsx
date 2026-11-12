@@ -10,7 +10,10 @@ import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { RunResults } from '../components/workspace/run/RunResults'
+import { exportRun } from '../api/flows'
 import type { RunSummary } from '../api/flows'
+import { ApiError } from '../api/client'
+import type { ApiErrorBody } from '../api/client'
 import { buildFromChoices } from '../flow/define'
 import type { InputChoice } from '../flow/define'
 import { editHint } from '../flow/hints'
@@ -38,6 +41,23 @@ export default function WorkspacePage() {
   const [sources, setSources] = useState<DefineSource[] | null>(null)
   // 直近の全体の実行結果と、実行したときの作業手順（実行後に変更したかを判定するため）
   const [lastRun, setLastRun] = useState<{ run: RunSummary; snap: string } | null>(null)
+  // Excel出力の状態（結果の画面と、上部の「Excelに出力」ボタンで共有する）
+  const [exporting, setExporting] = useState(false)
+  const [exported, setExported] = useState<{ runId: string; name: string } | null>(null)
+  const [exportError, setExportError] = useState<ApiErrorBody | null>(null)
+  const doExport = async () => {
+    if (!lastRun) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const name = await exportRun(lastRun.run.run_id)
+      setExported({ runId: lastRun.run.run_id, name })
+    } catch (e) {
+      setExportError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'Excelに出力できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null })
+    } finally {
+      setExporting(false)
+    }
+  }
   const startFromInputs = useFlowStore((s) => s.startFromInputs)
   const nodes = useFlowStore((s) => s.flow.nodes)
   // 作り直すと消えてしまう、追加済みの処理ステップの数
@@ -52,7 +72,13 @@ export default function WorkspacePage() {
   return (
     <>
       <div className="hidden h-screen min-h-[640px] flex-col bg-canvas lg:flex">
-        <AppHeader flowName={sample ? '月次売上集計' : '無題の作業手順'} unsaved={sample} canExport={false} />
+        <AppHeader
+          flowName={sample ? '月次売上集計' : '無題の作業手順'}
+          unsaved={sample}
+          canExport={!sample && screen === 'result' && lastRun !== null}
+          onExport={doExport}
+          exporting={exporting}
+        />
         {sample ? (
           <>
             <Stepper current={3} hint={sampleHint} />
@@ -65,7 +91,9 @@ export default function WorkspacePage() {
               skipped={screen === 'data' ? [] : SKIP_AI}
               hint={
                 screen === 'result'
-                  ? '実行結果を確かめてください。Excelへの出力は次のタスクで使えるようになります'
+                  ? lastRun?.run.status === 'failed'
+                    ? '止まった理由を確かめてください。調査用に、確認結果をExcelに出力できます'
+                    : '実行結果を確かめて、Excelに出力してください'
                   : screen === 'edit'
                   ? editHint(nodes)
                   : screen === 'define'
@@ -100,7 +128,17 @@ export default function WorkspacePage() {
                 }}
               />
             )}
-            {screen === 'result' && lastRun && <RunResults run={lastRun.run} snap={lastRun.snap} onBack={() => setScreen('edit')} />}
+            {screen === 'result' && lastRun && (
+              <RunResults
+                run={lastRun.run}
+                snap={lastRun.snap}
+                onBack={() => setScreen('edit')}
+                onExport={doExport}
+                exporting={exporting}
+                exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
+                exportError={exportError}
+              />
+            )}
           </>
         )}
       </div>

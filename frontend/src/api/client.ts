@@ -118,3 +118,37 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
+
+/** ファイルを受け取って保存する（Excel出力など）。ファイル名はサーバーが付けた名前（日本語可）を使う */
+export async function downloadFile(path: string, fallbackName: string): Promise<string> {
+  const session = await ensureSession()
+  let res: Response
+  try {
+    res = await fetch(path, { headers: { 'X-Session-Id': session } })
+  } catch {
+    throw new ApiError(0, {
+      code: 'NETWORK_ERROR',
+      message: 'サーバーに接続できませんでした。',
+      cause: null,
+      how_to_fix: 'ネットワーク接続を確認し、もう一度お試しください。',
+      node_id: null,
+    })
+  }
+  if (!res.ok) {
+    const err = await toApiError(res)
+    if (err.isSessionLost) forgetSession()
+    throw err
+  }
+  const disposition = res.headers.get('Content-Disposition') ?? ''
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+  const name = encoded ? decodeURIComponent(encoded) : fallbackName
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return name
+}

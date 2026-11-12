@@ -13,7 +13,9 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
@@ -25,6 +27,7 @@ from app.engine.result import EngineIssue, NodeRun, RunResult
 from app.engine.runner import Execution, RunLimits, run_flow
 from app.engine.table import Table
 from app.errors import AppError
+from app.export.excel import build_workbook
 from app.flow.schema import FlowDefinition
 from app.flow.validate import FlowSchemaError, compute_dependencies, execution_blockers, parse_flow, validate_structure
 from app.sessions.store import Session
@@ -302,7 +305,8 @@ def execute(
     run_id = "r_" + secrets.token_urlsafe(9)
     executed_at = datetime.now(timezone.utc)
     fhash = flow_hash(flow)
-    session.runs[run_id] = {"execution": ex, "flow_hash": fhash, "executed_at": executed_at}
+    # Excel出力（処理の記録）のため、実行した作業手順も一緒に持つ（セッションの中だけ。保存はしない）
+    session.runs[run_id] = {"execution": ex, "flow_hash": fhash, "executed_at": executed_at, "flow": flow}
     while len(session.runs) > MAX_STORED_RUNS:  # 古い実行結果から捨てる（メモリ保護）
         session.runs.pop(next(iter(session.runs)))
     return RunSummary(**_summary(run_id, ex, fhash, executed_at))
@@ -316,3 +320,28 @@ def run_detail(run_id: str, limit: Annotated[int, Query(ge=1, le=200)] = PREVIEW
     ex: Execution = stored["execution"]
     previews = [_preview(o.reference, ex.tables[o.reference], limit) for o in ex.result.outputs if o.reference in ex.tables]
     return RunDetail(**_summary(run_id, ex, stored["flow_hash"], stored["executed_at"]), output_previews=previews)
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_FILENAME_FORBIDDEN = str.maketrans({c: "_" for c in '\\/:*?"<>|'})
+
+
+@router.get("/runs/{run_id}/export")
+def export_run(run_id: str, session: Session = Depends(current_session)) -> Response:
+    """実行結果を Excel ファイルにする。
+
+    実行が失敗したときは、処理結果のシートを含めず「確認結果」と「処理の記録」だけを出力する（調査用）。
+    """
+    stored = session.runs.get(run_id)
+    if stored is None:
+        raise AppError(404, "RUN_NOT_FOUND", "実行結果が見つかりません。", how_to_fix="もう一度実行してください。古い実行結果は自動で削除されます。")
+    ex: Execution = stored["execution"]
+    flow: FlowDefinition = stored["flow"]
+    executed_at: datetime = stored["executed_at"]
+    data = build_workbook(flow, ex, executed_at, stored["flow_hash"])
+    kind = "確認結果（調査用）" if ex.result.status == "failed" else "結果"
+    stamp = executed_at.astimezone().strftime("%Y%m%d-%H%M")
+    name = f"{flow.flow_name}_{kind}_{stamp}.xlsx".translate(_FILENAME_FORBIDDEN)
+    # 日本語のファイル名は RFC 5987 の形で渡す（古いブラウザ向けに英数字の名前も付ける）
+    disposition = f"attachment; filename=\"flowcraft_{stamp}.xlsx\"; filename*=UTF-8''{quote(name)}"
+    return Response(content=data, media_type=XLSX, headers={"Content-Disposition": disposition, "Cache-Control": "no-store"})

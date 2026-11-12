@@ -7,10 +7,13 @@ type Props = {
   flowName: string
   unsaved: boolean
   canExport: boolean
+  /** Excelに出力する（結果の画面で使える） */
+  onExport?: () => void
+  exporting?: boolean
 }
 
 /** ワークスペース用のヘッダー。TOPと同じロゴ・ナビゲーション色で統一する。 */
-export function AppHeader({ flowName, unsaved, canExport }: Props) {
+export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = false }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-edge bg-nav px-5 text-white">
       <Link to="/" aria-label="トップへ戻る" className="rounded-md focus-visible:outline-2 focus-visible:outline-mint">
@@ -35,7 +38,13 @@ export function AppHeader({ flowName, unsaved, canExport }: Props) {
           <Save className="size-4" aria-hidden />
           作業手順を保存
         </Button>
-        <Button variant="primary" size="sm" disabled={!canExport} title="作業を実行すると、Excelに出力できます">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!canExport || exporting}
+          onClick={onExport}
+          title={canExport ? '実行結果をExcelファイルで保存します' : '作業手順全体を実行すると、結果の画面からExcelに出力できます'}
+        >
           <FileOutput className="size-4" aria-hidden />
           Excelに出力
         </Button>

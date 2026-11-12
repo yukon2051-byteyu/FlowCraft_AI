@@ -162,7 +162,9 @@ def test_api_create_and_use_session(client):
     assert body["expires_in_seconds"] == TTL
     info = client.get("/api/session", headers={"X-Session-Id": body["session_id"]})
     assert info.status_code == 200
-    assert info.json() == {"expires_in_seconds": TTL, "file_count": 0}
+    # 残り時間は秒単位の切り捨て。処理が重いと1秒進むことがあるため、1秒の差は許す（以前、全体実行中に1回だけ失敗）
+    assert TTL - 1 <= info.json()["expires_in_seconds"] <= TTL
+    assert info.json()["file_count"] == 0
 
 
 def test_api_without_session_header(client):

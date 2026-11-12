@@ -1,6 +1,6 @@
 import { computeDependencies } from '../flow/ops'
 import type { Binding, FlowDoc } from '../flow/types'
-import { apiRequest } from './client'
+import { apiRequest, downloadFile } from './client'
 
 /*
  * 作業手順のチェック（backend/app/api/flows.py の /api/flows/validate）。
@@ -98,4 +98,9 @@ export function runFlow(flow: FlowDoc, bindings: Binding[]): Promise<RunSummary>
 
 export function fetchRun(runId: string, limit = 50): Promise<RunDetail> {
   return apiRequest<RunDetail>(`/api/runs/${encodeURIComponent(runId)}?limit=${limit}`)
+}
+
+/** 実行結果を Excel ファイルで保存する。失敗した実行は「確認結果」「処理の記録」だけ（調査用） */
+export function exportRun(runId: string): Promise<string> {
+  return downloadFile(`/api/runs/${encodeURIComponent(runId)}/export`, 'flowcraft_result.xlsx')
 }

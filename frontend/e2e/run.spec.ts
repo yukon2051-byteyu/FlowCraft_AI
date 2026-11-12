@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFile } from 'node:fs/promises'
 
 /*
  * タスク1-6：テスト実行（ステップの処理前後のデータ）と、作業手順全体の実行。
@@ -86,8 +87,18 @@ test('ステップの処理前後を確かめ、全体を実行すると、正�
   const totals = await out.locator('tbody tr').evaluateAll((rows) => rows.map((r) => Number((r.lastElementChild?.textContent ?? '0').replace(/,/g, ''))))
   expect(totals.reduce((a, b) => a + b, 0)).toBe(20_818_240)
 
+  // Excelに出力：ファイル名に作業手順の名前と「結果」が入り、中身は Excel（.xlsx は zip 形式で、先頭が PK）
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('region', { name: '実行の結論' }).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  expect(download.suggestedFilename()).toMatch(/^無題の作業手順_結果_\d{8}-\d{4}\.xlsx$/)
+  const bytes = await readFile((await download.path())!)
+  expect(bytes.subarray(0, 2).toString()).toBe('PK')
+  await expect(page.getByRole('status').filter({ hasText: 'を保存しました' })).toBeVisible()
+  // 上部の「Excelに出力」も、結果の画面では使える
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeEnabled()
+
   await page.getByRole('button', { name: '作業手順に戻る' }).click()
   await expect(card(page, 7)).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeDisabled()
 })
 
 test('マスタに重複があると、照合のステップで止まり、理由と直し方を示す（結果は出力できない）', async ({ page }) => {
@@ -110,6 +121,10 @@ test('マスタに重複があると、照合のステップで止まり、理�
   await expect(steps.locator(':scope > ol > li').nth(3)).toContainText('エラー')
   await expect(steps.locator(':scope > ol > li').nth(3)).toContainText('直し方：')
   await expect(steps.locator(':scope > ol > li').nth(4)).toContainText('実行していない')
+  // 調査用に、確認結果だけを出力できる
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
+  expect(download.suggestedFilename()).toContain('確認結果（調査用）')
+
   // 内部の名前（in2 など）や専門用語を見せない
   const texts = (await page.locator('body').innerText()).split(/\r?\n/)
   expect(texts.filter((t) => BANNED.test(t) || /(^|[^A-Za-z])in[0-9]+([^0-9]|$)/.test(t))).toEqual([])
