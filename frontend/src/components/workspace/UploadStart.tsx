@@ -261,9 +261,9 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine }: Props
 }
 
 /**
- * 始め方の2つのルート（カイゼン診断は任意）。
+ * 始め方の2つのルート（AI業務改善診断は任意）。
  *   A. すぐにExcel作業を自動化する：このままファイルを読み込む
- *   B. 作業の見直しから始める：カイゼン診断（開発中のため選べない。見せかけの画面は作らない）
+ *   B. 作業の見直しから始める：AI業務改善診断（開発中のため選べない。見せかけの画面は作らない）
  * どちらを選んでも、同じ処理エンジンと同じ品質の確認を使う。途中で切り替えても、読み込んだファイルや作った手順は残す。
  */
 function RouteChooser() {
@@ -281,7 +281,7 @@ function RouteChooser() {
         role="radio"
         aria-checked="false"
         aria-disabled={!kaizenReady}
-        title={kaizenReady ? undefined : '作業の見直し（カイゼン診断）は開発中のため、まだ選べません'}
+        title={kaizenReady ? undefined : 'AI業務改善診断は開発中のため、まだ選べません'}
         className="rounded-xl bg-card p-3.5 ring-1 ring-line"
       >
         <p className="flex flex-wrap items-center gap-2 font-bold text-ink/70">
@@ -289,7 +289,7 @@ function RouteChooser() {
           作業の見直しから始める
           <DevBadge feature="kaizen" tone="light" />
         </p>
-        <p className="mt-1 text-[0.88rem] text-muted">必要性・ムダ・重複している工程を確かめてから、自動化に進みます（任意）。</p>
+        <p className="mt-1 text-[0.88rem] text-muted">AI業務改善診断で、必要性・ムダ・重複している工程を確かめてから、自動化に進みます（任意）。</p>
       </div>
     </div>
   )

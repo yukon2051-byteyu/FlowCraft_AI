@@ -130,8 +130,8 @@ const REASONS: Reason[] = [
 const KAIZEN_WAYS = [
   { label: '廃止', note: 'その作業はなくせないか' },
   { label: '簡素化', note: '工程を減らせないか' },
-  { label: '標準化', note: '形式をそろえられないか' },
-  { label: '自動化', note: '残った作業を自動で' },
+  { label: '標準化', note: '手順をそろえられないか' },
+  { label: '自動化', note: '残った作業を自動化できないか' },
 ]
 
 function Reasons() {
@@ -157,7 +157,7 @@ function Reasons() {
                 <DevBadge feature="kaizen" />
               </div>
               <p className="mt-3 leading-relaxed text-white/85">
-                トヨタ式カイゼンの考え方で、作業の必要性・<span className="font-bold text-kaizen-text">ムダ・重複している工程を見直します。</span>
+                作業の必要性・<span className="font-bold text-kaizen-text">ムダ・重複している工程を見直します。</span>
                 <span className="font-bold text-white">不要な作業は、わざわざ自動化しません。</span>
               </p>
               <ol className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -172,7 +172,7 @@ function Reasons() {
               </ol>
               <p className="mt-4 flex items-start gap-1.5 text-[0.88rem] text-subtle">
                 <CircleHelp className="mt-0.5 size-4 shrink-0 text-subtle" aria-hidden />
-                使うかどうかは自由です。「不要」とは決めつけず、規程や監査で必要な作業もあるため、判断は利用者が行います。
+                診断するかどうかは自由です。業務上必要な作業の廃止を強制することはありません。
               </p>
             </div>
           </article>
@@ -296,7 +296,7 @@ function Demos() {
             </article>
           ))}
         </div>
-        <p className="mt-4 text-[0.88rem] text-subtle">業務の見直し（カイゼン支援）を体験できるデモは、機能の完成後に追加する予定です。</p>
+        <p className="mt-4 text-[0.88rem] text-subtle">AI業務改善診断を体験できるデモは、機能の完成後に追加する予定です。</p>
       </div>
     </section>
   )

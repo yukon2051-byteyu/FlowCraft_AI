@@ -26,7 +26,7 @@ export const FEATURE_STATUS = {
   demo: 'in_development',
   /** 業務の完了基準の設定・評価 */
   criteria: 'in_development',
-  /** カイゼン支援（作業の見直し・改善案・効果の測定） */
+  /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */
   kaizen: 'in_development',
 } as const satisfies Record<string, FeatureStatus>
 

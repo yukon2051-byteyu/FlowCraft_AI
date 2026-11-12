@@ -105,7 +105,7 @@ test('旧URL /workspace を開くと、作る画面 /build へ転送される（
   await expect(page.getByText('サンプル表示中')).toBeVisible()
 })
 
-test('始め方は2つ。見直し（カイゼン診断）は任意で、開発中のあいだは選べない', async ({ page }) => {
+test('始め方は2つ。見直し（AI業務改善診断）は任意で、開発中のあいだは選べない', async ({ page }) => {
   const routes = page.getByRole('radiogroup', { name: '始め方' })
   await expect(routes.getByRole('radio', { name: /すぐにExcel作業を自動化する/ })).toHaveAttribute('aria-checked', 'true')
   const review = routes.getByRole('radio', { name: /作業の見直しから始める/ })

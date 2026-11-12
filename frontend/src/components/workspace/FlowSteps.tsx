@@ -87,13 +87,13 @@ export function FlowSteps({ onBack, onRan }: { onBack: () => void; onRan: (run: 
               <h1 className="text-[1.5rem] font-bold text-white">作業手順</h1>
               <p className="mt-1 text-subtle">処理ステップは上から順に実行されます。各ステップは、それより上のステップの結果だけを使えます。</p>
             </div>
-            {/* 自動化の途中から、作業の見直し（カイゼン診断）へ切り替える入口。作った手順はそのまま残す */}
+            {/* 自動化の途中から、作業の見直し（AI業務改善診断）へ切り替える入口。作った手順はそのまま残す */}
             <div className="flex items-center gap-2">
               <Button
                 variant="outlineDark"
                 size="sm"
                 disabled={!isAvailable('kaizen')}
-                title={isAvailable('kaizen') ? undefined : '作業の見直し（カイゼン診断）は開発中です。使えるようになっても、作った手順はそのまま残ります'}
+                title={isAvailable('kaizen') ? undefined : 'AI業務改善診断は開発中です。使えるようになっても、作った手順はそのまま残ります'}
               >
                 <ScanSearch className="size-4" aria-hidden />
                 この作業を見直す
