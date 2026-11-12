@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import csv
 import io
+import re
+import zipfile
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 from app.files.detect import file_error
@@ -63,17 +66,99 @@ def _too_many_rows(filename: str, max_rows: int):
 
 
 def read_xlsx(data: bytes, filename: str, max_columns: int, max_rows: int) -> list[RawSheet]:
+    """Excelを読む。通常は高速な python-calamine を使う。
+
+    ただし calamine はエラー値のセル（#N/A など）を空欄として返してしまう。
+    そのまま使うと、エラー値が黙って空欄扱いになり集計から外れるため、
+    エラー値のセルを含むファイルだけは、エラー値を文字として残す openpyxl で読む。
+    """
+    if _has_error_cells(data):
+        return _read_xlsx_openpyxl(data, filename, max_columns, max_rows)
+    return _read_xlsx_calamine(data, filename, max_columns, max_rows)
+
+
+def _corrupted(filename: str):
+    return file_error(
+        "CORRUPTED_XLSX",
+        f"「{filename}」を読み込めませんでした。ファイルが壊れている可能性があります。",
+        how_to_fix="Excelで開けるか確認し、「Excelブック（*.xlsx）」として保存し直してください。",
+    )
+
+
+_ERROR_CELL = re.compile(rb'<c\b[^>]*\bt="e"')
+
+
+def _has_error_cells(data: bytes) -> bool:
+    """ワークシートのXMLに、エラー値のセル（t="e"）があるか調べる。"""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            for name in zf.namelist():
+                if name.startswith("xl/worksheets/") and name.endswith(".xml"):
+                    xml = zf.read(name)
+                    # まず印（t="e"）の有無を素早く調べ、あるときだけ正確に判定する
+                    if b't="e"' in xml and _ERROR_CELL.search(xml):
+                        return True
+    except zipfile.BadZipFile:
+        return False  # 壊れたファイルは、読み取りの段階でエラーとして報告する
+    return False
+
+
+def _normalize_calamine(v: Any) -> Any:
+    """calamine の値を openpyxl と同じ形にそろえる（値は変えない）。
+
+    空欄 '' → None ／ 整数の float（2.0）→ int ／ 時刻のない日付（date）→ datetime
+    """
+    if v == "" and isinstance(v, str):
+        return None
+    if isinstance(v, float) and v.is_integer() and abs(v) < 2**63:
+        return int(v)
+    if isinstance(v, date) and not isinstance(v, datetime):
+        return datetime(v.year, v.month, v.day)
+    return v
+
+
+def _read_xlsx_calamine(data: bytes, filename: str, max_columns: int, max_rows: int) -> list[RawSheet]:
+    import python_calamine as pc
+
+    try:
+        wb = pc.CalamineWorkbook.from_filelike(io.BytesIO(data))
+        metas = [m for m in wb.sheets_metadata if m.typ == pc.SheetTypeEnum.WorkSheet]
+    except Exception:
+        raise _corrupted(filename) from None
+
+    sheets: list[RawSheet] = []
+    try:
+        for meta in metas:
+            try:
+                # skip_empty_area=False：A1を起点に、上の空行と左の空列も含めて返す
+                # （iter_rows は左の空列を詰めて返すため、見出し位置がずれる。使わない）
+                raw_rows = wb.get_sheet_by_name(meta.name).to_python(skip_empty_area=False)
+            except Exception:
+                raise _corrupted(filename) from None
+            rows: list[list[Any]] = []
+            empty_run = 0
+            for raw in raw_rows:
+                row = _trim_row([_normalize_calamine(v) for v in raw])
+                rows.append(row)
+                empty_run = empty_run + 1 if not row else 0
+                if empty_run >= _TRAILING_EMPTY_STOP:
+                    break
+                if len(rows) - empty_run - 1 > max_rows:
+                    raise _too_many_rows(filename, max_rows)
+            sheets.append(_finish(meta.name, meta.visible != pc.SheetVisibleEnum.Visible, rows, filename, max_columns, max_rows))
+    finally:
+        wb.close()
+    return sheets
+
+
+def _read_xlsx_openpyxl(data: bytes, filename: str, max_columns: int, max_rows: int) -> list[RawSheet]:
     import openpyxl  # 読み込みに時間がかかるため、使うときだけ読み込む
 
     try:
         # data_only=True：数式ではなく、Excelが最後に保存した計算結果を読む
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception:
-        raise file_error(
-            "CORRUPTED_XLSX",
-            f"「{filename}」を読み込めませんでした。ファイルが壊れている可能性があります。",
-            how_to_fix="Excelで開けるか確認し、「Excelブック（*.xlsx）」として保存し直してください。",
-        ) from None
+        raise _corrupted(filename) from None
 
     sheets: list[RawSheet] = []
     try:

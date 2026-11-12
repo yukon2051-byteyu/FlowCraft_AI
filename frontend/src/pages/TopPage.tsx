@@ -55,7 +55,7 @@ function Hero() {
             <span className="whitespace-nowrap">そのExcel作業、</span>
             <br />
             <span className="whitespace-nowrap">
-              次からは<span className="text-mint">ワンクリック。</span>
+              次から<span className="text-mint">ワンクリック</span>
             </span>
           </h1>
           <p className="mt-5 max-w-[34rem] text-[1.07rem] leading-relaxed text-subtle">

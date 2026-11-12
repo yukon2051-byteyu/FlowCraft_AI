@@ -7,3 +7,5 @@ python-multipart==0.0.33
 pandas==3.1.1
 numpy==2.5.4
 openpyxl==3.1.5
+# Excelの高速な読み取り（Rust製・読み取り専用）。書き出しは openpyxl を使う
+python-calamine==0.9.1

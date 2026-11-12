@@ -4,7 +4,7 @@
     .venv\\Scripts\\python.exe scripts\\perf_benchmark.py [行数]
 
 測定する工程：
-  1. Excel(.xlsx) の読み取り（openpyxl）     2. 構造解析（見出し・型推定）
+  1. Excel(.xlsx) の読み取り                2. 構造解析（見出し・型推定）
   3. CSV の読み取り                          4. 読込ノード（型変換）
   5. デモA相当フロー全体（読込3・列抽出・結合2・集計2）
 """
@@ -86,7 +86,7 @@ def main(n: int) -> dict:
     csv_bytes = to_csv(HEADER, rows)
     print(f"  （ファイルサイズ：xlsx {len(xlsx) / 1024 / 1024:.1f}MB、csv {len(csv_bytes) / 1024 / 1024:.1f}MB）")
 
-    sheets = timed("1. Excel読み取り（openpyxl）", lambda: read_xlsx(xlsx, "s.xlsx", 500, 1_000_000), results)
+    sheets = timed("1. Excel読み取り（calamine＋整形）", lambda: read_xlsx(xlsx, "s.xlsx", 500, 1_000_000), results)
     timed("2. 構造解析（見出し・型推定）", lambda: profile_columns(build_table(sheets[0], 1, is_csv=False)), results)
     text, _ = decode_csv(csv_bytes, "s.csv")
     csv_sheet = timed("3. CSV読み取り", lambda: read_csv(text, "s.csv", 500, 1_000_000), results)
