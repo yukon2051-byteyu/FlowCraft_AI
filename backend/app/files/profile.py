@@ -154,10 +154,10 @@ def _column_names(header: list[Any], width: int) -> tuple[list[str], list[FileWa
 # 型の推定
 # ---------------------------------------------------------------------------
 
-_INT_RE = re.compile(r"^[+-]?\d+$")
-_INT_COMMA_RE = re.compile(r"^[+-]?\d{1,3}(,\d{3})+$")
-_DEC_RE = re.compile(r"^[+-]?(\d+|\d{1,3}(,\d{3})+)?\.\d+$")
-_DATE_RE = re.compile(r"^(\d{4})[/-](\d{1,2})[/-](\d{1,2})( \d{1,2}:\d{2}(:\d{2})?)?$")
+_INT_RE = re.compile(r"^[+-]?[0-9]+$")
+_INT_COMMA_RE = re.compile(r"^[+-]?[0-9]{1,3}(,[0-9]{3})+$")
+_DEC_RE = re.compile(r"^[+-]?([0-9]+|[0-9]{1,3}(,[0-9]{3})+)?\.[0-9]+$")
+_DATE_RE = re.compile(r"^([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})( [0-9]{1,2}:[0-9]{2}(:[0-9]{2})?)?$")
 
 _TYPE_LABEL = {"string": "文字列", "integer": "整数", "decimal": "小数", "date": "日付", "boolean": "真偽値"}
 
