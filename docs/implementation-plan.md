@@ -80,3 +80,4 @@
 | 2026-11-12 | 設計 v1.0 確定 | 完了 | Q1〜Q5 回答を反映 |
 | 2026-11-12 | 1-1 Git初期化・.gitignore・.env.example・README雛形 | 完了 | `.env` / `.env.*` が除外されることを `git check-ignore` で確認。リモート未設定のためpushなし |
 | 2026-11-12 | 1-2 バックエンド雛形 | 完了 | Python 3.12.10仮想環境、FastAPI、`/api/health`。pytest 6件成功。実サーバー起動で `/api/health`・`/docs` の応答を確認。非推奨警告に従い httpx→httpx2 に変更 |
+| 2026-11-12 | 1-3 フロントエンド雛形 | 完了 | Vite 8 + React 19 + TypeScript（strict）+ Tailwind 4。配色トークンを `index.css` の `@theme` に定義。`npm run build`・`npm run lint` 成功。開発サーバー経由で `/api/health` の中継を確認。**画面の見た目は自動確認のみ（目視確認は未実施）** |

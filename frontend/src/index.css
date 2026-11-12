@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/*
+ * FlowCraft AI のデザイントークン（色・文字の決まりごと）
+ * 仕様書 15.1 のカラーパレットをここ1か所で定義し、画面ではクラス名で使う。
+ * 例：bg-navy（背景ネイビー）、text-accent（アクセントブルーの文字）、border-error
+ */
+@theme {
+  --color-navy: #14263d;
+  --color-accent: #2563a6;
+  --color-accent-soft: #e8f0f9; /* AI提案ノードの背景など、アクセントの淡色 */
+  --color-surface: #f5f7fa; /* 画面の背景 */
+  --color-card: #ffffff;
+  --color-ink: #1e293b; /* 本文 */
+  --color-muted: #64748b; /* 補助文字・未設定状態 */
+  --color-line: #dde3ea; /* 枠線 */
+  --color-success: #16845b;
+  --color-warning: #b7791f;
+  --color-error: #c24141;
+
+  --font-sans: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+}
+
+/* 小さすぎる文字を避ける（仕様 15.5）：本文の基準を15pxにする */
+html {
+  font-size: 15px;
+}
+
+body {
+  @apply bg-surface text-ink font-sans antialiased;
+  min-width: 1280px; /* PC専用。スマホは対象外 */
+}

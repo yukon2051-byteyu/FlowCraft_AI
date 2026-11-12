@@ -36,7 +36,7 @@ Excelの加工・集計・照合をAIで自動化するWebアプリケーショ�
 
 ### 必要なもの
 - Python 3.12
-- Node.js 24（フロントエンド。Phase 1で追加予定）
+- Node.js 24
 
 ### バックエンドの起動（Windows / PowerShell）
 
@@ -50,11 +50,31 @@ py -3.12 -m venv .venv
 ブラウザで http://127.0.0.1:8000/api/health を開き、`"status":"ok"` と表示されれば起動できています。
 API仕様の一覧は http://127.0.0.1:8000/docs で確認できます。
 
+### 画面（フロントエンド）の起動
+
+バックエンドを起動したまま、別のターミナルで：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+ブラウザで http://localhost:5173 を開きます。画面からの `/api/...` の呼び出しは、開発サーバーがバックエンドへ中継します。
+
 ## テスト方法
 
 ```powershell
 cd backend
 .venv\Scripts\python.exe -m pytest -v
+```
+
+フロントエンド（型チェック・ビルド・コードチェック）：
+
+```powershell
+cd frontend
+npm run build
+npm run lint
 ```
 
 ## 設計資料
