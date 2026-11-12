@@ -1,0 +1,154 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "0.1.0",
+  "flow_id": "0b6e6b1a-5f1c-4c8e-9a52-2d7c1f0a9e01",
+  "flow_version": 1,
+  "flow_name": "月次売上集計（デモ）",
+  "description": "売上実績に商品マスタ・部署マスタの情報を付け加え、部署別・カテゴリ別に売上を集計する。2026年10月分のファイルで作成した作業手順（架空データ用）。",
+  "created_at": "2026-11-01T09:00:00+09:00",
+  "updated_at": "2026-11-01T09:00:00+09:00",
+  "input_definitions": [
+    {
+      "input_id": "sales",
+      "label": "売上実績",
+      "file_kind": "xlsx",
+      "sheet_hint": "売上",
+      "columns": [
+        { "name": "売上日", "type": "date" },
+        { "name": "伝票番号", "type": "string" },
+        { "name": "部署コード", "type": "string" },
+        { "name": "商品コード", "type": "string" },
+        { "name": "数量", "type": "integer" },
+        { "name": "単価", "type": "integer" },
+        { "name": "売上金額", "type": "decimal", "scale": 0 },
+        { "name": "備考", "type": "string", "required": false }
+      ]
+    },
+    {
+      "input_id": "products",
+      "label": "商品マスタ",
+      "file_kind": "xlsx",
+      "sheet_hint": "商品",
+      "columns": [
+        { "name": "商品コード", "type": "string" },
+        { "name": "商品名", "type": "string" },
+        { "name": "カテゴリ", "type": "string" }
+      ]
+    },
+    {
+      "input_id": "depts",
+      "label": "部署マスタ",
+      "file_kind": "csv",
+      "columns": [
+        { "name": "部署コード", "type": "string" },
+        { "name": "部署名", "type": "string" }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "n1",
+      "node_type": "load",
+      "node_name": "売上実績を読み込む",
+      "parameters": { "input_id": "sales" },
+      "output_reference": "sales",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n2",
+      "node_type": "select_columns",
+      "node_name": "集計に使う列を取り出す",
+      "parameters": { "columns": ["売上日", "伝票番号", "部署コード", "商品コード", "数量", "売上金額"] },
+      "input_references": ["sales"],
+      "output_reference": "sales_selected",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n3",
+      "node_type": "load",
+      "node_name": "商品マスタを読み込む",
+      "parameters": { "input_id": "products" },
+      "output_reference": "products",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n4",
+      "node_type": "join",
+      "node_name": "商品マスタの商品名・カテゴリを付け加える",
+      "parameters": {
+        "keys": [{ "left": "商品コード", "right": "商品コード" }],
+        "how": "left",
+        "expected_relationship": "many_to_one",
+        "unmatched_policy": "warn",
+        "check_amount_columns": ["売上金額"]
+      },
+      "input_references": ["sales_selected", "products"],
+      "output_reference": "sales_p",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n5",
+      "node_type": "load",
+      "node_name": "部署マスタを読み込む",
+      "parameters": { "input_id": "depts" },
+      "output_reference": "depts",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n6",
+      "node_type": "join",
+      "node_name": "部署マスタの部署名を付け加える",
+      "parameters": {
+        "keys": [{ "left": "部署コード", "right": "部署コード" }],
+        "how": "left",
+        "expected_relationship": "many_to_one",
+        "unmatched_policy": "warn",
+        "check_amount_columns": ["売上金額"]
+      },
+      "input_references": ["sales_p", "depts"],
+      "output_reference": "sales_full",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n7",
+      "node_type": "aggregate",
+      "node_name": "部署ごとに売上を合計する",
+      "parameters": {
+        "group_by": ["部署名"],
+        "aggregations": [
+          { "function": "sum", "column": "売上金額", "output_column": "売上合計", "scale": 0 },
+          { "function": "count", "output_column": "件数" }
+        ]
+      },
+      "input_references": ["sales_full"],
+      "output_reference": "by_dept",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n8",
+      "node_type": "aggregate",
+      "node_name": "カテゴリごとに売上を合計する",
+      "parameters": {
+        "group_by": ["カテゴリ"],
+        "aggregations": [{ "function": "sum", "column": "売上金額", "output_column": "売上合計", "scale": 0 }]
+      },
+      "input_references": ["sales_full"],
+      "output_reference": "by_category",
+      "confirmation_status": "confirmed"
+    },
+    {
+      "node_id": "n9",
+      "node_type": "output",
+      "node_name": "Excelに出力する",
+      "parameters": {
+        "sheets": [
+          { "reference": "by_dept", "sheet_name": "部署別売上" },
+          { "reference": "by_category", "sheet_name": "カテゴリ別売上" },
+          { "reference": "sales_full", "sheet_name": "明細" }
+        ]
+      },
+      "input_references": ["by_dept", "by_category", "sales_full"],
+      "confirmation_status": "confirmed"
+    }
+  ]
+}

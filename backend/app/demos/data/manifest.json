@@ -1,0 +1,98 @@
+{
+  "seed": 20261112,
+  "description": "FlowCraft AI デモ用の架空データ。実在の企業・人物・商品とは関係ありません。",
+  "files": {
+    "売上実績_2026-10.xlsx": {
+      "sheet": "売上",
+      "rows": 240,
+      "header": [
+        "売上日",
+        "伝票番号",
+        "部署コード",
+        "商品コード",
+        "数量",
+        "単価",
+        "売上金額",
+        "備考"
+      ]
+    },
+    "売上実績_2026-11.xlsx": {
+      "sheet": "売上",
+      "rows": 252,
+      "header": [
+        "伝票番号",
+        "売上日",
+        "商品コード",
+        "部署コード",
+        "担当者",
+        "数量",
+        "単価",
+        "金額",
+        "備考"
+      ]
+    },
+    "商品マスタ.xlsx": {
+      "sheet": "商品",
+      "rows": 30
+    },
+    "商品マスタ_重複あり.xlsx": {
+      "sheet": "商品",
+      "rows": 31,
+      "duplicate_codes": {
+        "P-1003": 2
+      }
+    },
+    "部署マスタ.csv": {
+      "encoding": "cp932",
+      "rows": 4
+    }
+  },
+  "expected": {
+    "2026-10": {
+      "total_amount": 20818240,
+      "dept_totals": {
+        "EC事業部": 6112900,
+        "営業1部": 4752160,
+        "営業2部": 4899740,
+        "法人営業部": 5053440
+      }
+    },
+    "2026-11": {
+      "total_amount": 21448960
+    }
+  },
+  "planted_2026_11": {
+    "renamed_columns": {
+      "売上金額": "金額"
+    },
+    "added_columns": [
+      "担当者"
+    ],
+    "column_order_changed": true,
+    "blank_product_code_rows": [
+      11,
+      78,
+      162
+    ],
+    "unknown_product_codes": {
+      "P-1099": 2,
+      "P-2001": 2
+    },
+    "unknown_product_rows": [
+      49,
+      101,
+      172,
+      238
+    ],
+    "trailing_space_code": {
+      "value": "P-1005 ",
+      "rows": [
+        3,
+        95
+      ]
+    },
+    "out_of_period_rows": [
+      47
+    ]
+  }
+}
