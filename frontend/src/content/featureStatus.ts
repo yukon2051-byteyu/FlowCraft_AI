@@ -24,6 +24,10 @@ export const FEATURE_STATUS = {
   quality: 'in_development',
   /** デモ */
   demo: 'in_development',
+  /** 業務の完了基準の設定・評価 */
+  criteria: 'in_development',
+  /** カイゼン支援（作業の見直し・改善案・効果の測定） */
+  kaizen: 'in_development',
 } as const satisfies Record<string, FeatureStatus>
 
 export type FeatureKey = keyof typeof FEATURE_STATUS

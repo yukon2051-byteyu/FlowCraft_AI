@@ -1,33 +1,37 @@
 import {
   ArrowRight,
-  ChartColumn,
   Check,
+  CircleHelp,
   Clock3,
-  Copy,
   FileSpreadsheet,
   FolderOpen,
   KeyRound,
+  Lightbulb,
   ListChecks,
   Lock,
+  MessageSquareText,
   Play,
   RefreshCw,
+  ScanSearch,
   ShieldCheck,
-  Sparkles,
+  SlidersHorizontal,
+  Repeat,
   TriangleAlert,
   Upload,
+  Workflow,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
 import { SiteHeader } from '../components/layout/SiteHeader'
 import { HeroVisual, HeroVisualCompact } from '../components/top/HeroVisual'
-import { UseCaseTabs } from '../components/top/UseCaseTabs'
 import { Button } from '../components/ui/Button'
 import { DevBadge } from '../components/ui/DevBadge'
 
 /*
- * TOPページ（改修 Ver.2.0）
- * 構成：ヒーロー → できること（4つ）→ 活用例（3タブ）→ デモ → 自分のExcelで試す → 安心して使うための仕組み
+ * TOPページ（全面改修：新しい製品コンセプト）
+ * 伝えること：①その作業は本当に必要か ②不要な作業は減らし、必要な作業は効率化する ③処理して終わりではなく、結果の正しさまで確認する
+ * 構成：ヒーロー → 選ばれる5つの理由 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 処理できた、だけで終わらせない
  * 未実装の機能には「開発中」を表示する（content/featureStatus.ts で一元管理）。
  */
 export default function TopPage() {
@@ -36,8 +40,8 @@ export default function TopPage() {
       <SiteHeader />
       <main>
         <Hero />
-        <Features />
-        <UseCases />
+        <Reasons />
+        <Stages />
         <Demos />
         <TryOwnExcel />
         <Trust />
@@ -49,7 +53,7 @@ export default function TopPage() {
 
 /* ================= ヒーロー ================= */
 
-const HERO_POINTS = ['Excel（.xlsx）・CSVに対応', 'AIの提案は確認してから実行', '翌月はファイルを選んで再実行']
+const HERO_POINTS = ['ムダを発見', '処理を自動化', '結果を検証']
 
 function Hero() {
   return (
@@ -58,32 +62,34 @@ function Hero() {
 
       <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-12 sm:px-8 lg:pt-12 lg:pb-14 xl:grid-cols-[minmax(0,1fr)_640px] xl:gap-10">
         <div>
-          <p className="mb-5 inline-flex items-center gap-1.5 rounded-full bg-mint/10 px-3 py-1 text-[0.85rem] font-bold text-mint ring-1 ring-mint/30">
-            <Sparkles className="size-4" aria-hidden />
-            Excel定型業務の自動化 × AI
+          <p className="mb-5 inline-flex items-center gap-2 text-[0.85rem] font-bold tracking-wider text-mint uppercase">
+            <Workflow className="size-4" aria-hidden />
+            FlowCraft AI — Excel業務改善
           </p>
-          {/* 2行で必ず区切る（行の途中では改行しない）。スマートフォンでは文字を小さくして収める */}
-          <h1 className="text-[1.95rem] leading-[1.22] font-bold tracking-tight text-white sm:text-[2.9rem] xl:text-[3.1rem]">
+          {/* 2行で必ず区切る（行の途中では改行しない）。2行目が長いため、前の版より文字を小さくしている */}
+          <h1 className="text-[1.62rem] leading-[1.3] font-bold tracking-tight text-white sm:text-[2.5rem] xl:text-[2.6rem]">
             <span className="whitespace-nowrap">そのExcel作業、</span>
             <br />
-            <span className="whitespace-nowrap text-mint">次からワンクリック</span>
+            <span className="whitespace-nowrap text-mint">自動化する前に、見直そう。</span>
           </h1>
-          <p className="mt-5 max-w-[36rem] text-[1.07rem] leading-relaxed text-subtle">
-            Excel・CSVの加工、集計、分析、レポート作成まで。
+          <p className="mt-5 max-w-[34rem] text-[1.05rem] leading-relaxed text-subtle">
+            その作業、本当に必要ですか？
+            <br />
+            AIがムダや改善点を見つけ、必要な処理は簡単に自動化。
             <br className="hidden sm:block" />
-            AIと一緒に作業手順を作り、保存して繰り返し使えます。
+            結果の正しさまで確認します。
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button href="#demo" variant="primary" size="lg">
-              <Play className="size-4.5" aria-hidden />
-              デモを体験する
-            </Button>
-            <Button to="/build" variant="outlineDark" size="lg">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Button to="/build" variant="primary" size="lg">
               <Upload className="size-4.5" aria-hidden />
               自分のExcelで試す
             </Button>
+            <Button href="#demo" variant="outlineDark" size="lg">
+              <Play className="size-4.5" aria-hidden />
+              デモを体験する
+            </Button>
           </div>
-          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-[0.9rem] text-subtle">
+          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-edge pt-5 text-[0.92rem] text-white/85">
             {HERO_POINTS.map((p) => (
               <li key={p} className="inline-flex items-center gap-1.5">
                 <Check className="size-4 text-mint" aria-hidden />
@@ -91,9 +97,13 @@ function Hero() {
               </li>
             ))}
           </ul>
+          <p className="mt-3 inline-flex items-center gap-1.5 text-[0.82rem] text-subtle">
+            <Clock3 className="size-3.5 text-warning" aria-hidden />
+            現在は開発中です。各機能の提供状況は、このページの「開発中」の表示でご確認ください。
+          </p>
         </div>
 
-        {/* 幅640px以上：処理の流れの図／スマートフォン：4段階の簡易版 */}
+        {/* 幅640px以上：見直す→改善する→実行する→確かめる の図／スマートフォン：4段階の簡易版 */}
         <div className="hidden justify-center sm:flex xl:justify-end">
           <HeroVisual />
         </div>
@@ -105,87 +115,126 @@ function Hero() {
   )
 }
 
-/* ================= できること（4つの主要価値） ================= */
+/* ================= 選ばれる5つの理由 ================= */
 
-type Feature = { icon: LucideIcon; title: string; body: string; note: string; feature: FeatureKey }
+type Reason = { icon: LucideIcon; title: string; body: string; feature: FeatureKey }
 
-const FEATURES: Feature[] = [
-  {
-    icon: Sparkles,
-    title: 'AIが作業手順を提案',
-    body: '普段のExcel作業を日本語で説明するだけ。AIが必要な処理を組み合わせ、作業手順を提案します。',
-    note: '提案内容は実行前に確認・修正できます。',
-    feature: 'aiFlow',
-  },
-  {
-    icon: ChartColumn,
-    title: '加工から分析まで対応',
-    body: 'データの抽出・結合・集計から、比較分析やグラフ作成まで。一連の作業をまとめて実行できます。',
-    note: '集計結果と分析レポートをExcelに出力できます。',
-    feature: 'analysis',
-  },
-  {
-    icon: RefreshCw,
-    title: '作業手順を保存・再利用',
-    body: '一度作った作業手順を保存。翌月は新しいファイルを指定して、同じ処理を繰り返せます。',
-    note: '毎回AIに作業内容を説明し直す必要はありません。',
-    feature: 'saveReuse',
-  },
-  {
-    icon: Copy,
-    title: '別の業務にも応用',
-    body: '保存した作業手順をもとに、別部署や別業務に合わせた変更をAIが提案します。',
-    note: '元の手順を残したまま、新しい手順を作成できます。',
-    feature: 'derive',
-  },
+const REASONS: Reason[] = [
+  { icon: MessageSquareText, title: '手順を簡単に作れる', body: '作業を日本語で説明すると、AIが処理の手順を組み立てます。内容は確認してから使います。', feature: 'aiFlow' },
+  { icon: ShieldCheck, title: '結果を検証できる', body: '結果が業務の「完了基準」を満たしているかを確認し、判定の理由を示します。', feature: 'criteria' },
+  { icon: Repeat, title: '単発にも定型にも', body: '一度きりの集計にも、毎月の定型業務にも。保存するかは後から選べます。', feature: 'saveReuse' },
+  { icon: SlidersHorizontal, title: '業務に合わせて変えられる', body: '処理の手順も、確認の条件も、自分の業務に合わせて変更できます。', feature: 'processing' },
 ]
 
-function Features() {
+const KAIZEN_WAYS = [
+  { label: '廃止', note: 'その作業はなくせないか' },
+  { label: '簡素化', note: '工程を減らせないか' },
+  { label: '標準化', note: '形式をそろえられないか' },
+  { label: '自動化', note: '残った作業を自動で' },
+]
+
+function Reasons() {
   return (
     <section id="features" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
         <SectionHeading
-          eyebrow="できること"
-          title="プログラムを作らず、処理の組み合わせで自動化"
-          lead="抽出・結合・集計・分析などの共通の処理を組み合わせて、部署や業務ごとに違う作業手順を作れます。"
+          eyebrow="選ばれる5つの理由"
+          title="Excelの処理だけでなく、その前と後ろまで。"
+          lead="作業そのものを見直し、処理した結果が正しいかまで確かめる。生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。"
         />
-        <DevNote />
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {FEATURES.map((f, i) => (
-            <article key={f.title} className="flex gap-4 rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6">
-              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
-                <f.icon className="size-6" aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="text-[0.85rem] font-bold text-subtle/70 tabular-nums">0{i + 1}</span>
-                  <h3 className="text-[1.2rem] font-bold text-white">{f.title}</h3>
-                  <DevBadge feature={f.feature} />
-                </div>
-                <p className="mt-2 leading-relaxed text-white/85">{f.body}</p>
-                <p className="mt-2 flex items-start gap-1.5 text-[0.9rem] text-subtle">
-                  <Check className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
-                  {f.note}
-                </p>
+        <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+          {/* ⑤ 新しい価値：大きく見せる */}
+          <article className="relative overflow-hidden rounded-2xl bg-panel p-6 ring-1 ring-mint/40 sm:p-7">
+            <div className="pointer-events-none absolute -top-24 -right-20 h-64 w-64 rounded-full bg-[radial-gradient(closest-side,rgba(56,217,173,0.18),transparent)]" />
+            <div className="relative">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[0.85rem] font-bold text-mint tabular-nums">05</span>
+                <h3 className="text-[1.35rem] font-bold text-white">作業そのものを改善できる</h3>
+                <DevBadge feature="kaizen" />
               </div>
-            </article>
-          ))}
+              <p className="mt-2 leading-relaxed text-white/85">
+                トヨタ式カイゼンの考え方で、作業の必要性・ムダ・重複している工程を見直します。<span className="font-bold text-white">不要な作業は、わざわざ自動化しません。</span>
+              </p>
+              <ol className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {KAIZEN_WAYS.map((w, i) => (
+                  <li key={w.label} className={`rounded-xl px-3 py-2.5 ring-1 ${i === 3 ? 'bg-mint/12 ring-mint/40' : 'bg-panel-hi ring-edge'}`}>
+                    <span className={`block font-bold ${i === 3 ? 'text-mint' : 'text-white'}`}>
+                      {i + 1}. {w.label}
+                    </span>
+                    <span className="mt-0.5 block text-[0.82rem] leading-snug text-subtle">{w.note}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-4 flex items-start gap-1.5 text-[0.88rem] text-subtle">
+                <CircleHelp className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+                「不要」とは決めつけません。規程や監査で必要な作業もあるため、判断は利用者が行います。
+              </p>
+            </div>
+          </article>
+
+          {/* ①〜④ */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {REASONS.map((r, i) => (
+              <article key={r.title} className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="grid size-10 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
+                    <r.icon className="size-5" aria-hidden />
+                  </span>
+                  <DevBadge feature={r.feature} />
+                </div>
+                <h3 className="mt-3 flex items-baseline gap-2 text-[1.08rem] font-bold text-white">
+                  <span className="text-[0.8rem] text-subtle/70 tabular-nums">0{i + 1}</span>
+                  {r.title}
+                </h3>
+                <p className="mt-1.5 text-[0.92rem] leading-relaxed text-subtle">{r.body}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </div>
     </section>
   )
 }
 
-/* ================= 活用例（3タブ） ================= */
+/* ================= 自動化だけでは終わらない（4つの段階） ================= */
 
-function UseCases() {
+type Stage = { icon: LucideIcon; title: string; body: string; example: string; feature?: FeatureKey }
+
+const STAGES: Stage[] = [
+  { icon: ScanSearch, title: '見直す', body: 'その作業は本当に必要か。ムダや重複はないか。', example: '会議資料への転記は、今も使われている？', feature: 'kaizen' },
+  { icon: Lightbulb, title: '改善する', body: '廃止・簡素化・標準化・自動化から、合う方法を選ぶ。', example: '転記をやめ、集計表をそのまま共有する', feature: 'kaizen' },
+  { icon: Play, title: '実行する', body: '必要なExcel処理を組み立てて実行する。', example: '3つのファイルをまとめ、部署別に集計', feature: 'processing' },
+  { icon: ListChecks, title: '確かめる', body: '完了基準に沿って、結果を確認する。', example: '集計の前後で売上の合計が一致するか', feature: 'criteria' },
+]
+
+function Stages() {
   return (
-    <section id="usecases" className="scroll-mt-16 bg-canvas">
+    <section id="flow" className="scroll-mt-16 bg-canvas">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-        <SectionHeading eyebrow="活用例" title="同じ仕組みで、さまざまな定型業務に" />
-        <div className="mt-7">
-          <UseCaseTabs />
-        </div>
+        <SectionHeading eyebrow="使い方" title="自動化だけでは終わらない" lead="月次の売上集計を例にした、FlowCraft AI での進め方です。" />
+        <ol className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {STAGES.map((s, i) => (
+            <li key={s.title} className="relative flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2 font-bold text-white">
+                  <span className="grid size-7 place-items-center rounded-full bg-mint text-[0.85rem] text-on-mint">{i + 1}</span>
+                  <s.icon className="size-5 text-mint" aria-hidden />
+                  <span className="text-[1.15rem]">{s.title}</span>
+                </span>
+                {s.feature && <DevBadge feature={s.feature} />}
+              </div>
+              <p className="mt-2.5 flex-1 text-[0.95rem] leading-relaxed text-white/85">{s.body}</p>
+              <p className="mt-3 hidden rounded-lg bg-canvas/70 px-3 py-2 text-[0.85rem] text-subtle ring-1 ring-edge sm:block">例：{s.example}</p>
+              {i < STAGES.length - 1 && (
+                <ArrowRight className="absolute top-1/2 -right-3 z-10 hidden size-5 -translate-y-1/2 rounded-full bg-canvas text-mint xl:block" aria-hidden />
+              )}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 inline-flex items-center gap-1.5 text-[0.9rem] text-subtle">
+          <RefreshCw className="size-4 text-mint" aria-hidden />
+          作った手順と完了基準は保存でき、次からは新しいファイルを選んで、確かめながら実行できます。
+        </p>
       </div>
     </section>
   )
@@ -198,15 +247,15 @@ type Demo = { title: string; summary: string; inputs: string[]; outputs: string[
 const DEMOS: Demo[] = [
   {
     title: '月次売上集計デモ',
-    summary: '売上を商品・部署の情報とまとめ、部署別・商品別に集計。グラフとExcelの集計表を作成します。',
-    inputs: ['売上実績.xlsx', '商品マスタ.xlsx', '部署マスタ.xlsx'],
-    outputs: ['部署別・商品別の集計とグラフ', '照合漏れ・重複の確認結果'],
+    summary: '売上に商品・部署の情報を付け、部署別・カテゴリ別に集計。照合できない商品コードなどの問題も確認します。',
+    inputs: ['売上実績.xlsx', '商品マスタ.xlsx', '部署マスタ.csv'],
+    outputs: ['部署別・カテゴリ別の集計表', '照合漏れ・重複の確認結果'],
   },
   {
     title: '在庫差異検出デモ',
-    summary: '入出庫履歴から理論上の在庫を計算し、在庫台帳と合わない商品を抽出。差異の根拠も確認できます。',
+    summary: '入出庫履歴から理論上の在庫を計算し、在庫台帳と合わない商品を一覧にします。',
     inputs: ['在庫台帳.xlsx', '入出庫履歴.xlsx'],
-    outputs: ['差異のある商品の一覧', '差異件数と確認レポート'],
+    outputs: ['差異のある商品の一覧', '差異の件数と確認結果'],
   },
 ]
 
@@ -217,13 +266,13 @@ function Demos() {
         <SectionHeading
           eyebrow="デモ"
           title="サンプルデータで、実際の処理を体験"
-          lead="架空の業務データで、加工・集計・確認まで実際の処理を行います。デモ用にあらかじめ用意したAIの提案を使う場合は、その旨を表示します。"
+          lead="架空の業務データで、加工・集計から結果の確認まで、実際の処理を行います。"
         />
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
           {DEMOS.map((d) => (
             <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6">
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-[1.25rem] font-bold text-white">{d.title}</h3>
+                <h3 className="text-[1.2rem] font-bold text-white">{d.title}</h3>
                 <DevBadge feature="demo" />
               </div>
               <p className="mt-2 leading-relaxed text-subtle">{d.summary}</p>
@@ -242,6 +291,7 @@ function Demos() {
             </article>
           ))}
         </div>
+        <p className="mt-4 text-[0.88rem] text-subtle">業務の見直し（カイゼン支援）を体験できるデモは、機能の完成後に追加する予定です。</p>
       </div>
     </section>
   )
@@ -268,9 +318,8 @@ function IoList({ label, items, icon: Icon }: { label: string; items: string[]; 
 type StartWay = { icon: LucideIcon; title: string; body: string; feature: FeatureKey }
 
 const START_WAYS: StartWay[] = [
-  { icon: Upload, title: '新しい作業手順を作る', body: 'Excel・CSVを読み込み、AIの提案または手動で処理内容を決めます。', feature: 'upload' },
-  { icon: FolderOpen, title: '保存した作業手順を使う', body: '以前作った手順を開き、新しいファイルで同じ処理を実行します。', feature: 'saveReuse' },
-  { icon: Copy, title: '既存の手順をもとに新しく作る', body: '保存した手順をもとに、別の業務に合わせて変更します。', feature: 'derive' },
+  { icon: Upload, title: 'ファイルを読み込んで作業する', body: 'Excel・CSVを読み込み、必要な処理を作って実行します。今回だけの作業なら、保存しなくてもかまいません。', feature: 'upload' },
+  { icon: FolderOpen, title: '保存した作業手順を使う', body: '以前保存した手順を開き、新しいファイルで同じ処理と確認を行います。', feature: 'saveReuse' },
 ]
 
 const SPECS = [
@@ -285,7 +334,11 @@ function TryOwnExcel() {
       <div className="pointer-events-none absolute -bottom-48 -left-24 h-[460px] w-[680px] bg-[radial-gradient(closest-side,rgba(56,217,173,0.12),transparent)]" />
       <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-14 lg:py-14">
         <div>
-          <SectionHeading eyebrow="はじめ方" title="自分のExcelで試す" lead="ボタンを押した後の画面で、3つの始め方から選べます。" />
+          <SectionHeading
+            eyebrow="自分のExcelで試す"
+            title="一度きりの作業でも、毎月の作業でも。"
+            lead="作った手順は、必要なときだけ保存して再利用できます。保存しなければ使えない、ということはありません。"
+          />
           <ol className="mt-6 space-y-3">
             {START_WAYS.map((w) => (
               <li key={w.title} className="flex gap-3.5 rounded-xl bg-panel p-4 ring-1 ring-edge">
@@ -327,7 +380,7 @@ function TryOwnExcel() {
               AI機能の利用について
             </p>
             <p className="mt-1.5 text-[0.92rem] leading-relaxed">
-              AIによる作業手順の作成・変更の提案・分析コメントには、<span className="font-bold">AI使用パスワード</span>が必要です。AIを使う操作のときにだけ入力を求めます。
+              AIによる作業手順の作成や改善の提案には、<span className="font-bold">AI使用パスワード</span>が必要です。AIを使う操作のときにだけ入力を求めます。
             </p>
             <p className="mt-1 text-[0.92rem] leading-relaxed text-muted">ファイルの読み込みや、Excelの加工・集計など、AIを使わない機能はパスワードなしで使えます。</p>
           </div>
@@ -337,13 +390,13 @@ function TryOwnExcel() {
   )
 }
 
-/* ================= 安心して繰り返し使うために ================= */
+/* ================= 処理できた、だけで終わらせない ================= */
 
 const TRUST: { icon: LucideIcon; title: string; body: string }[] = [
-  { icon: ListChecks, title: '実行前に内容を確認', body: 'AIの提案も、処理内容を確認・修正してから実行します。' },
-  { icon: ShieldCheck, title: 'データの品質を確認', body: '空欄・重複・照合漏れや、想定外の件数の増加を確認します。' },
-  { icon: TriangleAlert, title: '問題があれば止める', body: '集計の前後で金額が合わないなどの問題があれば、結果を出力しません。' },
-  { icon: RefreshCw, title: '同じ手順で同じ結果', body: '保存した手順は、同じデータなら毎回同じ結果になります。' },
+  { icon: ShieldCheck, title: '処理結果の整合性を確認', body: '結合で行が増えていないか、集計の前後で合計が合うかを、毎回自動で確認します。' },
+  { icon: ListChecks, title: '業務の完了基準を設定', body: '対象期間・照合できない件数の上限など、業務ごとの条件を加えられます。' },
+  { icon: TriangleAlert, title: '異常や未検証の項目を表示', body: '重大な問題があれば、結果を出力しません。確かめられなかった項目も隠しません。' },
+  { icon: RefreshCw, title: '記録して、再利用', body: '確認の結果を記録し、保存した手順と基準で次回も同じ確認を行います。' },
 ]
 
 const CAUTIONS: { icon: LucideIcon; text: string }[] = [
@@ -358,7 +411,7 @@ function Trust() {
     <section id="trust" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8 lg:py-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <SectionHeading eyebrow="安心して使うための仕組み" title="安心して繰り返し使うために" />
+          <SectionHeading eyebrow="品質の確認" title="処理できた、だけで終わらせない。" />
           <DevBadge feature="quality" className="mb-1" />
         </div>
         <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -372,6 +425,9 @@ function Trust() {
             </li>
           ))}
         </ul>
+        <p className="mt-3 text-[0.85rem] text-subtle">
+          確認できるのは、自動で行う確認と、設定した完了基準の範囲です。すべての誤りを見つけられるわけではありません。単発の作業にも同じ確認を行います。
+        </p>
         <h3 className="mt-8 text-[0.95rem] font-bold text-white">データの取り扱い・ご利用上の注意</h3>
         <ul className="mt-3 grid gap-x-8 gap-y-2 md:grid-cols-2">
           {CAUTIONS.map((c) => (
@@ -388,20 +444,11 @@ function Trust() {
 
 /* ================= 共通 ================= */
 
-function DevNote() {
-  return (
-    <p className="mt-4 inline-flex items-center gap-1.5 text-[0.88rem] text-subtle">
-      <Clock3 className="size-4 text-warning" aria-hidden />
-      現在開発中の機能には「開発中」と表示しています。
-    </p>
-  )
-}
-
 function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: string; lead?: string }) {
   return (
     <div className="max-w-3xl">
       <p className="text-[0.88rem] font-bold text-mint">{eyebrow}</p>
-      <h2 className="mt-2 text-[1.7rem] leading-snug font-bold text-white sm:text-[2rem]">{title}</h2>
+      <h2 className="mt-2 text-[1.6rem] leading-snug font-bold text-white sm:text-[2rem]">{title}</h2>
       {lead && <p className="mt-3 leading-relaxed text-subtle">{lead}</p>}
     </div>
   )
