@@ -60,6 +60,11 @@ npm install
 npm run dev
 ```
 
+> **「このシステムではスクリプトの実行が無効になっている」と表示された場合**
+> PowerShellの安全設定により `npm.ps1` が止められています。次のどちらかで解決できます。
+> - `npm` の代わりに `npm.cmd` を使う（例：`npm.cmd run dev`）
+> - `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` を一度実行する（自分のユーザーにだけ適用。会社PCでは社内ルールを確認）
+
 ブラウザで http://localhost:5173 を開きます。画面からの `/api/...` の呼び出しは、開発サーバーがバックエンドへ中継します。
 
 ## テスト方法
