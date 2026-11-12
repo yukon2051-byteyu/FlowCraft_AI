@@ -139,7 +139,8 @@ def run_flow(
         engine_version=ENGINE_VERSION,
         nodes=runs,
         outputs=[] if failed else outputs,
-        fingerprints={} if failed else {ref: t.fingerprint() for ref, t in tables.items()},
+        # 指紋は「出力する表」だけに計算する（途中の表は再現性の確認に不要で、10万行で数秒かかるため）
+        fingerprints={} if failed else {o.reference: tables[o.reference].fingerprint() for o in outputs if o.reference in tables},
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
     return Execution(result, tables)

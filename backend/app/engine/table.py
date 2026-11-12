@@ -53,24 +53,30 @@ class Table:
         return [[self.data[c][i] for c in self.columns] for i in range(start, stop)]
 
     def fingerprint(self) -> str:
-        """表の内容の指紋（SHA-256）。同じ入力・同じフローなら必ず同じ値になる（再現性の確認用）。"""
+        """表の内容の指紋（SHA-256）。同じ入力・同じフローなら必ず同じ値になる（再現性の確認用）。
+
+        列ごとに、各値を「型の印＋文字数＋文字列」にして連結する。文字数を付けることで、
+        値の中に区切り文字が含まれていても、別の表と同じ指紋になることはない。
+        """
         h = hashlib.sha256()
         h.update(json.dumps([[c, self.specs[c].type, self.specs[c].scale] for c in self.columns], ensure_ascii=False).encode())
-        for i in range(self.row_count):
-            h.update(b"\n")
-            h.update("\x1f".join(_canonical(self.data[c][i]) for c in self.columns).encode())
+        for c in self.columns:
+            h.update(b"\x1d")  # 列の区切り
+            h.update("".join(map(_canonical, self.data[c])).encode())
         return h.hexdigest()
 
 
 def _canonical(v: Any) -> str:
     if v is None:
-        return "\x00"
+        return "N;"
     if isinstance(v, bool):
-        return "b:" + ("1" if v else "0")
+        return "b1;" if v else "b0;"
     if isinstance(v, int):
-        return "i:" + str(v)
-    if isinstance(v, Decimal):
-        return "d:" + str(v)
-    if isinstance(v, date):
-        return "t:" + v.isoformat()
-    return "s:" + json.dumps(str(v), ensure_ascii=False)
+        s, tag = str(v), "i"
+    elif isinstance(v, Decimal):
+        s, tag = str(v), "d"
+    elif isinstance(v, date):
+        s, tag = v.isoformat(), "t"
+    else:
+        s, tag = str(v), "s"
+    return f"{tag}{len(s)}:{s};"
