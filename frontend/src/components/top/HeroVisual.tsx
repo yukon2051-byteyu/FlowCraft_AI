@@ -1,5 +1,6 @@
 import { ArrowRight, CircleCheck, Combine, FileSpreadsheet, Lightbulb, Play, RefreshCw, ScanSearch, ShieldCheck, Sigma, TriangleAlert } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useSyncExternalStore } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
 /*
@@ -19,8 +20,25 @@ import type { CSSProperties, ReactNode } from 'react'
  */
 
 export const HERO_VISUAL_W = 668
-const W = HERO_VISUAL_W
 const H = 484
+
+/*
+ * ③④のグループと②の間を広げる量（2026-11-13）。③④はいつも同じ量だけ一緒に動かす（左端と上下の位置はそろえたまま）。
+ * 右に動かすと図が右の余白へはみ出すため、右の余白が足りる画面幅（1340px 以上）のときだけ動かす。
+ * 1280〜1339px では今までの位置（③④の右端が切れないように）。この幅と量は TopPage の min-[1340px]:-mr-[calc(1.75rem+25px)] と同じ。
+ */
+export const WIDE_HERO_QUERY = '(min-width: 1340px)'
+const GROUP34_SHIFT = 25
+
+function subscribeWide(onChange: () => void) {
+  const m = window.matchMedia(WIDE_HERO_QUERY)
+  m.addEventListener('change', onChange)
+  return () => m.removeEventListener('change', onChange)
+}
+/** 画面幅が 1340px 以上か（変わったら描き直す） */
+function useWideHero(): boolean {
+  return useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE_HERO_QUERY).matches, () => false)
+}
 const MINT = '#38D9AD'
 
 /*
@@ -33,11 +51,16 @@ const TOP = 25
 // 各カードの位置（左の2枚と下の帯は下寄せ、右の2枚は上から）
 const REVIEW = { x: 0, y: TOP + 84, w: 224, h: 270 } // ①見直す
 const IMPROVE = { x: 244, y: TOP + 76, w: 170, h: 286 } // ②改善する
-const RUN = { x: 436, y: TOP, w: 232, h: 190 } // ③実行する
-const CHECK = { x: 436, y: TOP + 240, w: 232, h: 204 } // ④確かめる（下端を、保存・再実行の帯の下端にそろえる）
+const GROUP34_X = 436 // ③④の左端（動かす前）
+const RUN_BASE = { y: TOP, w: 232, h: 190 } // ③実行する
+const CHECK_BASE = { y: TOP + 240, w: 232, h: 204 } // ④確かめる（下端を、保存・再実行の帯の下端にそろえる）
 const LOOP = { x: 0, y: TOP + 404, w: IMPROVE.x + IMPROVE.w, h: 40 } // 保存・再実行の帯
 
 export function HeroVisual() {
+  const shift = useWideHero() ? GROUP34_SHIFT : 0
+  const W = HERO_VISUAL_W + shift
+  const RUN = { ...RUN_BASE, x: GROUP34_X + shift }
+  const CHECK = { ...CHECK_BASE, x: GROUP34_X + shift }
   const reviewMid = REVIEW.y + REVIEW.h / 2
   const improveMid = IMPROVE.y + IMPROVE.h / 2
   const runMid = RUN.y + RUN.h / 2

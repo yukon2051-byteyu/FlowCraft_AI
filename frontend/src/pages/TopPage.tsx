@@ -113,7 +113,8 @@ function Hero() {
 
         {/* 幅640px以上：見直す→改善する→実行する→確かめる の図／スマートフォン：4段階の簡易版 */}
         {/* 図（幅668px）は、列（640px）より28px広い。左端をそろえ、右端の余白の側へはみ出させる（見出しと重ならないように） */}
-        <div className="hidden justify-center sm:flex xl:-mr-7 xl:justify-end">
+        {/* 画面幅 1340px 以上では③④を25px右へ動かすため、図の幅が 693px になり、右の余白へ（従来の 1.75rem ＋ 25px）はみ出させる。25px は HeroVisual の GROUP34_SHIFT、1340px は WIDE_HERO_QUERY と同じ */}
+        <div className="hidden justify-center sm:flex xl:justify-end min-[1280px]:-mr-7 min-[1340px]:-mr-[calc(1.75rem+25px)]">
           <HeroVisual />
         </div>
         <div className="sm:hidden">
