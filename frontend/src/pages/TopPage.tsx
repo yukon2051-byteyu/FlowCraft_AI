@@ -603,14 +603,17 @@ function TryOwnExcel() {
   return (
     <section id="try" className="relative scroll-mt-16 overflow-hidden bg-canvas">
       <div className="pointer-events-none absolute -bottom-48 -left-24 h-[460px] w-[680px] bg-[radial-gradient(closest-side,rgba(56,217,173,0.12),transparent)]" />
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-14">
-        <div>
+      {/* 1段目に見出し、2段目に「使い方」と「利用案内」を置き、2段目の左右の上端をそろえる */}
+      <div className="relative mx-auto grid max-w-7xl gap-x-14 gap-y-6 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:py-14">
+        <div className="lg:col-start-1">
           <SectionHeading
             eyebrow="自分のExcelで試す"
             title="一度作った手順を、何度でも使える。"
             lead="一度きりのExcel処理から、毎月の繰り返し作業、無人での定期実行まで。作業に合わせて使い方を選べます。"
           />
-          <ol className="mt-6 space-y-3">
+        </div>
+        <div className="lg:col-start-1">
+          <ol className="space-y-3">
             {START_WAYS.map((w) => (
               <li key={w.title} className={`flex gap-3.5 rounded-xl bg-panel p-4 ring-1 ${w.primary ? 'ring-mint/45' : 'ring-edge'}`}>
                 <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-mint/12 text-mint ring-1 ring-mint/30">
@@ -655,10 +658,10 @@ function TryOwnExcel() {
 
         {/*
           対応形式・AIの利用条件は、必要なときに確かめる補足情報（優先度：左の使い方とボタン ＞ 対応形式 ＞ AIの利用条件）。
-          2つの独立したカードにし、左の列の高さに合わせて上下に分ける（左右の重心をそろえる。カードは引き伸ばさない）。
-          上端は左の「3つの使い方」の上端に、下端は「自分のExcelで試す」ボタンの下端に近づける（カードの間は最小 1.25rem）
+          2つのカードを近づけて1つの「利用案内」として上寄せにまとめ、上端を左の1枚目のカードにそろえる。
+          下の余った空間は埋めない（カードを引き伸ばさない）。左のボタンが自然に目立つ
         */}
-        <div className="flex flex-col gap-5 lg:justify-between lg:pt-[9.4rem]">
+        <div className="flex flex-col gap-4 self-start lg:col-start-2 lg:row-start-2">
           <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6" role="region" aria-label="対応形式">
             <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-white">
               <FileSpreadsheet className="size-5 text-mint" aria-hidden />
@@ -673,7 +676,8 @@ function TryOwnExcel() {
               ))}
             </dl>
           </div>
-          <div className="rounded-2xl bg-mint-deep p-5 ring-1 ring-mint-line sm:p-6" role="region" aria-label="AI機能の利用について">
+          {/* 背景は控えめに（ミントはアイコン・見出し・枠線だけに使う） */}
+          <div className="rounded-2xl bg-[#18221F] p-5 ring-1 ring-mint-line sm:p-6" role="region" aria-label="AI機能の利用について">
             <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-mint-title">
               <KeyRound className="size-5" aria-hidden />
               AI機能の利用について
