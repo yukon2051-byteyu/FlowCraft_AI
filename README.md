@@ -129,7 +129,8 @@ node scripts/screenshots.mjs screenshots
 - [クラウドの「3分後に自動実行を試す」の設計](docs/cloud-demo-design.md)（設計のみ・未実装）
 - [Windows Worker の設計](docs/windows-worker-design.md)（設計のみ・未実装）
 - [空白データの確認と品質ルールの設計](docs/blank-data-design.md)（設計のみ・未実装）
-- [デモ（正常終了／品質異常）の設計](docs/demo-design.md)（設計のみ・未実装）
+- [デモ（正常終了／品質異常）の設計](docs/demo-design.md)（月次売上集計は実装済み）
+- [AI利用の認証と利用上限の設計](docs/ai-auth-design.md)（設計のみ。AI機能と同時に実装）
 
 ## データの取り扱い
 
