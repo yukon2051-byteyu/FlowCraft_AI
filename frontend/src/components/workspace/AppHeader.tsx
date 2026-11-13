@@ -13,12 +13,14 @@ type Props = {
   /** 作業手順を保存する（処理ステップがあるときに使える） */
   onSave?: () => void
   canSave?: boolean
+  /** 保存した作業手順を開く */
+  onOpen?: () => void
 }
 
 const LEAVE_MESSAGE = '保存していない変更があります。このページを離れると、変更は失われます。離れますか？'
 
 /** ワークスペース用のヘッダー。TOPと同じロゴ・ナビゲーション色で統一する。 */
-export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = false, onSave, canSave = false }: Props) {
+export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = false, onSave, canSave = false, onOpen }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-edge bg-nav px-5 text-white">
       <Link
@@ -42,7 +44,7 @@ export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = 
         )}
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghostDark" size="sm" disabled title="作業手順を開く機能は開発中です">
+        <Button variant="ghostDark" size="sm" disabled={!onOpen} onClick={onOpen} title="保存した作業手順を、ブラウザの一覧またはファイルから開きます">
           <FolderOpen className="size-4" aria-hidden />
           作業手順を開く
         </Button>

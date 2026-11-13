@@ -11,6 +11,8 @@ import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
+import { OpenDialog } from '../components/workspace/OpenDialog'
+import { AssignInputs } from '../components/workspace/AssignInputs'
 import { exportRun } from '../api/flows'
 import type { RunSummary } from '../api/flows'
 import { ApiError } from '../api/client'
@@ -20,8 +22,12 @@ import type { InputChoice } from '../flow/define'
 import { editHint } from '../flow/hints'
 import { selectIsDirty, useFlowStore } from '../flow/store'
 
-/** 作る画面の中の表示：ファイルの確認 → 使う列と形式を決める → 作業手順 */
-type Screen = 'data' | 'define' | 'edit' | 'result'
+/**
+ * 作る画面の中の表示
+ *   新しく作る：ファイルの確認 → 使う列と形式を決める → 作業手順 → 結果
+ *   保存した作業手順を開く：ファイルの割当 → 作業手順 → 結果
+ */
+type Screen = 'data' | 'define' | 'assign' | 'edit' | 'result'
 
 const SKIP_AI = [{ step: 2, reason: 'AIで作業手順を作る機能は開発中のため、今回は自分で作ります' }]
 
@@ -65,6 +71,12 @@ export default function WorkspacePage() {
   // 処理ステップがある作業手順で、保存していない変更があるか（まだ何も作っていないときは対象外）
   const unsaved = useFlowStore((s) => s.flow.nodes.length > 0 && selectIsDirty(s))
   const [saving, setSaving] = useState(false)
+  const [opening, setOpening] = useState(false)
+  // 今の作業手順を、新しく作ったか、保存したものを開いたか（戻る先が変わる）
+  const [origin, setOrigin] = useState<'new' | 'opened'>('new')
+  const openFlow = useFlowStore((s) => s.openFlow)
+  // 別の作業手順を開いたら、割当の画面を最初からにする
+  const [openedKey, setOpenedKey] = useState(0)
 
   // 未保存のままブラウザを閉じる・再読み込みする前に、ブラウザの確認を出す
   useEffect(() => {
@@ -93,6 +105,7 @@ export default function WorkspacePage() {
           unsaved={!sample && unsaved}
           canSave={!sample && nodes.length > 0}
           onSave={() => setSaving(true)}
+          onOpen={sample ? undefined : () => setOpening(true)}
           canExport={!sample && screen === 'result' && lastRun !== null}
           onExport={doExport}
           exporting={exporting}
@@ -116,6 +129,8 @@ export default function WorkspacePage() {
                   ? editHint(nodes)
                   : screen === 'define'
                     ? '作業手順で使う列と、データの形式を決めてください'
+                    : screen === 'assign'
+                      ? '今回使うファイルを、作業手順の入力に割り当ててください'
                     : fileCount === 0
                       ? '処理に使うExcel・CSVファイルを読み込んでください'
                       : '列名とデータの形式、先頭の行を確認してください（必要なファイルはすべて読み込みましたか？）'
@@ -137,9 +152,11 @@ export default function WorkspacePage() {
                 <DefineInputs key={sourcesKey(sources)} sources={sources} onBack={() => setScreen('data')} onStart={start} replaceCount={addedSteps} />
               </div>
             )}
+            {screen === 'assign' && <AssignInputs key={openedKey} onDone={() => setScreen('edit')} onSkip={() => setScreen('edit')} />}
             {screen === 'edit' && (
               <FlowSteps
-                onBack={() => setScreen('define')}
+                onBack={() => setScreen(origin === 'opened' ? 'assign' : 'define')}
+                backLabel={origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る'}
                 onRan={(run, snap) => {
                   setLastRun({ run, snap })
                   setScreen('result')
@@ -161,6 +178,20 @@ export default function WorkspacePage() {
         )}
       </div>
       {saving && <SaveDialog onClose={() => setSaving(false)} />}
+      {opening && (
+        <OpenDialog
+          unsaved={unsaved}
+          onClose={() => setOpening(false)}
+          onOpened={(flow) => {
+            openFlow(flow)
+            setOpenedKey((k) => k + 1)
+            setOrigin('opened')
+            setLastRun(null)
+            setOpening(false)
+            setScreen(flow.input_definitions.length ? 'assign' : 'edit')
+          }}
+        />
+      )}
       <PcOnlyNotice />
     </>
   )

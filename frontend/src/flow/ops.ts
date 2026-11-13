@@ -27,7 +27,13 @@ export function normalizeFlow(raw: unknown): FlowDoc {
     description: f.description ?? '',
     created_at: f.created_at ?? '',
     updated_at: f.updated_at ?? '',
-    input_definitions: (f.input_definitions ?? []).map((d) => ({ header_row: 1, sheet_hint: null, ...d, columns: d.columns ?? [] })),
+    // 列の「必須」は省略すると必須（サーバーの ColumnSchema.required の初期値 True と同じ）
+    input_definitions: (f.input_definitions ?? []).map((d) => ({
+      header_row: 1,
+      sheet_hint: null,
+      ...d,
+      columns: (d.columns ?? []).map((c) => ({ ...c, required: c.required ?? true })),
+    })),
     nodes: (f.nodes ?? []).map((n) => ({
       node_id: n.node_id ?? '',
       node_type: n.node_type as FlowNode['node_type'],

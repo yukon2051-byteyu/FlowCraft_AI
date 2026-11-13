@@ -26,7 +26,16 @@ import { StatusBadge } from '../ui/StatusBadge'
  * つながりを壊す操作は行わず、理由をそのステップのすぐ下に表示する。
  * 各ステップの細かい設定（列・条件など）はタスク1-4・1-5で作る。
  */
-export function FlowSteps({ onBack, onRan }: { onBack: () => void; onRan: (run: RunSummary, snap: string) => void }) {
+export function FlowSteps({
+  onBack,
+  onRan,
+  backLabel = '使う列と形式の設定に戻る',
+}: {
+  onBack: () => void
+  onRan: (run: RunSummary, snap: string) => void
+  /** 戻るボタンの文言（保存した作業手順を開いたときは「ファイルの割当に戻る」） */
+  backLabel?: string
+}) {
   const flow = useFlowStore((s) => s.flow)
   const selectedId = useFlowStore((s) => s.selectedNodeId)
   const selectNode = useFlowStore((s) => s.selectNode)
@@ -60,10 +69,14 @@ export function FlowSteps({ onBack, onRan }: { onBack: () => void; onRan: (run: 
   // 全体を実行できない理由（押せないボタンの近くに表示する）
   const notConfirmed = flow.nodes.filter((n) => n.confirmation_status !== 'confirmed').length
   const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
+  // ファイルを割り当てていない入力（保存した作業手順を、割り当てずに開いたとき）
+  const unassigned = flow.input_definitions.filter((d) => !bindings[d.input_id]).length
   const runBlocker =
     flow.nodes.length === 0
       ? '処理ステップがありません'
-      : notConfirmed
+      : unassigned
+        ? `ファイルを割り当てていない入力が${unassigned}つあります（「${backLabel.replace(/に戻る$/, '')}」で割り当ててください）`
+        : notConfirmed
         ? `確認済みでないステップが${notConfirmed}個あるため、まだ実行できません`
         : check.status !== 'done'
           ? '作業手順のチェックが終わるまでお待ちください'
@@ -159,7 +172,7 @@ export function FlowSteps({ onBack, onRan }: { onBack: () => void; onRan: (run: 
       <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
         <Button variant="ghostDark" size="sm" onClick={onBack}>
           <ArrowLeft className="size-4" aria-hidden />
-          使う列と形式の設定に戻る
+          {backLabel}
         </Button>
         <CheckSummary check={check} nodes={flow.nodes} problems={problems} />
         <div className="flex items-center gap-3">

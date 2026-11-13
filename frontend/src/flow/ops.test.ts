@@ -12,6 +12,12 @@ const LABELS = { sales: '売上実績', products: '商品マスタ', depts: '部
 const ids = (f: { nodes: { node_id: string }[] }) => f.nodes.map((n) => n.node_id)
 
 describe('ファイルから読んだ作業手順の補完', () => {
+  it('列の「必須」が省略されていれば必須とする（サーバーと同じ初期値）', () => {
+    const sales = DEMO.input_definitions.find((d) => d.input_id === 'sales')!
+    expect(sales.columns.find((c) => c.name === '売上金額')?.required).toBe(true)
+    expect(sales.columns.find((c) => c.name === '備考')?.required).toBe(false) // 明示した false はそのまま
+  })
+
   it('省略された項目を初期値で補う（読み込みステップの使うデータ、出力ステップの作るデータなど）', () => {
     expect(RAW.nodes[0].input_references).toBeUndefined() // ファイルでは省略されている
     expect(DEMO.nodes[0].input_references).toEqual([])
