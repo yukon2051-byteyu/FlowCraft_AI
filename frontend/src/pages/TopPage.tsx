@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   Building2,
   Cloud,
   Monitor,
@@ -16,7 +15,6 @@ import {
   Lock,
   MessageSquareText,
   Play,
-  RefreshCw,
   ScanSearch,
   ShieldCheck,
   SlidersHorizontal,
@@ -26,6 +24,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { isAvailable } from '../content/featureStatus'
 import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
@@ -127,11 +126,20 @@ function Hero() {
 
 /* ================= 選ばれる6つの理由 ================= */
 
-type Reason = { icon: LucideIcon; title: string; body: string; feature: FeatureKey }
+type Reason = { icon: LucideIcon; title: string; body: ReactNode; feature: FeatureKey }
 
 const REASONS: Reason[] = [
   { icon: MessageSquareText, title: '手順を簡単に作れる', body: '作業を日本語で説明すると、AIが処理の手順を組み立てます。内容は確認してから使います。', feature: 'aiFlow' },
-  { icon: ShieldCheck, title: '結果を検証できる', body: '結果が業務の「完了基準」を満たしているかを確認し、判定の理由を示します。', feature: 'criteria' },
+  {
+    icon: ShieldCheck,
+    title: '結果を検証できる',
+    body: (
+      <>
+        完了基準で結果を確かめ、<span className="font-bold text-kaizen-text">期間外・照合漏れ・重複などの異常</span>を見つけます。重大なら出力を止めます。
+      </>
+    ),
+    feature: 'criteria',
+  },
   { icon: Repeat, title: '単発にも定型にも', body: '一度きりの集計にも、毎月の定型業務にも。保存するかは後から選べます。', feature: 'saveReuse' },
   { icon: SlidersHorizontal, title: '業務に合わせて変えられる', body: '処理の手順も、確認の条件も、自分の業務に合わせて変更できます。', feature: 'processing' },
 ]
@@ -232,11 +240,9 @@ function ScheduleCard() {
           <DevBadge feature="schedule" />
         </div>
         <p className="mt-2.5 text-[0.92rem] leading-relaxed text-subtle">
-          参照先・処理手順・実行日時・出力先を一度設定。ファイルの取得から加工・集計、品質検証、保存、結果の通知までを、決まった日時に自動で実行します。
-        </p>
-        <p className="mt-2 text-[0.92rem] leading-relaxed">
+          ファイルの取得から加工・集計、品質検証、保存までを、決まった日時に自動で実行。
           <span className="font-bold text-white">通常時は、結果を確認するだけ。</span>
-          <span className="text-subtle">確認が必要な結果やエラーのときは、正式なファイルを出力せずに止めてお知らせします。その後の対応は人が行います。</span>
+          問題があれば<span className="font-bold text-kaizen-text">正式な出力を止めて</span>お知らせします。
         </p>
       </div>
       <div>
@@ -263,7 +269,7 @@ function ScheduleCard() {
             {isAvailable('scheduleCloud') ? '今すぐ試せる' : 'クラウドで試す'}
             <DevBadge feature="scheduleCloud" />
           </p>
-          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">クラウド上で、サンプルのExcelを3分後に実際に自動処理します。ブラウザを閉じても実行され、あとから結果を確認できます。</p>
+          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">サンプルのExcelを、クラウド上で3分後に実際に処理。ブラウザを閉じても実行されます。</p>
           <div className="mt-2.5">
             <Button variant="outlineDark" size="sm" disabled={!isAvailable('scheduleCloud')} title="開発中です。完成後、サンプルデータで試せます">
               <CalendarClock className="size-4" aria-hidden />
@@ -277,16 +283,14 @@ function ScheduleCard() {
             Windows Workerで試せる
             <DevBadge feature="scheduleWindows" />
           </p>
-          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">
-            PC内のExcel作業も、指定時刻に自動実行。自分のPCのフォルダのExcel・CSVを処理し、品質検証と結果の保存まで行います。ファイルはPCの外に出ません。
-          </p>
+          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">PC内のExcel・CSVを、指定時刻に自動で処理・検証・保存。ファイルはPCの外に出ません。</p>
         </li>
         <li className="rounded-xl p-3.5 ring-1 ring-edge ring-dashed">
           <p className="flex flex-wrap items-center gap-1.5 text-[0.92rem] font-bold text-white/85">
             <Building2 className="size-4 text-subtle" aria-hidden />
             製品版で対応予定
           </p>
-          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">社内共有フォルダのファイル取得・加工・保存や、企業内サーバーでの無人定期実行への拡張を予定しています。</p>
+          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">社内共有フォルダや、企業内サーバーでの無人定期実行に対応予定です。</p>
         </li>
       </ul>
     </article>
@@ -295,43 +299,76 @@ function ScheduleCard() {
 
 /* ================= 自動化だけでは終わらない（4つの段階） ================= */
 
-type Stage = { icon: LucideIcon; title: string; body: string; example: string; feature?: FeatureKey }
+/*
+ * ヒーローの図（見直す→改善する→実行する→確かめる）と同じ並びを繰り返さず、「なぜこの順番なのか」を伝える。
+ * 見直さずに自動化したとき（コーラル＝ムダ・リスク）と、見直してから自動化したとき（ミント＝改善後）を比べる。
+ */
+const WITHOUT_REVIEW = ['使われていない会議資料への転記も、毎月そのまま自動で繰り返す', '同じ集計を2つの表で作る重複が、そのまま残る', '誤ったデータでも、速く・大量に結果を出してしまう']
+const WITH_REVIEW = ['やめられる作業はやめ、残った作業だけを自動化する', '手順を1つにまとめ、毎回同じ処理を行う', '完了基準で、結果の正しさまで確かめてから出力する']
+
+type Stage = { icon: LucideIcon; title: string; why: string; feature?: FeatureKey }
 
 const STAGES: Stage[] = [
-  { icon: ScanSearch, title: '見直す', body: 'その作業は本当に必要か。ムダや重複はないか。', example: '会議資料への転記は、今も使われている？', feature: 'kaizen' },
-  { icon: Lightbulb, title: '改善する', body: '廃止・簡素化・標準化・自動化から、合う方法を選ぶ。', example: '転記をやめ、集計表をそのまま共有する', feature: 'kaizen' },
-  { icon: Play, title: '実行する', body: '必要なExcel処理を組み立てて実行する。', example: '3つのファイルをまとめ、部署別に集計', feature: 'processing' },
-  { icon: ListChecks, title: '確かめる', body: '完了基準に沿って、結果を確認する。', example: '集計の前後で売上の合計が一致するか', feature: 'criteria' },
+  { icon: ScanSearch, title: '見直す', why: 'ムダな作業を自動化しないため', feature: 'kaizen' },
+  { icon: Lightbulb, title: '改善する', why: '手順を少なく、そろえるため', feature: 'kaizen' },
+  { icon: Play, title: '実行する', why: '決めた手順で、毎回同じ処理をするため', feature: 'processing' },
+  { icon: ListChecks, title: '確かめる', why: '「処理できた」と「正しい」は違うため', feature: 'criteria' },
 ]
 
 function Stages() {
   return (
     <section id="flow" className="scroll-mt-16 bg-canvas">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-        <SectionHeading eyebrow="使い方" title="自動化だけでは終わらない" lead="月次の売上集計を例にした進め方です。見直し（1・2）は任意で、手順が決まっている作業は「実行する」から始められます。途中で切り替えても、作った内容は残ります。" />
-        <ol className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {STAGES.map((s, i) => (
-            <li key={s.title} className="relative flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge">
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-2 font-bold text-white">
-                  <span className="grid size-7 place-items-center rounded-full bg-mint text-[0.85rem] text-on-mint">{i + 1}</span>
-                  <s.icon className="size-5 text-mint" aria-hidden />
-                  <span className="text-[1.15rem]">{s.title}</span>
-                </span>
-                {s.feature && <DevBadge feature={s.feature} />}
+        <SectionHeading
+          eyebrow="使い方"
+          title="自動化だけでは終わらない"
+          lead="見直さずに自動化すると、ムダな作業や誤りまで、毎月自動で繰り返してしまいます。だから FlowCraft AI は、自動化の前に見直し、自動化の後に確かめます。"
+        />
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl bg-kaizen/6 p-5 ring-1 ring-kaizen/35" aria-label="見直さずに自動化すると">
+            <p className="flex items-center gap-2 font-bold text-kaizen-text">
+              <TriangleAlert className="size-5" aria-hidden />
+              見直さずに自動化すると
+            </p>
+            <ul className="mt-3 space-y-2">
+              {WITHOUT_REVIEW.map((t) => (
+                <li key={t} className="flex gap-2 text-[0.95rem] leading-relaxed text-white/85">
+                  <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-kaizen" aria-hidden />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-2xl bg-mint/6 p-5 ring-1 ring-mint/35" aria-label="見直してから自動化すると">
+            <p className="flex items-center gap-2 font-bold text-mint">
+              <CircleCheck className="size-5" aria-hidden />
+              見直してから自動化すると
+            </p>
+            <ul className="mt-3 space-y-2">
+              {WITH_REVIEW.map((t) => (
+                <li key={t} className="flex gap-2 text-[0.95rem] leading-relaxed text-white/85">
+                  <Check className="mt-1 size-4 shrink-0 text-mint" aria-hidden />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <ol className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="4つの段階と、その理由">
+          {STAGES.map((st, i) => (
+            <li key={st.title} className="flex items-center gap-3 rounded-xl bg-panel px-4 py-3 ring-1 ring-edge">
+              <span className={`grid size-7 shrink-0 place-items-center rounded-full text-[0.85rem] font-bold ${i === 0 ? 'bg-kaizen text-canvas' : 'bg-mint text-on-mint'}`}>{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 font-bold text-white">
+                  {st.title}
+                  {st.feature && <DevBadge feature={st.feature} />}
+                </p>
+                <p className="text-[0.86rem] text-subtle">{st.why}</p>
               </div>
-              <p className="mt-2.5 flex-1 text-[0.95rem] leading-relaxed text-white/85">{s.body}</p>
-              <p className="mt-3 hidden rounded-lg bg-canvas/70 px-3 py-2 text-[0.85rem] text-subtle ring-1 ring-edge sm:block">例：{s.example}</p>
-              {i < STAGES.length - 1 && (
-                <ArrowRight className="absolute top-1/2 -right-3 z-10 hidden size-5 -translate-y-1/2 rounded-full bg-canvas text-mint xl:block" aria-hidden />
-              )}
             </li>
           ))}
         </ol>
-        <p className="mt-4 inline-flex items-center gap-1.5 text-[0.9rem] text-subtle">
-          <RefreshCw className="size-4 text-mint" aria-hidden />
-          作った手順と完了基準は保存でき、次からは新しいファイルを選んで、確かめながら実行できます。
-        </p>
+        <p className="mt-3 text-[0.88rem] text-subtle">見直し（1・2）は任意です。手順が決まっている作業は「実行する」から始められ、途中で切り替えても作った内容は残ります。</p>
       </div>
     </section>
   )
@@ -432,8 +469,9 @@ function Demos() {
 type StartWay = { icon: LucideIcon; title: string; body: string; feature: FeatureKey }
 
 const START_WAYS: StartWay[] = [
-  { icon: Upload, title: 'ファイルを読み込んで作業する', body: 'Excel・CSVを読み込み、必要な処理を作って実行します。今回だけの作業なら、保存しなくてもかまいません。', feature: 'upload' },
-  { icon: FolderOpen, title: '保存した作業手順を使う', body: '以前保存した手順を開き、新しいファイルで同じ処理と確認を行います。', feature: 'saveReuse' },
+  { icon: Upload, title: '今回だけ実行する', body: '読み込んで、手順を作り、実行して、Excelに出力して終わり。保存は必要ありません。', feature: 'upload' },
+  { icon: FolderOpen, title: '手順を保存して、必要なときに再実行する', body: '保存した手順を開き、新しいファイルを選ぶだけ。完了基準も一緒に使い、同じ確認を行います。', feature: 'saveReuse' },
+  { icon: CalendarClock, title: '決まった日時に、無人で実行する', body: '保存した手順と完了基準を、指定した日時に自動で実行します。問題があれば出力を止めます。', feature: 'schedule' },
 ]
 
 const SPECS = [
@@ -451,7 +489,7 @@ function TryOwnExcel() {
           <SectionHeading
             eyebrow="自分のExcelで試す"
             title="一度きりの作業でも、毎月の作業でも。"
-            lead="作った手順は、必要なときだけ保存して再利用できます。保存しなければ使えない、ということはありません。"
+            lead="使い方は3つ。今回だけの作業は保存しなくても終われます。毎月の作業は、保存して再実行するか、決まった日時に無人で実行します。"
           />
           <ol className="mt-6 space-y-3">
             {START_WAYS.map((w) => (
@@ -462,7 +500,11 @@ function TryOwnExcel() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-bold text-white">{w.title}</p>
-                    <DevBadge feature={w.feature} />
+                    {isAvailable(w.feature) ? (
+                      <span className="rounded-full bg-mint/12 px-2 py-0.5 text-[0.75rem] font-bold text-mint ring-1 ring-mint/35">利用可能</span>
+                    ) : (
+                      <DevBadge feature={w.feature} />
+                    )}
                   </div>
                   <p className="mt-0.5 text-[0.92rem] text-subtle">{w.body}</p>
                 </div>
