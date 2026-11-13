@@ -5,7 +5,8 @@ const SOURCE_LABEL: Record<Evidence['source'], string> = { step: '工程', conte
 const SOURCE_ICON: Record<Evidence['source'], typeof Workflow> = { step: Workflow, context: ListChecks, file: FileSpreadsheet }
 
 /** STEP 2：改善候補（決まった規則で検出）と、その根拠 */
-export function CandidateList({ diagnosis, scenario }: { diagnosis: Diagnosis; scenario: Scenario }) {
+/** status：候補ごとの判断の状態の表示（STEP 3 で判断したあとに戻ってきたとき） */
+export function CandidateList({ diagnosis, scenario, status }: { diagnosis: Diagnosis; scenario: Scenario; status: Record<string, string> }) {
   const stepName = new Map(scenario.steps.map((s, i) => [s.step_id, `工程${i + 1}「${s.name}」`]))
   return (
     <div className="space-y-5">
@@ -18,7 +19,7 @@ export function CandidateList({ diagnosis, scenario }: { diagnosis: Diagnosis; s
       <ol className="space-y-4" aria-label="改善候補">
         {diagnosis.candidates.map((c) => (
           <li key={c.candidate_id}>
-            <CandidateCard c={c} stepName={stepName} />
+            <CandidateCard c={c} stepName={stepName} status={status[c.candidate_id] ?? '未判断'} />
           </li>
         ))}
       </ol>
@@ -41,7 +42,7 @@ export function CandidateList({ diagnosis, scenario }: { diagnosis: Diagnosis; s
   )
 }
 
-function CandidateCard({ c, stepName }: { c: Candidate; stepName: Map<string, string> }) {
+function CandidateCard({ c, stepName, status }: { c: Candidate; stepName: Map<string, string>; status: string }) {
   const titleId = `kz-cand-${c.candidate_id}`
   return (
     <article aria-labelledby={titleId} className="rounded-2xl border border-edge border-l-4 border-l-kaizen bg-panel p-5">
@@ -51,8 +52,8 @@ function CandidateCard({ c, stepName }: { c: Candidate; stepName: Map<string, st
         <h3 id={titleId} className="text-[1.05rem] font-bold text-white">
           候補{c.candidate_id}：{c.title}
         </h3>
-        <span className="ml-auto rounded-full bg-panel-hi px-2.5 py-0.5 text-[0.78rem] text-subtle ring-1 ring-edge" aria-label="判断の状態：未判断">
-          未判断
+        <span className="ml-auto rounded-full bg-panel-hi px-2.5 py-0.5 text-[0.78rem] text-subtle ring-1 ring-edge" aria-label={`判断の状態：${status}`}>
+          {status}
         </span>
       </header>
       <dl className="mt-3 grid gap-x-5 gap-y-3 text-[0.9rem] md:grid-cols-[8rem_1fr]">

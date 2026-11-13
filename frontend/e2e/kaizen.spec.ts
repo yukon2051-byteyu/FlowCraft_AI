@@ -4,7 +4,7 @@ import { BANNED } from './helpers'
 /*
  * 業務改善診断デモ（デモ①「その集計、本当に必要？」）。
  * Phase 2：STEP 1（現在の7工程・90分〈想定〉）→ STEP 2（改善候補 A〜D と根拠。決まった規則。AIは使っていない）。
- * STEP 3 以降は準備中（押せない）。
+ * Phase 3：STEP 3（採用する／保留する／採用しない。廃止は確認してから。前提の候補。理由）。STEP 4 以降は準備中。
  */
 
 test('現在の作業を確認し、改善候補を根拠とともに見る（AIは使っていない）', async ({ page }) => {
@@ -47,9 +47,69 @@ test('現在の作業を確認し、改善候補を根拠とともに見る（AI
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(BANNED)
 
-  // STEP 3 は準備中（押せない・理由を表示）。前のSTEPへ戻れる
-  await expect(page.getByRole('button', { name: '次へ進む' })).toBeDisabled()
-  await expect(page.getByText('STEP 3（改善する作業の判断）は準備中です')).toBeVisible()
+  // 前のSTEPへ戻れる
   await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
   await expect(steps.locator('tbody tr')).toHaveCount(7)
+})
+
+test('改善する作業を判断する：廃止は確認してから、前提の候補、理由。判断は後から確かめられ、やり直せる', async ({ page }) => {
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('改善する作業を選んでください。')
+  const summary = page.getByRole('region', { name: '判断の集計' })
+  await expect(summary).toContainText('未判断：4件')
+  await expect(summary).toContainText('まだ判断していない候補があります（候補A・B・C・D）')
+  await expect(page.getByRole('button', { name: '次へ進む', exact: true })).toBeDisabled()
+
+  const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
+  // 廃止（候補A）：確認の前は採用できない
+  await expect(decision('A').getByRole('radio', { name: '採用する' })).toBeDisabled()
+  await expect(decision('A')).toContainText('採用するには：確認の問いに「要件はない」と答えたときだけ採用できます')
+  const q = page.getByRole('radiogroup', { name: /確認：会議用資料への転記は/ })
+  await q.getByRole('radio', { name: '分からない' }).check()
+  await expect(page.getByText('「保留する」を選び、関係者に確かめてから判断してください')).toBeVisible()
+  await expect(decision('A').getByRole('radio', { name: '採用する' })).toBeDisabled()
+  await q.getByRole('radio', { name: /要件はない/ }).check()
+  await decision('A').getByText('採用する').click()
+  await expect(decision('A').getByRole('radio', { name: '採用する' })).toBeChecked()
+  // 理由は選択肢から選べる
+  await page.getByRole('button', { name: 'すぐに実施できる' }).click()
+  await expect(page.getByRole('textbox', { name: /判断の理由/ }).first()).toHaveValue('すぐに実施できる')
+  // 後から「要件がある」に変えると、採用は取り消される（確認なしに採用されない）
+  await q.getByRole('radio', { name: '要件がある' }).check()
+  await expect(decision('A').getByRole('radio', { name: '採用する' })).not.toBeChecked()
+  await decision('A').getByText('採用しない').click()
+  await page.getByRole('button', { name: '業務上の要件がある' }).click()
+
+  // 簡素化（候補B）は、前提の候補C を採用するまで採用できない
+  await expect(decision('B').getByRole('radio', { name: '採用する' })).toBeDisabled()
+  await expect(decision('B')).toContainText('前提の候補Cを採用すると選べます')
+  await decision('C').getByText('採用する').click()
+  await decision('B').getByText('採用する').click()
+  await decision('D').getByText('採用する').click()
+  await expect(summary).toContainText('採用：3件')
+  await expect(summary).toContainText('採用しない：1件')
+  await expect(summary).not.toContainText('まだ判断していない')
+
+  // 前提を後から外すと、矛盾として知らせる（判断は勝手に書き換えない）
+  await decision('C').getByText('保留する').click()
+  await expect(decision('B').getByRole('radio', { name: '採用する' })).toBeChecked()
+  await expect(summary).toContainText('候補B：前提の候補Cを採用すると選べます（判断を見直してください）')
+  await decision('C').getByText('採用する').click()
+  await expect(summary).not.toContainText('判断を見直してください')
+  await expect(page.getByText('STEP 4（改善後の手順を作成）は準備中です')).toBeVisible()
+
+  // STEP 2 に戻ると、判断の状態が見える
+  await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
+  await expect(page.getByRole('article', { name: /^候補A：/ }).getByLabel('判断の状態：採用しない')).toBeVisible()
+  await expect(page.getByRole('article', { name: /^候補D：/ }).getByLabel('判断の状態：採用')).toBeVisible()
+
+  // 最初からやり直すと、判断は残らない
+  await page.getByRole('button', { name: '最初からやり直す' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await expect(page.getByRole('article', { name: /^候補A：/ }).getByLabel('判断の状態：未判断')).toBeVisible()
+  const text = await page.locator('main').innerText()
+  expect(text).not.toMatch(BANNED)
 })
