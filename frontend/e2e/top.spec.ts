@@ -102,6 +102,11 @@ test('品質の確認：実行結果のイメージは中央揃えの横一列�
         card: r('#trust [aria-label="実行結果のイメージ"]').height,
         // 5要素のグループの左右の余白（カードの内側の端から）。中央揃えなら等しい
         sides: [det.left - r('#trust [data-flow="group"]').left, r('#trust [data-flow="group"]').right - r('#trust [data-flow="demo"]').right],
+        // タイトルの行の中心と、5要素のグループの中心（中心線が一致する）
+        titleCenterDiff: (() => {
+          const t = [...document.querySelectorAll('#trust [data-flow="title"] > span')].map((e) => e.getBoundingClientRect())
+          return (t[0].left + t[t.length - 1].right) / 2 - (det.left + btn.right) / 2
+        })(),
         cards: [...document.querySelectorAll('#trust ol li')].map((e) => e.getBoundingClientRect().height),
       }
     })
@@ -110,6 +115,7 @@ test('品質の確認：実行結果のイメージは中央揃えの横一列�
     expect(m.card).toBeLessThanOrEqual(175)
     expect(Math.abs(m.sides[0] - m.sides[1]), `${w}px：左右の余白の差`).toBeLessThanOrEqual(2)
     expect(m.sides[0], `${w}px：全幅に広げていない`).toBeGreaterThan(50)
+    expect(Math.abs(m.titleCenterDiff), `${w}px：タイトルと5要素の中心線の差`).toBeLessThanOrEqual(2)
     expect(new Set(m.cards.map(Math.round)).size).toBe(1)
   }
   await page.locator('#trust').getByRole('link', { name: '品質異常のデモを体験する' }).click()

@@ -761,7 +761,7 @@ function Trust() {
           </ul>
         </div>
 
-        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。タイトルは左揃え、その下の5要素は1つのグループとしてカードの中央に置く：
+        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。タイトルの行（タイトル＋ラベル）と、その下の5要素を、それぞれ1つのグループとしてカードの中央に置く（中心線が一致する）：
               異常の検出 → 正式出力を停止 → デモのボタン（矢印は32pxの箱の中央）
             ・Flex（justify-content: center・align-items: center）。各要素は内容の幅のまま並べ、間隔は gap で統一（20px）
               → グループは実際の幅を基準に中央に置かれ、左右の余白が等しくなる（全幅に引き伸ばさない）
@@ -769,7 +769,7 @@ function Trust() {
               矢印・正式出力停止・ボタンの中心線が揃う（margin・translateY による位置合わせはしない）
             固定の高さは付けない。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
         <div className="mt-[22px] rounded-2xl bg-panel-hi px-[26px] pt-[22px] pb-[32px] ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
-          <p className="flex flex-wrap items-center gap-2">
+          <p className="flex flex-wrap items-center justify-center gap-2.5" data-flow="title">
             <span className="text-[1.05rem] font-bold text-white">実行結果のイメージ</span>
             <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[0.8rem] text-subtle ring-1 ring-white/15">架空データの例（照合漏れを重大として設定した場合）</span>
           </p>
