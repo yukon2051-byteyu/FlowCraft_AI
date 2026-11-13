@@ -5,6 +5,7 @@ import {
   Monitor,
   CalendarClock,
   Check,
+  CircleCheck,
   CircleHelp,
   Clock3,
   FileSpreadsheet,
@@ -338,20 +339,33 @@ function Stages() {
 
 /* ================= デモ ================= */
 
-type Demo = { title: string; summary: string; inputs: string[]; outputs: string[] }
+/*
+ * デモ（docs/demo-design.md）：案件ごとに「正常終了」と「品質異常」を選べる。品質異常の原因は案件ごとに変える。
+ * 色の意味：ミント＝正常・成功、コーラル＝異常・リスク（ページ全体で統一）。デモはまだ動かないため「開発中」で押せない。
+ */
+type Demo = { title: string; summary: string; inputs: string; ok: string; ng: string }
 
 const DEMOS: Demo[] = [
   {
     title: '月次売上集計デモ',
-    summary: '売上に商品・部署の情報を付け、部署別・カテゴリ別に集計。照合できない商品コードなどの問題も確認します。',
-    inputs: ['売上実績.xlsx', '商品マスタ.xlsx', '部署マスタ.csv'],
-    outputs: ['部署別・カテゴリ別の集計表', '照合漏れ・重複の確認結果'],
+    summary: '売上に商品・部署の情報を付け、部署別に集計します。',
+    inputs: '売上実績・商品マスタ・部署マスタ',
+    ok: '対象月の伝票だけを集計・検証・出力',
+    ng: '対象期間外の伝票の混入を検出 → 出力を停止',
+  },
+  {
+    title: '商品マスタ照合デモ',
+    summary: '売上の商品コードを商品マスタと照合し、商品名・カテゴリを付けます。',
+    inputs: '売上実績・商品マスタ',
+    ok: 'すべての商品コードを照合して出力',
+    ng: '未登録コード・表記揺れを検出 → 原因ごとの直し方',
   },
   {
     title: '在庫差異検出デモ',
     summary: '入出庫履歴から理論上の在庫を計算し、在庫台帳と合わない商品を一覧にします。',
-    inputs: ['在庫台帳.xlsx', '入出庫履歴.xlsx'],
-    outputs: ['差異のある商品の一覧', '差異の件数と確認結果'],
+    inputs: '在庫台帳・入出庫履歴',
+    ok: '差異の一覧を作り、検証して出力',
+    ng: '伝票番号の重複（二重計上）を検出 → 出力を停止',
   },
 ]
 
@@ -359,53 +373,57 @@ function Demos() {
   return (
     <section id="demo" className="scroll-mt-16 border-y border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-        <SectionHeading
-          eyebrow="デモ"
-          title="サンプルデータで、実際の処理を体験"
-          lead="架空の業務データで、加工・集計から結果の確認まで、実際の処理を行います。"
-        />
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <SectionHeading
+            eyebrow="デモ"
+            title="正常終了も、品質異常の検出も体験できる"
+            lead="架空の業務データで、実際の処理と品質の確認を行います。問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。"
+          />
+          <DevBadge feature="demo" className="mb-1" />
+        </div>
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
           {DEMOS.map((d) => (
-            <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-[1.2rem] font-bold text-white">{d.title}</h3>
-                <DevBadge feature="demo" />
-              </div>
-              <p className="mt-2 leading-relaxed text-subtle">{d.summary}</p>
-              <div className="mt-4 grid flex-1 items-stretch gap-3 sm:grid-cols-[1fr_auto_1fr]">
-                <IoList label="使うファイル" items={d.inputs} icon={FileSpreadsheet} />
-                <ArrowRight className="mx-auto hidden size-5 self-center text-mint sm:block" aria-hidden />
-                <IoList label="得られる結果" items={d.outputs} icon={Check} />
-              </div>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <Button variant="primary" disabled title="デモは現在準備中です">
-                  <Play className="size-4" aria-hidden />
-                  このデモを始める
-                </Button>
-                <span className="text-[0.88rem] text-subtle">準備が整い次第、ここから開始できます。</span>
+            <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label={d.title}>
+              <h3 className="text-[1.15rem] font-bold text-white">{d.title}</h3>
+              <p className="mt-1.5 text-[0.92rem] leading-relaxed text-subtle">{d.summary}</p>
+              <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-white/75">
+                <FileSpreadsheet className="size-4 shrink-0 text-subtle" aria-hidden />
+                {d.inputs}
+              </p>
+              <div className="mt-4 grid flex-1 grid-cols-2 gap-2.5" role="group" aria-label={`${d.title}の体験の選び方`}>
+                <button
+                  type="button"
+                  disabled={!isAvailable('demo')}
+                  title={isAvailable('demo') ? undefined : 'デモは開発中です'}
+                  className="flex flex-col rounded-xl bg-mint/8 p-3 text-left ring-1 ring-mint/40 transition enabled:hover:bg-mint/15 disabled:cursor-not-allowed"
+                >
+                  <span className="flex items-center gap-1.5 font-bold text-mint">
+                    <CircleCheck className="size-4.5" aria-hidden />
+                    正常終了
+                  </span>
+                  <span className="mt-1 text-[0.82rem] leading-snug text-white/80">{d.ok}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!isAvailable('demo')}
+                  title={isAvailable('demo') ? undefined : 'デモは開発中です'}
+                  className="flex flex-col rounded-xl bg-kaizen/8 p-3 text-left ring-1 ring-kaizen/45 transition enabled:hover:bg-kaizen/15 disabled:cursor-not-allowed"
+                >
+                  <span className="flex items-center gap-1.5 font-bold text-kaizen-text">
+                    <TriangleAlert className="size-4.5" aria-hidden />
+                    品質異常
+                  </span>
+                  <span className="mt-1 text-[0.82rem] leading-snug text-white/80">{d.ng}</span>
+                </button>
               </div>
             </article>
           ))}
         </div>
-        <p className="mt-4 text-[0.88rem] text-subtle">AI業務改善診断を体験できるデモは、機能の完成後に追加する予定です。</p>
+        <p className="mt-4 text-[0.88rem] text-subtle">
+          品質異常のデモでは、問題を直したデータで再実行し、直す前と後の結果を比べることもできる予定です。AI業務改善診断のデモは、機能の完成後に追加します。
+        </p>
       </div>
     </section>
-  )
-}
-
-function IoList({ label, items, icon: Icon }: { label: string; items: string[]; icon: LucideIcon }) {
-  return (
-    <div className="rounded-xl bg-canvas/70 p-4 ring-1 ring-edge">
-      <p className="mb-2 text-[0.82rem] font-bold text-subtle">{label}</p>
-      <ul className="space-y-1.5">
-        {items.map((it) => (
-          <li key={it} className="flex items-center gap-2 text-[0.92rem] text-white/90">
-            <Icon className="size-4 shrink-0 text-mint" aria-hidden />
-            {it}
-          </li>
-        ))}
-      </ul>
-    </div>
   )
 }
 
@@ -494,11 +512,21 @@ function TryOwnExcel() {
 
 /* ================= 処理できた、だけで終わらせない ================= */
 
-const TRUST: { icon: LucideIcon; title: string; body: string }[] = [
-  { icon: ShieldCheck, title: '処理結果の整合性を確認', body: '結合で行が増えていないか、集計の前後で合計が合うかを、毎回自動で確認します。' },
-  { icon: ListChecks, title: '業務の完了基準を設定', body: '対象期間・照合できない件数の上限など、業務ごとの条件を加えられます。' },
-  { icon: TriangleAlert, title: '異常や未検証の項目を表示', body: '重大な問題があれば、結果を出力しません。確かめられなかった項目も隠しません。' },
-  { icon: RefreshCw, title: '記録して、再利用', body: '確認の結果を記録し、保存した手順と基準で次回も同じ確認を行います。' },
+/** 見つける品質異常の例（コーラル＝異常・リスク） */
+const ANOMALIES = ['集計結果の不一致', '商品コードの照合漏れ', '必須項目の欠損', '対象期間外のデータ', '重複データ']
+
+/** 見つけてから止めるまで */
+const TRUST_FLOW: { icon: LucideIcon; title: string; body: string }[] = [
+  { icon: ScanSearch, title: '検出する', body: '自動で行う確認（結合で行が増えていないか、集計前後の合計など）と、業務ごとの完了基準を、毎回プログラムで確かめます。' },
+  { icon: ListChecks, title: '根拠と原因を示す', body: '件数・該当する行・判定の理由を示します。照合漏れは「空白」「マスタにない」「空欄」など原因ごとに分けます。' },
+  { icon: ShieldCheck, title: '出力を止める', body: '重大な問題があれば、正式な結果を出力しません。原因を調べるための確認結果だけを出力できます。' },
+]
+
+/** 判定の色（ページ全体で同じ意味） */
+const VERDICTS: { label: string; note: string; cls: string }[] = [
+  { label: '正常', note: 'そのまま出力', cls: 'bg-mint/12 text-mint ring-mint/40' },
+  { label: '注意・未検証', note: '確認してから出力', cls: 'bg-warning/12 text-warning ring-warning/40' },
+  { label: '重大', note: '出力を停止', cls: 'bg-kaizen/12 text-kaizen-text ring-kaizen/45' },
 ]
 
 const CAUTIONS: { icon: LucideIcon; text: string }[] = [
@@ -513,20 +541,45 @@ function Trust() {
     <section id="trust" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8 lg:py-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <SectionHeading eyebrow="品質の確認" title="処理できた、だけで終わらせない。" />
+          <SectionHeading eyebrow="品質の確認" title="処理できた、だけで終わらせない。" lead="エラーなく処理が終わっても、業務として正しいとは限りません。問題を見つけ、根拠を示し、誤った結果の出力を止めます。" />
           <DevBadge feature="quality" className="mb-1" />
         </div>
-        <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {TRUST.map((t) => (
-            <li key={t.title} className="rounded-xl bg-panel p-4 ring-1 ring-edge">
-              <p className="flex items-center gap-2 font-bold text-white">
-                <t.icon className="size-4.5 text-mint" aria-hidden />
-                {t.title}
-              </p>
-              <p className="mt-1.5 text-[0.9rem] leading-relaxed text-subtle">{t.body}</p>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="見つける品質異常の例">
+            <p className="flex items-center gap-2 font-bold text-white">
+              <TriangleAlert className="size-4.5 text-kaizen" aria-hidden />
+              こんな品質異常を見つけます
+            </p>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {ANOMALIES.map((a) => (
+                <li key={a} className="rounded-full bg-kaizen/10 px-3 py-1 text-[0.88rem] font-bold text-kaizen-text ring-1 ring-kaizen/40">
+                  {a}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-[0.85rem] font-bold text-white/85">判定と出力</p>
+            <ul className="mt-2 grid grid-cols-3 gap-2" aria-label="判定と出力">
+              {VERDICTS.map((v) => (
+                <li key={v.label} className={`rounded-lg px-2.5 py-2 text-center ring-1 ${v.cls}`}>
+                  <span className="block text-[0.9rem] font-bold">{v.label}</span>
+                  <span className="block text-[0.78rem] text-white/75">{v.note}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <ol className="grid gap-3 sm:grid-cols-3" aria-label="見つけてから止めるまで">
+            {TRUST_FLOW.map((t, i) => (
+              <li key={t.title} className="rounded-2xl bg-panel p-4 ring-1 ring-edge">
+                <p className="flex items-center gap-2 font-bold text-white">
+                  <span className="grid size-6 place-items-center rounded-full bg-white/10 text-[0.8rem]">{i + 1}</span>
+                  <t.icon className={`size-4.5 ${i === 2 ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
+                  {t.title}
+                </p>
+                <p className="mt-2 text-[0.88rem] leading-relaxed text-subtle">{t.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
         <p className="mt-3 text-[0.85rem] text-subtle">
           確認できるのは、自動で行う確認と、設定した完了基準の範囲です。すべての誤りを見つけられるわけではありません。単発の作業にも同じ確認を行います。
         </p>

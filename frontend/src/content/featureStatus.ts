@@ -21,11 +21,11 @@ export const FEATURE_STATUS = {
   /** 既存の手順をもとに新しく作る */
   derive: 'in_development',
   /** 品質検証の結果表示 */
-  quality: 'in_development',
+  quality: 'available',
   /** デモ */
   demo: 'in_development',
   /** 業務の完了基準の設定・評価 */
-  criteria: 'in_development',
+  criteria: 'available',
   /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */
   kaizen: 'in_development',
   /** 無人定期実行（共通Workerが、有効化された案件だけを決まった日時に実行する） */
