@@ -12,7 +12,7 @@ test('無人定期実行のカードは「開発中」と、5つの確認を示�
   // 3分後の自動実行デモは、完成するまで押せない
   await expect(card.getByRole('button', { name: '3分後に自動実行を試す' })).toBeDisabled()
   await expect(card.getByRole('list', { name: '無人で実行する前の5つの確認' }).getByRole('listitem')).toHaveText([/設定を保存/, /接続テスト/, /テスト実行/, /品質検証/, /利用者が有効化/])
-  await expect(page.getByText('選ばれる6つの理由')).toBeVisible()
+  await expect(page.getByText('FlowCraft AIの6つの特徴')).toBeVisible()
   // 試し方の3つの区分：未実装のものは「開発中」、製品版の機能は「対応予定」と分けて示す
   const ways = card.getByRole('list', { name: '無人実行の試し方' }).getByRole('listitem')
   await expect(ways).toHaveCount(3)

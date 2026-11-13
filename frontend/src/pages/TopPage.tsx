@@ -38,7 +38,7 @@ import { DevBadge } from '../components/ui/DevBadge'
 /*
  * TOPページ（全面改修：新しい製品コンセプト）
  * 伝えること：①その作業は本当に必要か ②不要な作業は減らし、必要な作業は効率化する ③処理して終わりではなく、結果の正しさまで確認する
- * 構成：ヒーロー → 選ばれる6つの理由 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 処理できた、だけで終わらせない
+ * 構成：ヒーロー → FlowCraft AIの6つの特徴 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 処理できた、だけで終わらせない
  * 未実装の機能には「開発中」を表示する（content/featureStatus.ts で一元管理）。
  */
 export default function TopPage() {
@@ -126,13 +126,17 @@ function Hero() {
   )
 }
 
-/* ================= 選ばれる6つの理由 ================= */
+/* ================= FlowCraft AIの6つの特徴 =================
+ * 表示の番号は、画面での並び（左上の大きなカードが01）に合わせて、各カードのデータに明示的に持たせる。
+ * 並び順から計算しない（カードの順番を変えても番号が勝手に変わらないように）。React の key はタイトル。
+ */
 
-type Reason = { icon: LucideIcon; title: string; body: ReactNode; feature: FeatureKey }
+type Reason = { no: string; icon: LucideIcon; title: string; body: ReactNode; feature: FeatureKey }
 
 const REASONS: Reason[] = [
-  { icon: MessageSquareText, title: '手順を簡単に作れる', body: '作業を日本語で説明すると、AIが処理の手順を組み立てます。内容は確認してから使います。', feature: 'aiFlow' },
+  { no: '02', icon: MessageSquareText, title: '手順を簡単に作れる', body: '作業を日本語で説明すると、AIが処理の手順を組み立てます。内容は確認してから使います。', feature: 'aiFlow' },
   {
+    no: '03',
     icon: ShieldCheck,
     title: '結果を検証できる',
     body: (
@@ -142,8 +146,8 @@ const REASONS: Reason[] = [
     ),
     feature: 'criteria',
   },
-  { icon: Repeat, title: '単発にも定型にも', body: '一度きりの集計にも、毎月の定型業務にも。保存するかは後から選べます。', feature: 'saveReuse' },
-  { icon: SlidersHorizontal, title: '業務に合わせて変えられる', body: '処理の手順も、確認の条件も、自分の業務に合わせて変更できます。', feature: 'processing' },
+  { no: '04', icon: Repeat, title: '単発にも定型にも', body: '一度きりの集計にも、毎月の定型業務にも。保存するかは後から選べます。', feature: 'saveReuse' },
+  { no: '05', icon: SlidersHorizontal, title: '業務に合わせて変えられる', body: '処理の手順も、確認の条件も、自分の業務に合わせて変更できます。', feature: 'processing' },
 ]
 
 const KAIZEN_WAYS = [
@@ -158,7 +162,7 @@ function Reasons() {
     <section id="features" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
         <SectionHeading
-          eyebrow="選ばれる6つの理由"
+          eyebrow="FlowCraft AIの6つの特徴"
           title="Excelの処理だけでなく、その前と後ろまで。"
           lead="作業そのものを見直し、処理した結果が正しいかまで確かめる。生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。"
         />
@@ -171,7 +175,7 @@ function Reasons() {
                 <span className="grid size-9 place-items-center rounded-xl bg-kaizen/12 text-kaizen ring-1 ring-kaizen/35">
                   <Lightbulb className="size-5" aria-hidden />
                 </span>
-                <span className="text-[0.85rem] font-bold text-kaizen-text tabular-nums">05</span>
+                <span className="text-[0.85rem] font-bold text-kaizen-text tabular-nums">01</span>
                 <h3 className="text-[1.35rem] font-bold text-white">作業そのものを改善できる</h3>
                 <DevBadge feature="kaizen" />
               </div>
@@ -198,7 +202,7 @@ function Reasons() {
 
           {/* ①〜④ */}
           <div className="grid gap-4 sm:grid-cols-2">
-            {REASONS.map((r, i) => (
+            {REASONS.map((r) => (
               <article key={r.title} className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
                 <div className="flex items-start justify-between gap-2">
                   <span className="grid size-10 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
@@ -207,7 +211,7 @@ function Reasons() {
                   <DevBadge feature={r.feature} />
                 </div>
                 <h3 className="mt-3 flex items-baseline gap-2 text-[1.08rem] font-bold text-white">
-                  <span className="text-[0.8rem] text-subtle/70 tabular-nums">0{i + 1}</span>
+                  <span className="text-[0.8rem] text-subtle/70 tabular-nums">{r.no}</span>
                   {r.title}
                 </h3>
                 <p className="mt-1.5 text-[0.92rem] leading-relaxed text-subtle">{r.body}</p>
