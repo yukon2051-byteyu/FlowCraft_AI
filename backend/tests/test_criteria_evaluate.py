@@ -144,7 +144,16 @@ def test_november_finds_planted_problems(client):
     expected_unmatched = sum(PLANTED["unknown_product_codes"].values()) + len(PLANTED["trailing_space_code"]["rows"]) + blanks
     assert c["c_match"]["status"] == "failed"
     assert c["c_match"]["evidence"]["照合できない行"] == str(expected_unmatched)
-    assert {e["照合できないキー"] for e in c["c_match"]["examples"]} >= {"P-1099", "P-2001"}
+    # 空白の違いが見えるよう、例のキーはかぎかっこで囲む
+    assert {e["照合できないキー"] for e in c["c_match"]["examples"]} >= {"「P-1099」", "「P-2001」", "「P-1005 」"}
+    # 直し方は原因ごと（空白を除けば全部直る、とは書かない）
+    fix = c["c_match"]["how_to_fix"]
+    assert "前後の空白の 2行" in fix and "相手の表にない値 4行" in fix and "空欄の 3行" in fix
+    # 原因の内訳（行数）：表記の違い（空白）で直るもの・マスタにない値・空欄を分けて示す（空白を除けば全部直る、と見せない）
+    ev = c["c_match"]["evidence"]
+    assert ev["原因：前後の空白（取り除けば一致）"] == f"{len(PLANTED['trailing_space_code']['rows'])}行"
+    assert ev["原因：相手の表（マスタ）にない値"] == f"{sum(PLANTED['unknown_product_codes'].values())}行"
+    assert ev["原因：照合に使う値が空欄"] == f"{blanks}行"
 
     # 対象期間外：manifest の1行（10月の伝票が混ざっている）
     assert c["c_period"]["status"] == "failed"

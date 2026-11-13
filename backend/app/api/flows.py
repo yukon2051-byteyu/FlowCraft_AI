@@ -379,7 +379,7 @@ def export_run(run_id: str, confirmed: bool = False, session: Session = Depends(
         )
     flow: FlowDefinition = stored["flow"]
     executed_at: datetime = stored["executed_at"]
-    data = build_workbook(flow, ex, executed_at, stored["flow_hash"])
+    data = build_workbook(flow, ex, executed_at, stored["flow_hash"], stored.get("run_values"))
     kind = "結果" if ex.result.can_export else "確認結果（調査用）"
     stamp = executed_at.astimezone().strftime("%Y%m%d-%H%M")
     name = f"{flow.flow_name}_{kind}_{stamp}.xlsx".translate(_FILENAME_FORBIDDEN)

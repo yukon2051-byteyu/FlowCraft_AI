@@ -75,11 +75,17 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
             {verdict && <VerdictBox verdict={verdict} />}
             <p className={`flex items-center gap-2 font-bold ${verdict ? 'mt-3 text-[1rem]' : 'text-[1.35rem]'} ${headline.cls}`}>
               <Head className={verdict ? 'size-4.5' : 'size-6'} aria-hidden />
-              {verdict ? `処理：${headline.text}` : headline.text}
+              {verdict ? (run.status === 'failed' ? `処理・検証：途中で停止（${headline.text}）` : `処理・検証：完了（${headline.text}）`) : headline.text}
             </p>
+            {/* 「処理が最後まで終わったこと」と「正式な成果物を出力してよいこと」を分けて示す */}
+            {verdict && (
+              <p className={`mt-1 font-bold ${reportOnly ? 'text-error' : needsConfirm ? 'text-warning' : 'text-success'}`} aria-label="正式な出力">
+                正式な出力：{reportOnly ? '停止（調査用の確認結果だけを出力できます）' : needsConfirm ? '確認したうえで出力できます' : '出力できます'}
+              </p>
+            )}
             <p className="mt-1 text-[0.9rem] text-subtle">{headline.sub}</p>
             <p className="mt-2 text-[0.85rem] text-subtle">
-              実行日時：{new Date(run.executed_at).toLocaleString('ja-JP')} ／ 処理時間：{(run.duration_ms / 1000).toFixed(1)}秒
+              実行日時：{new Date(run.executed_at).toLocaleString('ja-JP')} ／ 処理時間：{formatDuration(run.duration_ms)}
             </p>
             {stale && (
               <p className="mt-3 rounded-lg bg-warning/12 px-3 py-2 text-[0.88rem] text-warning ring-1 ring-warning/35">
@@ -318,6 +324,13 @@ function CriterionRow({ c }: { c: CriterionResult }) {
       )}
     </li>
   )
+}
+
+/** 処理時間。1秒未満も 0 秒に丸めない（サーバーの report.format_duration と同じ） */
+function formatDuration(ms: number): string {
+  if (ms < 1) return '0.001秒未満'
+  if (ms < 1000) return `${(ms / 1000).toFixed(3)}秒`
+  return `${(ms / 1000).toFixed(1)}秒`
 }
 
 function StepRow({ n, index, defaultOpen }: { n: StepRun; index: number; defaultOpen: boolean }) {

@@ -79,18 +79,24 @@ def test_checks_and_record_sheets(client):  # noqa: F811
     run, res, _ = run_and_export(client)
     wb = load(res)
     checks = [r for r in wb["確認結果"].iter_rows(values_only=True)]
-    flat = [str(v) for r in checks for v in r if v is not None]
-    assert "結論" in flat and "最後まで実行しました。" in flat
-    assert any("合計は結合の前後で一致" in v for v in flat)  # 処理の中で行った確認の結果が残る
+    first = {r[0]: r[1] for r in checks if r and r[0] and len(r) > 1}
+    # 1枚目（判断するためのレポート）：総合判定・処理と検証の状態・正式な出力を分けて示す
+    assert checks[0][0] == "確認結果｜月次売上集計"
+    assert any(r[0] == "総合判定：正常" for r in checks)
+    assert first["処理・検証"].startswith("完了")
+    assert first["正式な集計結果"].startswith("出力済み")
+    assert first["判定の根拠"].startswith("標準の確認のみ")
     header = next(r for r in checks if r and r[0] == "ステップ")
-    assert header[:5] == ("ステップ", "名前", "状態", "入力件数", "出力件数")
+    assert header[:5] == ("ステップ", "名前", "状態", "件数", "要点（最も重要なお知らせ）")
 
     record = [r for r in wb["処理の記録"].iter_rows(values_only=True)]
+    # 2枚目（処理を追跡するための記録）：処理の中で行った確認の結果（お知らせ）も、詳細ログに残る
+    assert any(r and r[3] and "合計は結合の前後で一致" in str(r[3]) for r in record)
     values = {r[0]: r[1] for r in record if r and len(r) > 1}
     assert values["作業手順"] == "月次売上集計"
     assert values["作業手順の指紋"] == run["flow_hash"]
     files = [r for r in record if r and r[0] in ("売上実績", "商品マスタ", "部署マスタ")]
-    assert [(r[1], r[3]) for r in files] == [("売上.csv", 4), ("商品.csv", 2), ("部署.csv", 2)]
+    assert [(r[1], r[4]) for r in files] == [("売上.csv", 4), ("商品.csv", 2), ("部署.csv", 2)]
     fps = {r[0]: r[3] for r in record if r and r[0] in ("部署別売上", "商品別売上", "明細")}
     assert fps == {k: run["fingerprints"][ref] for k, ref in (("部署別売上", "by_dept"), ("商品別売上", "by_product"), ("明細", "sales_full"))}
 
@@ -104,8 +110,15 @@ def test_failed_run_exports_only_checks_for_investigation(client):  # noqa: F811
     assert "確認結果（調査用）" in name
     wb = load(res)
     assert wb.sheetnames == ["確認結果", "処理の記録"]
-    flat = [str(v) for r in wb["確認結果"].iter_rows(values_only=True) for v in r if v is not None]
-    assert any("で止まりました" in v and "処理結果は出力していません" in v for v in flat)
+    checks = list(wb["確認結果"].iter_rows(values_only=True))
+    first = {r[0]: r[1] for r in checks if r and r[0] and len(r) > 1}
+    assert any(r[0] == "総合判定：重大" for r in checks)
+    assert first["処理・検証"].startswith("途中で停止（ステップ") and "でエラー" in first["処理・検証"]
+    assert first["正式な集計結果"] == "出力停止（処理が途中で止まったため）"
+    # 確認すべき問題の先頭が、止まった原因（重大）
+    head = next(i for i, r in enumerate(checks) if r and r[0] == "重要度")
+    assert checks[head + 1][0] == "重大" and "（自動の確認）" in checks[head + 1][1]
+    flat = [str(v) for ws in wb.worksheets for r in ws.iter_rows(values_only=True) for v in r if v is not None]
     assert any("照合に使う列の値が重複しています" in v for v in flat)  # 原因
     assert "実行していない" in flat
 
@@ -131,3 +144,34 @@ def test_decimal_without_scale_has_no_trailing_dot_format(client):  # noqa: F811
     cell = ws.cell(row=2, column=header.index("金額") + 1)
     assert cell.value == Decimal("3000") or cell.value == 3000
     assert not cell.number_format.endswith(".")
+
+
+def test_report_layout_for_reading_and_printing(client):  # noqa: F811
+    """全シートで目盛線なし・A4横・幅1ページ。見出しの固定。結果と詳細ログには絞り込み。開くと「確認結果」"""
+    _, res, _ = run_and_export(client)
+    wb = openpyxl.load_workbook(io.BytesIO(res.content))
+    assert wb.active.title == "確認結果"
+    for ws in wb.worksheets:
+        assert ws.sheet_view.showGridLines is False, ws.title
+        assert ws.page_setup.orientation == "landscape" and ws.page_setup.paperSize == 9, ws.title
+        # 幅1ページ（1は既定値のため、ファイルには書かれない）・縦は必要なだけ
+        assert ws.sheet_properties.pageSetUpPr.fitToPage is True, ws.title
+        assert ws.page_setup.fitToWidth in (None, 1) and ws.page_setup.fitToHeight == 0, ws.title
+        assert ws.freeze_panes == "A2", ws.title
+    assert wb["部署別売上"].auto_filter.ref == "A1:" + wb["部署別売上"].auto_filter.ref.split(":")[1]
+    record = wb["処理の記録"]
+    header = next(r for r in record.iter_rows() if r[0].value == "ログID")
+    assert record.auto_filter.ref.startswith(f"A{header[0].row}:")
+    # 見出しは濃紺・白い文字（重要度は色だけでなく文字でも示す）
+    checks = wb["確認結果"]
+    cell = next(c for r in checks.iter_rows() for c in r if c.value == "ステップ")
+    assert cell.fill.fgColor.rgb.endswith("203047") and cell.font.color.rgb.endswith("FFFFFF")
+
+
+def test_duration_is_not_rounded_to_zero():
+    from app.export.report import format_duration
+
+    assert format_duration(0) == "0.001秒未満"
+    assert format_duration(8) == "0.008秒"
+    assert format_duration(999) == "0.999秒"
+    assert format_duration(12_345) == "12.3秒"

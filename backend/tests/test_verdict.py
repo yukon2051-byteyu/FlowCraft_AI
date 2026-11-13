@@ -189,11 +189,14 @@ def test_critical_criterion_blocks_result_sheets(client):
     names = sheets(res)
     assert "部署別売上" not in names and "確認結果" in names
     assert "%E8%AA%BF%E6%9F%BB%E7%94%A8" in res.headers["content-disposition"]  # 「調査用」
-    ws = openpyxl.load_workbook(io.BytesIO(res.content), read_only=True)["確認結果"]
-    flat = [str(v) for row in ws.iter_rows(values_only=True) for v in row if v is not None]
-    assert "最後まで実行しましたが、総合判定が「重大」のため、処理結果は出力していません（調査用）。" in flat
-    assert any(v.startswith("重大（完了基準と標準の確認）") for v in flat)
-    assert "重大とした完了基準を満たしていません：「部署は4つ」" in flat
+    rows = check_rows(res)
+    first = {r[0]: r[1] for r in rows if r[0]}
+    assert any(r[0] == "総合判定：重大" for r in rows)
+    # 処理と検証は完了しているが、正式な集計結果は出力していない（2つを分けて示す）
+    assert first["処理・検証"].startswith("完了")
+    assert first["正式な集計結果"].startswith("出力停止（重大な問題があるため")
+    assert first["判定の根拠"] == "完了基準 1件 と、処理の中で自動で行う確認（標準の確認）"
+    assert any(r[1] == "・重大とした完了基準を満たしていません：「部署は4つ」" for r in rows)
 
 
 # ===================== 1枚レポート（Excelの確認結果シート。タスク2-5） =====================
@@ -213,19 +216,29 @@ def test_report_lists_criteria_with_evidence_in_importance_order(client):
     assert body["verdict"]["verdict"] == "unverified"
     res = client.get(f"/api/runs/{body['run_id']}/export?confirmed=true", headers=h)
     rows = check_rows(res)
-    start = next(i for i, r in enumerate(rows) if r[0] == "完了基準")
-    assert rows[start][:8] == ["完了基準", "種類", "満たさないとき", "判定", "理由", "根拠", "対応", "該当する例"]
-    table = rows[start + 1 : start + 4]
-    # 重要な順：未検証 → 注意で満たさない → 満たしている
-    assert [r[0] for r in table] == ["対象月の伝票だけ", "部署は5つ", "部署は4つ"]
-    assert table[0][3] == "未検証" and "「対象月」が入力されていません" in table[0][4]
-    assert table[1][3] == "満たしていない（注意）" and table[1][5] == "件数：4 ／ 範囲：5〜" and table[1][6]
-    assert table[2][1:4] == ["件数が範囲内にある", "重大", "満たしている"]
-    assert table[2][5] == "件数：4 ／ 範囲：4〜4" and table[2][6] == ""  # 満たしているものに対応は書かない
+    # 第2階層：確認すべき問題（重要な順：未検証 → 注意で満たさない → 満たしている）
+    start = next(i for i, r in enumerate(rows) if r[0] == "重要度")
+    assert rows[start][:5] == ["重要度", "確認項目", "結果", "問題件数", "対応の要点"]
+    table = [r for r in rows[start + 1 :] if r[0] in ("重大", "未検証", "注意", "正常", "記録のみ")][:3]
+    assert [r[1] for r in table] == ["対象月の伝票だけ", "部署は5つ", "部署は4つ"]
+    assert table[0][0] == "未検証" and table[0][2] == "確かめられませんでした"
+    assert table[1][0] == "注意" and table[1][2] == "4件" and table[1][4]
+    assert table[2][0] == "正常" and table[2][4] == "対応不要"
+    # 第3階層：完了基準の詳細（判定理由・根拠の値・推奨対応）。満たしているものに推奨対応は書かない
+    detail = next(i for i, r in enumerate(rows) if r[1] == "部署は5つ　―　満たしていない")
+    block = rows[detail : detail + 8]
+    labels = {r[0]: r for r in block if r[0]}
+    assert labels["判定理由"][1] == "件数が4件で、範囲（5〜）の外です。"
+    assert [(r[1], r[3]) for r in block if r[1] in ("件数", "範囲")] == [("件数", "4"), ("範囲", "5〜")]
+    assert "推奨対応" in labels
+    ok = next(i for i, r in enumerate(rows) if r[1] == "部署は4つ　―　満たしている")
+    assert not any(r[0] == "推奨対応" for r in rows[ok : ok + 6])
+    unv = next(i for i, r in enumerate(rows) if r[1] == "対象月の伝票だけ　―　未検証")
+    assert "「対象月」が入力されていません" in rows[unv + 2][1]
 
 
 def test_report_without_criteria_has_no_criteria_table(client):
     h, body = run(client, FLOW)
     rows = check_rows(client.get(f"/api/runs/{body['run_id']}/export", headers=h))
-    assert not any(r[0] == "完了基準" for r in rows)
-    assert any(r[0] == "総合判定" and "標準の確認のみ" in r[1] for r in rows)
+    assert not any(str(r[0]).startswith("2. 完了基準の詳細") for r in rows)
+    assert any(r[0] == "判定の根拠" and r[1].startswith("標準の確認のみ") for r in rows)

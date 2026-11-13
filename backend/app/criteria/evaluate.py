@@ -373,6 +373,14 @@ def _eval_row_count(c: RowCountCriterion, ctx: _Context) -> Outcome:
     return ("passed", f"件数は{n:,}件で、範囲（{rng}）の中です。", ev, [], None)
 
 
+_CAUSE_LABEL = {
+    "TRIM": "前後の空白（取り除けば一致）",
+    "WIDTH": "全角・半角の違い（そろえれば一致）",
+    "CASE": "大文字・小文字の違い（そろえれば一致）",
+    "LEADING_ZERO": "先頭の0の有無（そろえれば一致）",
+}
+
+
 def _eval_all_matched(c: AllMatchedCriterion, ctx: _Context) -> Outcome:
     join = ctx.producer.get(c.target.ref)
     if not isinstance(join, JoinNode):
@@ -386,7 +394,23 @@ def _eval_all_matched(c: AllMatchedCriterion, ctx: _Context) -> Outcome:
     rows = sum(int(i.details.get("unmatched_rows", 0)) + int(i.details.get("blank_key_rows", 0)) for i in unmatched)
     keys = [k for i in unmatched for k in i.details.get("unmatched_keys", [])]
     ev = {"照合できない行": f"{rows:,}", "許容件数": f"{c.params.max_count:,}"}
-    ex = [{"照合できないキー": k} for k in keys[:MAX_EXAMPLES]]
+    # 原因の内訳（行数）：表記の違いで説明できるもの／相手の表にない値／照合キーが空欄 を分けて示す。
+    # 「空白を除けばすべて直る」ように見せないため、説明できない残りも必ず示す
+    explained = 0
+    for i in unmatched:
+        for cause in i.details.get("cause_candidates", []):
+            n = int(cause.get("rows", 0))
+            if n:
+                explained += n
+                ev[f"原因：{_CAUSE_LABEL.get(cause.get('code', ''), cause['label'])}"] = f"{n:,}行"
+    blank = sum(int(i.details.get("blank_key_rows", 0)) for i in unmatched)
+    missing = rows - explained - blank
+    if missing > 0:
+        ev["原因：相手の表（マスタ）にない値"] = f"{missing:,}行"
+    if blank > 0:
+        ev["原因：照合に使う値が空欄"] = f"{blank:,}行"
+    # 空白の違いが見えるよう、かぎかっこで囲む（例：「P-1005 」）
+    ex = [{"照合できないキー": f"「{k}」"} for k in keys[:MAX_EXAMPLES]]
     fix = next((i.how_to_fix for i in unmatched if i.how_to_fix), None)
     if rows > c.params.max_count:
         return ("failed", f"照合できない行が{rows:,}行あります（許容 {c.params.max_count:,}行）。", ev, ex, fix or "マスタへの登録漏れがないか確かめてください。")

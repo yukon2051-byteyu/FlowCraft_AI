@@ -91,15 +91,26 @@ CAUSES = [
 ]
 
 
-def _cause_candidates(unmatched: list[Key], other_keys: set[Key]) -> list[dict[str, Any]]:
-    """照合できなかったキーについて、どう直せば一致するかの候補を調べる。"""
+# 原因の短い呼び名（直し方・内訳の表示用）
+CAUSE_SHORT = {"TRIM": "前後の空白", "WIDTH": "全角・半角の違い", "CASE": "大文字・小文字の違い", "LEADING_ZERO": "先頭の0の有無"}
+
+
+def _cause_candidates(unmatched: list[Key], other_keys: set[Key], rows_of: dict[Key, int] | None = None) -> list[dict[str, Any]]:
+    """照合できなかったキーについて、どう直せば一致するかの候補を調べる。
+
+    count はキーの種類数、rows はその行数（rows_of がある場合）。どの候補にも当てはまらないキーは含めない
+    （＝相手の表にない値。表記の違いでは説明できない）。
+    """
     found: list[dict[str, Any]] = []
     remaining = list(unmatched)
     for code, label, fn, fix in CAUSES:
         index = {tuple(fn(v) for v in k) for k in other_keys}
         hits = [k for k in remaining if tuple(fn(v) for v in k) in index]
         if hits:
-            found.append({"code": code, "label": label, "count": len(hits), "examples": [_key_text(k) for k in hits[:5]], "how_to_fix": fix})
+            item: dict[str, Any] = {"code": code, "label": label, "count": len(hits), "examples": [_key_text(k) for k in hits[:5]], "how_to_fix": fix}
+            if rows_of is not None:
+                item["rows"] = sum(rows_of.get(k, 0) for k in hits)
+            found.append(item)
             hit_set = set(hits)
             remaining = [k for k in remaining if k not in hit_set]
     return found
@@ -419,7 +430,10 @@ def _unmatched_checks(
         if not unmatched_keys and not nulls:
             continue
         label = node.input_references[0] if side == "左" else node.input_references[1]
-        causes = _cause_candidates(unmatched_keys, other) if unmatched_keys else []
+        key_rows: dict[Key, int] = {}
+        for i in rows:
+            key_rows[keys[i]] = key_rows.get(keys[i], 0) + 1
+        causes = _cause_candidates(unmatched_keys, other, key_rows) if unmatched_keys else []
         sample = [{"row": i + 1, "values": {c: to_string(table.data[c][i]) for c in table.columns[:8]}} for i in rows[:MAX_ROWS]]
         details = {
             "side": side,
@@ -437,7 +451,14 @@ def _unmatched_checks(
         if nulls:
             parts.append(f"キーが空欄の{nulls:,}行（空欄は照合しません）")
         cause_text = "／".join(f"{c['label']}：{c['count']}件（例：{'、'.join(c['examples'][:3])}）" for c in causes) or None
-        fix = causes[0]["how_to_fix"] if causes else "未照合のキーと対象の行を確認してください。マスタへの登録漏れの可能性があります。"
+        # 直し方は原因ごとに示す（表記の違いで直るものだけを示して「それで全部直る」ように見せない）
+        explained_rows = sum(int(c.get("rows", 0)) for c in causes)
+        fixes = [f"{CAUSE_SHORT.get(c['code'], c['label'])}の {c.get('rows', c['count'])}行：{c['how_to_fix']}" for c in causes]
+        if len(rows) - explained_rows > 0:
+            fixes.append(f"相手の表にない値 {len(rows) - explained_rows:,}行：マスタへの登録漏れか、コードの誤りを確認してください。")
+        if nulls:
+            fixes.append(f"照合に使う値が空欄の {nulls:,}行：元データに値を入力してください。")
+        fix = " ／ ".join(fixes) or "未照合のキーと対象の行を確認してください。マスタへの登録漏れの可能性があります。"
         dropped_note = "（内部結合のため、これらの行は結果に含まれません）" if how == "inner" else "（行は削除せず残しています）" if important else ""
         # 画面に出す文には内部の参照名（sales_selected など）を入れない。左右は「元の表」「付け加える表」と呼ぶ
         side_name = "元の表" if side == "左" else "付け加える表"

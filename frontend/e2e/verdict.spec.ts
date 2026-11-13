@@ -75,6 +75,9 @@ test('「重大」の結果は、処理結果を出力せず、調査用の確�
   await openAndRun(page, [rows(5, 'critical')])
   await expect(verdictBox(page)).toContainText('総合判定：重大')
   await expect(verdictBox(page)).toContainText('処理結果は出力できません')
+  // 処理と検証は完了したが、正式な出力は停止（2つを分けて示す）
+  await expect(conclusion(page)).toContainText('処理・検証：完了')
+  await expect(conclusion(page).getByLabel('正式な出力')).toHaveText('正式な出力：停止（調査用の確認結果だけを出力できます）')
   await expect(conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
   const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
   expect(download.suggestedFilename()).toContain('確認結果（調査用）')
