@@ -42,6 +42,8 @@ async function runAndTotal(page: Page): Promise<number> {
   await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
   await expect(page.getByRole('region', { name: '実行の結論' })).toContainText('最後まで実行しました', { timeout: 30_000 })
   const out = page.getByRole('region', { name: '出力する表' })
+  // 出力する表は結論の後に読み込まれる。行が出るまで待ってから読む（負荷が高いとき、空の表を読まないように）
+  await expect(out.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 })
   const totals = await out.locator('tbody tr').evaluateAll((rows) => rows.map((r) => Number((r.lastElementChild?.textContent ?? '0').replace(/,/g, ''))))
   return totals.reduce((a, b) => a + b, 0)
 }

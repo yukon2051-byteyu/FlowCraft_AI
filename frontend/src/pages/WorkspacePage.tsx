@@ -18,13 +18,16 @@ import { SaveDialog } from '../components/workspace/SaveDialog'
 import { HistoryDialog } from '../components/workspace/HistoryDialog'
 import { DemoBanner } from '../components/workspace/DemoBanner'
 import { startDemo } from '../api/demos'
+import { startKaizen } from '../api/kaizen'
+import { KaizenBanner } from '../components/workspace/KaizenBanner'
+import { handedFlow } from '../kaizen/handoff'
 import type { DemoPattern, DemoStart } from '../api/demos'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { OpenDialog } from '../components/workspace/OpenDialog'
 import { AssignInputs } from '../components/workspace/AssignInputs'
 import { exportRun, runAndRecord } from '../api/flows'
 import { clearRecords, markPerformed, setHistoryScope } from '../api/historyStore'
-import { contentSnapshot } from '../flow/ops'
+import { contentSnapshot, normalizeFlow } from '../flow/ops'
 import type { RunSummary } from '../api/flows'
 import { ApiError } from '../api/client'
 import type { ApiErrorBody } from '../api/client'
@@ -59,11 +62,11 @@ export default function WorkspacePage() {
   const [fileCount, setFileCount] = useState(0)
   const [sampleHint, setSampleHint] = useState('')
   // 開始方法（URL の ?start=。デモは用意した作業手順を使うので「保存した手順」と同じ扱い）
-  const [mode, setMode] = useState<StartMode | null>(() => (params.get('demo') ? 'SAVED_WORKFLOW' : modeFromParam(params.get('start'))))
+  const [mode, setMode] = useState<StartMode | null>(() => (params.get('demo') || params.get('kaizen') ? 'SAVED_WORKFLOW' : modeFromParam(params.get('start'))))
   const [method, setMethod] = useState<BuildMethod | null>(null)
   const [described, setDescribed] = useState(false)
   const [screen, setScreen] = useState<Screen>(() =>
-    params.get('demo') ? 'data' : mode === 'WORK_FIRST' ? 'describe' : mode === 'FILE_FIRST' ? 'data' : 'start',
+    params.get('demo') || params.get('kaizen') ? 'data' : mode === 'WORK_FIRST' ? 'describe' : mode === 'FILE_FIRST' ? 'data' : 'start',
   )
   const [sources, setSources] = useState<DefineSource[] | null>(null)
   // 直近の全体の実行結果と、実行したときの作業手順（実行後に変更したかを判定するため）
@@ -104,7 +107,7 @@ export default function WorkspacePage() {
   const [saving, setSaving] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   // ?start=saved で開いたときは、すぐに作業手順を開く画面を出す
-  const [opening, setOpening] = useState(() => mode === 'SAVED_WORKFLOW' && !params.get('demo'))
+  const [opening, setOpening] = useState(() => mode === 'SAVED_WORKFLOW' && !params.get('demo') && !params.get('kaizen'))
   // 今の作業手順を、新しく作ったか、保存したものを開いたか（戻る先が変わる）
   const [origin, setOrigin] = useState<'new' | 'opened'>('new')
   const openFlow = useFlowStore((s) => s.openFlow)
@@ -169,6 +172,40 @@ export default function WorkspacePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoKey])
 
+  // 業務改善デモ：/build?kaizen=monthly_report で、STEP 4 で作った作業手順（このタブに受け渡したもの）を開き、
+  // 部署のExcel（架空のデータ）を割り当てる。以後の実行・品質の確認・出力・保存は、通常の作業手順と同じ
+  const [kaizenRun, setKaizenRun] = useState(false)
+  const startedKaizen = useRef('')
+  useEffect(() => {
+    const id = params.get('kaizen')
+    if (!id || startedKaizen.current === id) return
+    startedKaizen.current = id
+    setDemoError(null)
+    const flow = handedFlow()
+    if (!flow) {
+      setDemoError({ code: 'KAIZEN_FLOW_MISSING', message: '改善後の作業手順が見つかりません。', cause: '業務改善デモから開いていないか、このブラウザで受け渡しができませんでした。', how_to_fix: '業務改善デモの「改善後の手順を作成」から、もう一度開いてください。', node_id: null })
+      return
+    }
+    startKaizen(id)
+      .then(async (k) => {
+        setHistoryScope('demo') // デモの記録は、通常の履歴と混ぜない
+        await clearRecords('demo')
+        // 改善後の作業手順は、まだ保存していない新しい作業手順（初めて保存すると版1）
+        useFlowStore.getState().startNewFlow(normalizeFlow(flow))
+        k.bindings.forEach((b) => setBinding({ ...b, column_mapping: {} }))
+        setRunValues(k.run_parameters)
+        setOrigin('opened')
+        setOpenedKey((n) => n + 1)
+        setLastRun(null)
+        setDemo(null)
+        setKaizenRun(true)
+        setMode('SAVED_WORKFLOW')
+        setScreen('edit')
+      })
+      .catch((e) => setDemoError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '業務改善デモの作業手順を開けませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.get('kaizen')])
+
   // 未保存のままブラウザを閉じる・再読み込みする前に、ブラウザの確認を出す
   useEffect(() => {
     if (sample || !unsaved) return
@@ -181,8 +218,8 @@ export default function WorkspacePage() {
   }, [sample, unsaved])
   // デモでなくなったら、通常の履歴の置き場に戻す（デモの記録は通常の履歴と混ぜない）
   useEffect(() => {
-    if (!demo) setHistoryScope('normal')
-  }, [demo])
+    if (!demo && !kaizenRun) setHistoryScope('normal')
+  }, [demo, kaizenRun])
   // 作り直すと消えてしまう、追加済みの処理ステップの数
   const addedSteps = nodes.filter((n) => n.node_type !== 'load').length
 
@@ -224,6 +261,7 @@ export default function WorkspacePage() {
     const built = buildFromChoices(choices)
     startFromInputs(built.definitions, built.bindings, built.loadNodes)
     setDemo(null)
+    setKaizenRun(false)
     setScreen('edit')
   }
 
@@ -279,6 +317,7 @@ export default function WorkspacePage() {
               }
             />
             {demo && screen !== 'data' && <DemoBanner demo={demo} />}
+            {kaizenRun && screen !== 'data' && <KaizenBanner />}
             {demoError && (
               <div className="shrink-0 border-b border-edge px-6 py-3">
                 <ErrorNotice error={demoError} title="デモを始められませんでした" />
@@ -302,6 +341,7 @@ export default function WorkspacePage() {
                     try {
                       startNewFlow(copyFlow(await fetchTemplate(v.templateId), { name: v.name, description: v.description }))
                       setDemo(null)
+                      setKaizenRun(false)
                       setLastRun(null)
                       setOrigin('opened')
                       setOpenedKey((k) => k + 1)
@@ -407,6 +447,7 @@ export default function WorkspacePage() {
           onClose={() => setOpening(false)}
           onOpened={(flow) => {
             setDemo(null) // 別の作業手順を開いたら、デモの案内は消す
+            setKaizenRun(false)
             openFlow(flow)
             setMode('SAVED_WORKFLOW')
             setOpenedKey((k) => k + 1)

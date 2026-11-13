@@ -5,7 +5,8 @@ import { BANNED } from './helpers'
  * 業務改善診断デモ（デモ①「その集計、本当に必要？」）。
  * Phase 2：STEP 1（現在の7工程・90分〈想定〉）→ STEP 2（改善候補 A〜D と根拠。決まった規則。AIは使っていない）。
  * Phase 3：STEP 3（採用する／保留する／採用しない。廃止は確認してから。前提の候補。理由）。
- * Phase 4：STEP 4（判断から、改善後の作業の流れと、実行できる作業手順を作る。判断を変えると手順が変わる）。STEP 5 は準備中。
+ * Phase 4：STEP 4（判断から、改善後の作業の流れと、実行できる作業手順を作る。判断を変えると手順が変わる）。
+ * Phase 5：作った作業手順を作業手順の画面で開き、サンプルのExcelで実行・品質の確認・出力・保存。デモに戻れる。STEP 5 は準備中。
  */
 
 test('現在の作業を確認し、改善候補を根拠とともに見る（AIは使っていない）', async ({ page }) => {
@@ -161,8 +162,72 @@ test('改善後の手順：判断を変えると、実際の処理ステップ�
   await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
   await decision('D').getByText('採用しない').click()
   await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
-  await expect(page.getByText('実行できる作業手順はありません')).toBeVisible()
+  await expect(page.getByText('実行できる作業手順はありません', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'この作業手順を開いて、サンプルのExcelで実行する' })).toHaveCount(0)
   await expect(page.getByText(/実行できる作業手順は作りません/)).toBeVisible()
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(BANNED)
+})
+
+test('作った作業手順を開き、サンプルのExcelで実行・品質の確認・出力・保存する。デモに戻ると判断が残っている', async ({ page }) => {
+  test.setTimeout(180_000)
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
+  await page.getByRole('radiogroup', { name: /確認：会議用資料への転記は/ }).getByRole('radio', { name: /要件はない/ }).check()
+  for (const id of ['A', 'C', 'B', 'D']) await decision(id).getByText('採用する').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await page.getByRole('button', { name: 'この作業手順を開いて、サンプルのExcelで実行する' }).click()
+
+  // 通常の作業手順の画面で開く（処理ステップ8つ。部署のExcelは割当済み）
+  await expect(page).toHaveURL(/[/]build[?]kaizen=monthly_report/)
+  const banner = page.getByRole('note', { name: '業務改善デモの案内' })
+  await expect(banner).toContainText('採用した改善案から作った作業手順です', { timeout: 20_000 })
+  await expect(page.getByRole('article', { name: /^ステップ8：/ })).toBeVisible()
+  await expect(page.getByRole('article', { name: /^ステップ6：/ })).toContainText('3部署の売上を1つの表にまとめる')
+
+  // 実行 → 既存の品質の確認・結果のレポート
+  await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
+  const conclusion = page.getByRole('region', { name: '実行の結論' })
+  await expect(conclusion.getByRole('status', { name: '総合判定' })).toContainText('総合判定：正常', { timeout: 30_000 })
+  await expect(conclusion.getByRole('status', { name: '総合判定' })).toContainText('完了基準（8件）をすべて満たしています。')
+  await expect(page.getByRole('region', { name: '今回の主要数値' })).toContainText('9,287,200')
+  const chart = page.getByRole('region', { name: 'データの分析' }).getByRole('figure', { name: '「部署」別の「売上合計」' })
+  await expect(chart).toContainText('営業1部')
+  // Excel出力
+  const [download] = await Promise.all([page.waitForEvent('download'), conclusion.getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  expect(download.suggestedFilename()).toContain('_結果_')
+
+  // 保存（通常の作業手順と同じ。新しい作業手順・版1）
+  await page.getByRole('banner').getByRole('button', { name: '作業手順を保存' }).click()
+  const dialog = page.getByRole('dialog', { name: '作業手順を保存' })
+  await expect(dialog).toContainText('初めての保存です。版1として保存します。')
+  await expect(dialog.getByRole('textbox', { name: '作業手順の名前' })).toHaveValue('月次報告資料の作成（改善後）')
+  await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
+  await expect(dialog.getByRole('status')).toContainText('版1として保存しました')
+  await dialog.getByRole('button', { name: '閉じる' }).first().click()
+
+  // デモの実行の記録は、通常の履歴に入らない
+  await page.getByRole('banner').getByRole('button', { name: '実行の履歴' }).click()
+  const history = page.getByRole('dialog', { name: '実行の履歴' })
+  await expect(history).toContainText('記録はまだありません')
+  await history.getByRole('button', { name: '閉じる' }).first().click()
+  await expect(history).toHaveCount(0)
+
+  // 業務改善デモに戻る：判断と改善後の手順が残っている
+  await banner.getByRole('link', { name: '業務改善デモに戻る' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('必要な作業だけを残して、手順を作り直しました。')
+  await expect(page.getByText('7工程・90分 →')).toContainText('5工程・20分')
+  // ふつうに開き直すと、初期状態から（前の判断は残らない）
+  await page.goto('/kaizen-demo')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
+  await page.goto('/kaizen-demo?resume=1')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
+})
+
+test('受け渡した作業手順がないまま開くと、理由と直し方を示す', async ({ page }) => {
+  await page.goto('/build?kaizen=monthly_report')
+  await expect(page.getByRole('alert')).toContainText('改善後の作業手順が見つかりません。')
+  await expect(page.getByRole('alert')).toContainText('業務改善デモの「改善後の手順を作成」から、もう一度開いてください。')
 })

@@ -116,3 +116,10 @@ export function buildImprovement(decisions: DecisionPayload, id: string = KAIZEN
     body: JSON.stringify({ decisions }),
   })
 }
+
+export type KaizenStart = { bindings: { input_id: string; file_id: string; sheet: string | null; header_row: number }[]; run_parameters: Record<string, string> }
+
+/** 部署のExcel（架空のデータ）をセッションに読み込み、改善後の作業手順の入力に割り当てる */
+export function startKaizen(id: string = KAIZEN_DEMO): Promise<KaizenStart> {
+  return apiRequest<KaizenStart>(`/api/kaizen/scenarios/${encodeURIComponent(id)}/start`, { method: 'POST' })
+}

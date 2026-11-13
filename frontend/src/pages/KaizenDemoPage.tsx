@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowRight, RotateCcw, Search } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CirclePlay, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 import { ApiError } from '../api/client'
 import type { ApiErrorBody } from '../api/client'
 import { buildImprovement, diagnoseScenario, fetchScenario } from '../api/kaizen'
@@ -15,6 +16,7 @@ import { Button } from '../components/ui/Button'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { STATUS_DONE_LABEL, initialDecisions, problems } from '../kaizen/decisions'
 import type { Decisions } from '../kaizen/decisions'
+import { clearKaizenState, handOffFlow, resumeState } from '../kaizen/handoff'
 
 /*
  * 業務改善診断デモ（デモ①「その集計、本当に必要？」）。
@@ -22,6 +24,8 @@ import type { Decisions } from '../kaizen/decisions'
  * 改善候補は決まった規則で検出する（AIは使わない。AIの診断として表示しない）。
  *
  * 実装済み：STEP 1（現在の作業）・STEP 2（改善候補と根拠）・STEP 3（利用者の判断）・STEP 4（改善後の手順。サーバーが判断から組み立てる）。
+ * STEP 4 から、作った作業手順を作業手順の画面で開き、サンプルのExcelで実行・品質の確認・出力・保存できる（Phase 5）。
+ * 作業手順の画面の「業務改善デモに戻る」（?resume=1）のときだけ、判断と改善後の手順を戻す。それ以外は初期状態から始める。
  * STEP 5 は準備中（押せない）。
  * 判断は画面の中だけに持つ（読み込み直す・「最初からやり直す」で初期状態に戻る。前の判断が意図せず残らない）。
  */
@@ -49,11 +53,38 @@ export default function KaizenDemoPage() {
   const [busy, setBusy] = useState(false)
   const [decisions, setDecisions] = useState<Decisions>({})
   const [improvement, setImprovement] = useState<Improvement | null>(null)
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
 
   useEffect(() => {
     document.title = '業務改善デモ：その集計、本当に必要？ | FlowCraft AI'
     fetchScenario().then(setScenario, (e) => setError(toBody(e)))
+    const resumed = params.get('resume') === '1' ? resumeState() : null
+    if (!resumed) {
+      clearKaizenState()
+      return
+    }
+    // 作業手順の画面から戻ってきた：判断と改善後の手順を戻す（候補は決まった規則なので、検出し直しても同じ）
+    diagnoseScenario().then(
+      (d) => {
+        setDiagnosis(d)
+        setDecisions(resumed.decisions)
+        setImprovement(resumed.improvement)
+        setStep(resumed.improvement ? resumed.step : 2)
+      },
+      (e) => setError(toBody(e)),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function openAndRun() {
+    if (!improvement?.flow) return
+    if (!handOffFlow(improvement.flow, { step: 3, decisions, improvement })) {
+      setError({ code: 'STORAGE_UNAVAILABLE', message: '作業手順の画面へ受け渡せませんでした。', cause: 'このブラウザでは、一時的な保存（セッションストレージ）を使えません。', how_to_fix: 'プライベートモードを解除するか、別のブラウザでお試しください。', node_id: null })
+      return
+    }
+    navigate('/build?kaizen=monthly_report')
+  }
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
@@ -92,6 +123,7 @@ export default function KaizenDemoPage() {
   }
 
   function restart() {
+    clearKaizenState()
     setImprovement(null)
     setDecisions(diagnosis ? initialDecisions(diagnosis.candidates) : {})
     setError(null)
@@ -172,9 +204,16 @@ export default function KaizenDemoPage() {
             )}
             {step === 3 && (
               <>
-                <p className="max-w-md text-right text-[0.85rem] text-subtle">STEP 5（改善前後の比較・実行）は準備中です</p>
-                <Button variant="primary" size="lg" disabled title="STEP 5（改善前後の比較・実行）は準備中です">
-                  次へ進む
+                {improvement?.flow ? (
+                  <Button variant="primary" size="lg" onClick={openAndRun}>
+                    <CirclePlay className="size-5" aria-hidden />
+                    この作業手順を開いて、サンプルのExcelで実行する
+                  </Button>
+                ) : (
+                  <p className="max-w-md text-right text-[0.85rem] text-subtle">自動化を採用していないため、実行できる作業手順はありません。</p>
+                )}
+                <Button variant="outlineDark" size="lg" disabled title="STEP 5（改善前後の比較）は準備中です">
+                  次へ進む（準備中）
                   <ArrowRight className="size-4.5" aria-hidden />
                 </Button>
               </>
