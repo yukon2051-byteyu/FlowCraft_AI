@@ -3,7 +3,7 @@ import { Logo } from '../brand/Logo'
 import { Button } from '../ui/Button'
 
 const NAV = [
-  { href: '/#features', label: '選ばれる理由' },
+  { href: '/#features', label: 'できること' },
   { href: '/#flow', label: '使い方' },
   { href: '/#demo', label: 'デモ' },
   { href: '/#try', label: 'はじめ方' },
