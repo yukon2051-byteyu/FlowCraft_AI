@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { demo } from './helpers'
 
 /*
  * M1-1：デモ（正常終了／品質異常）を TOP から始めて、実際の処理と判定を確かめる。
@@ -144,3 +145,22 @@ for (const [id, title] of [
     })
   }
 }
+
+test('単発の実行で「前回のExcelと比較する」：比較用のファイルで別に実行し、今回の結果と並べて比べる（分析 B-3）', async ({ page }) => {
+  test.setTimeout(150_000)
+  await page.goto('/build?demo=monthly_sales&pattern=ok')
+  await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
+  await run(page)
+  const prev = page.getByRole('region', { name: '前回との比較' })
+  await prev.getByRole('button', { name: '前回のExcelと比較する（任意）' }).click()
+  const panel = prev.getByRole('group', { name: '前回のExcelと比較する' })
+  await panel.getByTestId('compare-file-input').setInputFiles(demo('デモ_月次売上_期間外あり.xlsx'))
+  const select = panel.getByRole('combobox', { name: '「売上実績」の比較用ファイル' })
+  await expect(select.locator('option', { hasText: 'デモ_月次売上_期間外あり.xlsx' })).toHaveCount(1, { timeout: 20_000 })
+  await select.selectOption({ label: 'デモ_月次売上_期間外あり.xlsx' })
+  await panel.getByRole('button', { name: '比較用のファイルで実行して比べる' }).click()
+  // 比較用ファイルの結果と並べる（データは混ぜない）。今回の総合判定・正式な出力は変わらない
+  await expect(prev).toContainText('比較用ファイルと比べています', { timeout: 30_000 })
+  await expect(prev.getByRole('row', { name: /入力件数（売上実績）/ })).toBeVisible()
+  await expect(verdictBox(page)).toContainText('総合判定：正常')
+})

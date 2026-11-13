@@ -1,4 +1,5 @@
 import { ChartColumn, ClipboardList, History, Info, TrendingDown, TrendingUp } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 /*
  * 分析レポート（分析エンジン Phase B。backend/app/analysis/engine.py・app/quality/compare.py）。
@@ -41,7 +42,18 @@ type Input = { label: string; filename: string | null; rows: number | null }
 const MAX_CHARTS = 3
 const num = (s: string) => Number(s.replace(/,/g, ''))
 
-export function AnalysisReport({ analysis, comparison, inputs }: { analysis: Analysis; comparison: Comparison | null; inputs: Input[] }) {
+export function AnalysisReport({
+  analysis,
+  comparison,
+  inputs,
+  compareAction,
+}: {
+  analysis: Analysis
+  comparison: Comparison | null
+  inputs: Input[]
+  /** 比べる相手がないとき：「前回のExcelと比較する（任意）」 */
+  compareAction?: ReactNode
+}) {
   const totalInput = inputs.reduce((s, i) => s + (i.rows ?? 0), 0)
   const main = analysis.breakdowns.find((b) => b.measure_kind === 'sum') ?? analysis.breakdowns[0]
   const charts = analysis.breakdowns.slice(0, MAX_CHARTS)
@@ -83,14 +95,16 @@ export function AnalysisReport({ analysis, comparison, inputs }: { analysis: Ana
         <h2 className="flex items-center gap-2 font-bold text-white">
           <History className="size-4.5 text-mint" aria-hidden />
           前回との比較
-          {compared.length > 0 && comparison?.previous_period && <span className="text-[0.82rem] font-normal text-subtle">（{comparison.previous_period} と比べています）</span>}
+          {compared.length > 0 && <span className="text-[0.82rem] font-normal text-subtle">（{analysis.compared_with ?? comparison?.previous_period}と比べています）</span>}
         </h2>
         {compared.length === 0 ? (
           <p className="mt-2 flex items-start gap-1.5 text-[0.88rem] text-subtle">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
             {comparison?.business_reason ?? '比較できる過去の実行結果がありません。'}今回のデータの分析は確認できます。
           </p>
-        ) : (
+        ) : null}
+        {compared.length === 0 && compareAction && <div className="mt-3">{compareAction}</div>}
+        {compared.length === 0 ? null : (
           <table className="mt-3 w-full text-[0.88rem]">
             <thead className="text-left text-[0.8rem] text-subtle">
               <tr>

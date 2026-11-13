@@ -226,6 +226,37 @@ def compare_with_history(current: RunRecord, history: list[RunRecord]) -> Compar
         c: select_baseline(current.flow_id, current.period, history, c, source=current.source, exclude_run_id=current.run_id)  # type: ignore[arg-type]
         for c in ("business", "quality")
     }
+    return ComparisonReport(
+        period=current.period,
+        previous_period=previous_period(current.period) if current.period else None,
+        business_baseline=_info(bases["business"][0]),
+        business_reason=bases["business"][1],
+        quality_baseline=_info(bases["quality"][0]),
+        quality_reason=bases["quality"][1],
+        rows=_rows(current, bases),
+    )
+
+
+def compare_with_baseline(current: RunRecord, baseline: RunRecord) -> ComparisonReport:
+    """比べる相手を直接指定して比べる（単発の作業で「前回のExcelと比較する」とき。対象月が分からなくてもよい）。
+    同じ作業手順の別の実行に限る。業務の数値・品質異常の件数とも、この相手と比べる。定義の指紋が違う数値は比べない"""
+    if baseline.flow_id != current.flow_id:
+        reason = "別の作業手順の結果とは比べられません。"
+        bases: dict[Category, tuple[RunRecord | None, str | None]] = {"business": (None, reason), "quality": (None, reason)}
+    else:
+        bases = {"business": (baseline, None), "quality": (baseline, None)}
+    return ComparisonReport(
+        period=current.period,
+        previous_period=baseline.period if bases["business"][0] is not None else None,
+        business_baseline=_info(bases["business"][0]),
+        business_reason=bases["business"][1],
+        quality_baseline=_info(bases["quality"][0]),
+        quality_reason=bases["quality"][1],
+        rows=_rows(current, bases),
+    )
+
+
+def _rows(current: RunRecord, bases: dict[Category, tuple[RunRecord | None, str | None]]) -> list[MetricComparison]:
     rows: list[MetricComparison] = []
     for m in current.metrics:
         base, reason = bases[m.category]
@@ -244,12 +275,4 @@ def compare_with_history(current: RunRecord, history: list[RunRecord]) -> Compar
                 diff, rate = change_of(prev, cur)
                 row.previous, row.diff, row.rate, row.status = fmt_number(prev), signed(diff), rate_text(rate), "compared"
         rows.append(row)
-    return ComparisonReport(
-        period=current.period,
-        previous_period=previous_period(current.period) if current.period else None,
-        business_baseline=_info(bases["business"][0]),
-        business_reason=bases["business"][1],
-        quality_baseline=_info(bases["quality"][0]),
-        quality_reason=bases["quality"][1],
-        rows=rows,
-    )
+    return rows

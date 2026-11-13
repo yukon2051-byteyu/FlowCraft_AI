@@ -173,3 +173,48 @@ def test_excel_check_sheet_has_key_figures_comparison_and_check_items(client):
     assert isinstance(value, int) and value > 1_000_000
     assert any("比較できる前月（2026年9月）の正式な出力の記録がありません" in x for x in flat)
     assert any(x.startswith("・「対象月の伝票だけ」：") for x in flat)
+
+
+# ===================== 前回のExcelと比較する（Phase B-3） =====================
+
+
+def test_compare_with_a_file_run_on_the_same_procedure(client):
+    """単発の作業：比較用ファイル（10月分）で別に実行した結果と、今回（11月分）を比べる。データは混ぜない"""
+    h = {"X-Session-Id": client.post("/api/session").json()["session_id"]}
+    s = client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": "ok"}).json()
+    base = client.post("/api/runs", headers=h, json={"flow": s["flow"], "bindings": s["bindings"], "run_parameters": s["run_parameters"]}).json()
+    nov = client.post("/api/files", headers=h, files={"file": ("売上実績_2026-11.xlsx", (DATA / "売上実績_2026-11.xlsx").read_bytes())}).json()["file_id"]
+    bindings = [dict(b) for b in s["bindings"]]
+    bindings[0] = {**bindings[0], "file_id": nov, "column_mapping": {"金額": "売上金額"}}
+    cur = client.post("/api/runs", headers=h, json={"flow": s["flow"], "bindings": bindings, "run_parameters": {"target_month": "2026-11"}}).json()
+    # 同じ対象月ではないので、履歴なしでは比べられない
+    assert all(r["status"] == "not_comparable" for r in cur["comparison"]["rows"])
+
+    res = client.post(f"/api/runs/{cur['run_id']}/compare", headers=h, json={"baseline_run_id": base["run_id"]})
+    assert res.status_code == 200, res.text
+    cmp, ana = res.json()["comparison"], res.json()["analysis"]
+    rows = {r["metric_id"]: r for r in cmp["rows"]}
+    sales_rows = rows["input_rows:sales"]
+    assert sales_rows["status"] == "compared" and sales_rows["previous"] and sales_rows["current"] != sales_rows["previous"]
+    assert cmp["business_baseline"]["run_id"] == base["run_id"]
+    assert ana["compared_with"] == "比較用ファイル"
+    # 部署別の合計は、比較用ファイル（10月）の値と比べる
+    total_now = next(b for b in ana["breakdowns"] if b["reference"] == "by_dept")["total"]
+    assert total_now == f"{MANIFEST['expected']['2026-11']['total_amount']:,}"
+    # Excel の確認結果にも、比較が入る
+    rows_x = _check_sheet_text(client, h, cur["run_id"])
+    assert any("前回" in [str(x) for x in r] and "今回" in [str(x) for x in r] for r in rows_x)
+
+
+def test_compare_rejects_same_run_unknown_run_and_other_procedure(client):
+    h = {"X-Session-Id": client.post("/api/session").json()["session_id"]}
+    s = client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": "ok"}).json()
+    a = client.post("/api/runs", headers=h, json={"flow": s["flow"], "bindings": s["bindings"], "run_parameters": s["run_parameters"]}).json()
+    assert client.post(f"/api/runs/{a['run_id']}/compare", headers=h, json={"baseline_run_id": a["run_id"]}).status_code == 422
+    assert client.post(f"/api/runs/{a['run_id']}/compare", headers=h, json={"baseline_run_id": "r_none"}).status_code == 404
+    other = dict(s["flow"])
+    other["flow_id"] = "99999999-2222-4333-8444-555555555555"
+    b = client.post("/api/runs", headers=h, json={"flow": other, "bindings": s["bindings"], "run_parameters": s["run_parameters"]}).json()
+    cmp = client.post(f"/api/runs/{a['run_id']}/compare", headers=h, json={"baseline_run_id": b["run_id"]}).json()["comparison"]
+    assert cmp["business_reason"] == "別の作業手順の結果とは比べられません。"
+    assert all(r["status"] == "not_comparable" for r in cmp["rows"])

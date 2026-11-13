@@ -165,6 +165,15 @@ export function checkInputs(flow: FlowDoc, bindings: Binding[]): Promise<InputCh
   return apiRequest<InputCheck[]>('/api/flows/check-inputs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(flow, bindings) })
 }
 
+/** 前回のExcelと比較する：比較用ファイルで実行した結果（baseline）と、今回の結果を比べる（分析 Phase B-3） */
+export function compareWithRun(runId: string, baselineRunId: string): Promise<{ comparison: Record<string, unknown>; analysis: Record<string, unknown> }> {
+  return apiRequest(`/api/runs/${encodeURIComponent(runId)}/compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ baseline_run_id: baselineRunId }),
+  })
+}
+
 /** 作業手順全体を実行する（すべてのステップが確認済みであること） */
 export function runFlow(flow: FlowDoc, bindings: Binding[], runParameters: Record<string, string> = {}): Promise<RunSummary> {
   return apiRequest<RunSummary>('/api/runs', {

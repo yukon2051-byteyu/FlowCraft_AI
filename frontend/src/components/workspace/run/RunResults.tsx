@@ -11,6 +11,7 @@ import { compareRuns } from '../../../flow/compare'
 import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
 import { AnalysisReport } from './AnalysisReport'
+import { CompareWithFile } from './CompareWithFile'
 import type { Analysis, Comparison } from './AnalysisReport'
 import { IssueList } from './IssueList'
 import { PreviewTable } from './PreviewTable'
@@ -54,6 +55,8 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
+  // 前回のExcelと比較した結果（この実行の結果に対してだけ使う）
+  const [compared, setCompared] = useState<{ runId: string; comparison: Comparison; analysis: Analysis } | null>(null)
   const stale = contentSnapshot(flow) !== snap
   const stopped = run.nodes.findIndex((n) => n.status === 'error')
   const warnings = run.nodes.filter((n) => n.status === 'warning').length
@@ -163,9 +166,10 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
           {/* 分析レポート（分析エンジン）：今回の主要数値 → 確認すべきこと → 前回との比較 → データの分析 */}
           {run.analysis && run.status !== 'failed' && (
             <AnalysisReport
-              analysis={run.analysis as unknown as Analysis}
-              comparison={(run.comparison ?? null) as unknown as Comparison | null}
-              inputs={((run.record?.inputs ?? []) as { label: string; filename: string | null; rows: number | null }[])}
+              analysis={compared?.runId === run.run_id ? compared.analysis : (run.analysis as unknown as Analysis)}
+              comparison={compared?.runId === run.run_id ? compared.comparison : ((run.comparison ?? null) as unknown as Comparison | null)}
+              inputs={(run.record?.inputs ?? []) as { label: string; filename: string | null; rows: number | null }[]}
+              compareAction={<CompareWithFile key={run.run_id} runId={run.run_id} onCompared={(v) => setCompared({ runId: run.run_id, ...v })} />}
             />
           )}
 

@@ -30,7 +30,7 @@ from app.errors import AppError
 from app.export.excel import build_workbook
 from app.files.compare import compare_input
 from app.analysis.engine import AnalysisReport, analyze
-from app.quality.compare import compare_with_history, parse_history, period_label, select_baseline
+from app.quality.compare import compare_with_baseline, compare_with_history, parse_history, period_label, select_baseline
 from app.quality.output import decide_output
 from app.quality.record import build_record
 from app.files.profile import build_table
@@ -441,12 +441,42 @@ def execute(
     # Excel の「確認結果」にも、同じ分析と前回との比較を書く（セッションの中だけ。保存はしない）
     session.runs[run_id]["analysis"] = analysis
     session.runs[run_id]["comparison"] = comparison
+    session.runs[run_id]["record"] = record
     return RunSummary(
         **_summary(run_id, ex, fhash, executed_at, req.run_parameters),
         record=record.model_dump(mode="json"),
         comparison=comparison.model_dump(mode="json"),
         analysis=record.analysis,
     )
+
+
+class CompareRequest(BaseModel):
+    baseline_run_id: str
+
+
+class CompareResponse(BaseModel):
+    comparison: dict[str, Any]
+    analysis: dict[str, Any]
+
+
+@router.post("/runs/{run_id}/compare", response_model=CompareResponse)
+def compare_runs(run_id: str, req: CompareRequest, session: Session = Depends(current_session)) -> CompareResponse:
+    """単発の作業で「前回のExcelと比較する」：比較用ファイルで実行した結果（baseline）と、今回の結果を比べる。
+
+    データは混ぜない（どちらも同じ作業手順で別々に実行した結果）。Excel の確認結果にも、この比較を書く。
+    """
+    cur = session.runs.get(run_id)
+    base = session.runs.get(req.baseline_run_id)
+    if cur is None or base is None or "record" not in cur or "record" not in base:
+        raise AppError(404, "RUN_NOT_FOUND", "比べる実行結果が見つかりません。", how_to_fix="もう一度実行してください。古い実行結果は自動で削除されます。")
+    if req.baseline_run_id == run_id:
+        raise AppError(422, "SAME_RUN", "同じ実行結果どうしは比べられません。", how_to_fix="比較用のファイルで実行した結果を選んでください。")
+    comparison = compare_with_baseline(cur["record"], base["record"])
+    ex: Execution = cur["execution"]
+    label = "比較用ファイル"
+    analysis = analyze(cur["flow"], ex, previous=base.get("analysis"), previous_label=label)
+    cur["analysis"], cur["comparison"] = analysis, comparison
+    return CompareResponse(comparison=comparison.model_dump(mode="json"), analysis=analysis.model_dump(mode="json"))
 
 
 @router.get("/runs/{run_id}", response_model=RunDetail)
