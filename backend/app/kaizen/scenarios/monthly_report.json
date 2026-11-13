@@ -1,0 +1,99 @@
+{
+  "scenario_id": "monthly_report",
+  "business_name": "月次報告資料の作成業務",
+  "goal": "毎月、各部署の売上実績を集計し、管理者が業績を確認できるようにする。",
+  "period": "2026-10",
+  "time_note": "所要時間は、デモのための架空の設定値（想定値）です。実際に測った時間ではありません。",
+  "context": {
+    "purpose": "管理者による月次売上の確認",
+    "frequency": "毎月1回",
+    "minutes_per_run": 90,
+    "users": "営業管理者",
+    "deliverables": ["売上集計Excel", "会議用報告資料"],
+    "pain_points": ["同じ数字を何度も転記している"],
+    "quality_concerns": ["転記ミス", "集計漏れ"],
+    "must_keep": ["元データとの合計照合"],
+    "unsure_to_remove": ["会議用資料への個別転記"]
+  },
+  "deliverables": [
+    {"deliverable_id": "dept_files", "name": "部署別の売上Excel（3部署）"},
+    {"deliverable_id": "dept_totals", "name": "部署別の集計結果（メモ）"},
+    {"deliverable_id": "summary_xlsx", "name": "売上集計Excel"},
+    {"deliverable_id": "meeting_doc", "name": "会議用報告資料"},
+    {"deliverable_id": "shared_report", "name": "共有した報告資料"}
+  ],
+  "steps": [
+    {
+      "step_id": "s1",
+      "name": "各部署からExcelファイルを受け取る",
+      "detail": "3部署（営業1部・営業2部・法人営業部）から、10月分の売上のExcelをメールで受け取る。",
+      "minutes": 5,
+      "mode": "manual",
+      "deliverable": "dept_files",
+      "uses_files": true
+    },
+    {
+      "step_id": "s2",
+      "name": "各部署のExcelを開いて内容を確認する",
+      "detail": "部署ごとにファイルを開き、必要な列があるか・対象月のデータかを目で確かめる。部署によって列名が違うため、毎回読み替えている。",
+      "minutes": 15,
+      "mode": "manual",
+      "quality_rules": ["必要な列がそろっているか（目視）", "対象月のデータか（目視）"],
+      "repeats_per_department": true,
+      "uses_files": true
+    },
+    {
+      "step_id": "s3",
+      "name": "部署別の売上を個別に集計する",
+      "detail": "部署ごとのファイルで、売上金額の合計と件数を求める（3回くり返す）。",
+      "minutes": 25,
+      "mode": "manual",
+      "deliverable": "dept_totals",
+      "quality_rules": ["集計漏れがないか（目視）"],
+      "repeats_per_department": true,
+      "uses_files": true
+    },
+    {
+      "step_id": "s4",
+      "name": "集計結果を別のExcelにコピーする",
+      "detail": "部署ごとの集計結果を、売上集計Excelの所定の欄にコピーする。",
+      "minutes": 10,
+      "mode": "manual",
+      "deliverable": "summary_xlsx",
+      "quality_rules": ["コピーした値が合っているか（目視）"],
+      "transcribes_from": "s3"
+    },
+    {
+      "step_id": "s5",
+      "name": "同じ集計結果を会議用資料に転記する",
+      "detail": "売上集計Excelと同じ部署別の数値を、会議用報告資料の表に手で書き写す。",
+      "minutes": 15,
+      "mode": "manual",
+      "deliverable": "meeting_doc",
+      "quality_rules": ["転記した値が合っているか（目視）"],
+      "transcribes_from": "s3"
+    },
+    {
+      "step_id": "s6",
+      "name": "集計結果と元データの合計を照合する",
+      "detail": "部署別の合計を足し合わせ、受け取ったファイルの売上金額の総合計と一致するかを電卓で確かめる。",
+      "minutes": 15,
+      "mode": "manual",
+      "quality_rules": ["元データとの合計一致（必ず残す）"],
+      "uses_files": true
+    },
+    {
+      "step_id": "s7",
+      "name": "完成した報告資料を共有する",
+      "detail": "売上集計Excelと会議用報告資料を、営業管理者に送る。",
+      "minutes": 5,
+      "mode": "manual",
+      "deliverable": "shared_report"
+    }
+  ],
+  "department_files": [
+    {"department": "営業1部", "filename": "月次報告_営業1部_2026-10.xlsx", "sheet": "売上"},
+    {"department": "営業2部", "filename": "月次報告_営業2部_2026-10.xlsx", "sheet": "売上"},
+    {"department": "法人営業部", "filename": "月次報告_法人営業部_2026-10.xlsx", "sheet": "売上"}
+  ]
+}
