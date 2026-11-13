@@ -43,6 +43,7 @@ test('先頭に戻るボタン：先頭では隠れ、スクロールすると�
   // 滑らかなスクロール：押した直後はまだ途中にいて、少し待つと先頭に着く
   const midway = await page.evaluate(() => new Promise<number>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.scrollY)))))
   expect(midway).toBeGreaterThan(0)
-  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5000 }).toBe(0)
+  // 他のテストと同時に動くと描画が遅くなるため、着くまで長めに待つ
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBe(0)
   await expect(btn).toHaveCSS('opacity', '0')
 })
