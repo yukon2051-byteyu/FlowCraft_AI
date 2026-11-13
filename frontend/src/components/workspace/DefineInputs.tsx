@@ -117,7 +117,7 @@ export function DefineInputs({ sources, onBack, onStart, replaceCount = 0, namin
               <h2 className="font-bold text-white">
                 作業の名前と目的<span className="ml-2 text-[0.8rem] font-normal text-subtle">任意（作業手順を保存するときにも使います）</span>
               </h2>
-              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <div className="mt-3 grid gap-3 grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                 <input
                   value={naming.name}
                   onChange={(e) => naming.onChange({ name: e.target.value, description: naming.description })}

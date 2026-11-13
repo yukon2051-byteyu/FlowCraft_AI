@@ -56,7 +56,7 @@ function CandidateCard({ c, stepName, status }: { c: Candidate; stepName: Map<st
           {status}
         </span>
       </header>
-      <dl className="mt-3 grid gap-x-5 gap-y-3 text-[0.9rem] md:grid-cols-[8rem_1fr]">
+      <dl className="mt-3 grid gap-x-5 gap-y-3 text-[0.9rem] grid-cols-[8rem_1fr]">
         <dt className="text-subtle">改善内容</dt>
         <dd className="text-white">{c.detail}</dd>
 

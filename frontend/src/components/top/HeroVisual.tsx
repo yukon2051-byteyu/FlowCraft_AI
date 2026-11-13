@@ -1,4 +1,4 @@
-import { ArrowRight, CircleCheck, Combine, FileSpreadsheet, Lightbulb, Play, RefreshCw, ScanSearch, ShieldCheck, Sigma, TriangleAlert } from 'lucide-react'
+import { CircleCheck, Combine, FileSpreadsheet, Lightbulb, Play, RefreshCw, ScanSearch, ShieldCheck, Sigma, TriangleAlert } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -16,7 +16,7 @@ import type { CSSProperties, ReactNode } from 'react'
  *   高さは、ヒーローの上下の余白を減らして、ヒーロー全体の高さを変えない）。
  * 図は考え方のイメージ。数値・業務名は架空。
  *
- * PC・タブレット（幅640px以上）：HeroVisual ／ スマートフォン：HeroVisualCompact
+ * PC専用（スマートフォンには App が PC専用の案内を出す）。
  */
 
 export const HERO_VISUAL_W = 668
@@ -105,40 +105,6 @@ function FlowLine({ d }: { d: string }) {
       <path d={d} fill="none" stroke={MINT} strokeOpacity="0.18" strokeWidth="6" strokeLinecap="round" />
       <path d={d} fill="none" stroke={MINT} strokeWidth="2" strokeDasharray="6 4" strokeLinecap="round" className="motion-safe:animate-[flow-dash_1.2s_linear_infinite]" />
     </g>
-  )
-}
-
-/** スマートフォン用の簡易版：見直す → 改善する → 実行する → 確かめる */
-const PHASES: { icon: LucideIcon; label: string }[] = [
-  { icon: ScanSearch, label: '見直す' },
-  { icon: Lightbulb, label: '改善する' },
-  { icon: Play, label: '実行する' },
-  { icon: ShieldCheck, label: '確かめる' },
-]
-
-export function HeroVisualCompact() {
-  return (
-    <div
-      className="rounded-2xl bg-panel p-4 ring-1 ring-edge"
-      role="img"
-      aria-label="FlowCraft AIの考え方：見直す、改善する、実行する、確かめる。保存して改善を続けられる"
-    >
-      <ol className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">
-        {PHASES.map(({ icon: Icon, label }, i) => (
-          <li key={label} className="contents">
-            <span className={`flex flex-col items-center gap-1 rounded-lg bg-panel-hi px-1 py-2.5 ${i === 0 ? 'ring-1 ring-kaizen/40' : ''}`}>
-              <Icon className={`size-4.5 ${i === 0 ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
-              <span className="text-[0.75rem] whitespace-nowrap text-white">{label}</span>
-            </span>
-            {i < PHASES.length - 1 && <ArrowRight className="size-3.5 text-mint" aria-hidden />}
-          </li>
-        ))}
-      </ol>
-      <p className="mt-3 flex items-center justify-center gap-1 text-[0.78rem] font-bold text-mint">
-        <RefreshCw className="size-3.5" aria-hidden />
-        保存して、改善を続けられる
-      </p>
-    </div>
   )
 }
 

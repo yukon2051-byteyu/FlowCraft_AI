@@ -13,7 +13,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:5174',
-    viewport: { width: 1440, height: 900 },
+    // PC専用（docs/pc-only.md）：主要な確認解像度のノートPC（1366×768）で動かす。1920×1080 は pc-only.spec.ts で確かめる
+    viewport: { width: 1366, height: 768 },
     locale: 'ja-JP',
   },
   webServer: [

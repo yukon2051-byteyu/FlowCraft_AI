@@ -35,7 +35,7 @@ import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
 import { SiteHeader } from '../components/layout/SiteHeader'
 import { BackToTop } from '../components/top/BackToTop'
-import { HeroVisual, HeroVisualCompact } from '../components/top/HeroVisual'
+import { HeroVisual } from '../components/top/HeroVisual'
 import { Button } from '../components/ui/Button'
 import { DevBadge } from '../components/ui/DevBadge'
 
@@ -72,14 +72,14 @@ function Hero() {
     <section className="relative">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-12 sm:px-8 lg:pt-9 lg:pb-[37px] xl:grid-cols-[minmax(0,1fr)_640px] xl:gap-10">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-10 pt-10 pb-12 px-8 lg:pt-9 lg:pb-[37px] xl:grid-cols-[minmax(0,1fr)_640px] xl:gap-10">
         <div>
           <p className="mb-5 inline-flex items-center gap-2 text-[0.85rem] font-bold tracking-wider text-mint uppercase">
             <Workflow className="size-4" aria-hidden />
             FlowCraft AI — Excel業務改善
           </p>
           {/* 2行で必ず区切る（行の途中では改行しない）。2行目が長いため、前の版より文字を小さくしている */}
-          <h1 className="text-[1.62rem] leading-[1.3] font-bold tracking-tight text-white sm:text-[2.5rem] xl:text-[2.6rem]">
+          <h1 className="leading-[1.3] font-bold tracking-tight text-white text-[2.5rem] xl:text-[2.6rem]">
             <span className="whitespace-nowrap">そのExcel作業、</span>
             <br />
             <span className="whitespace-nowrap text-mint">自動化する前に、見直そう。</span>
@@ -88,10 +88,10 @@ function Hero() {
             その作業、本当に必要ですか？
             <br />
             AIがムダや改善点を見つけ、必要な処理は簡単に自動化。
-            <br className="hidden sm:block" />
+            <br />
             結果の正しさまで確認します。
           </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-7 flex gap-3 flex-row">
             <Button to="/build" variant="primary" size="lg">
               <Upload className="size-4.5" aria-hidden />
               自分のExcelで試す
@@ -116,14 +116,11 @@ function Hero() {
           </p>
         </div>
 
-        {/* 幅640px以上：見直す→改善する→実行する→確かめる の図／スマートフォン：4段階の簡易版 */}
+        {/* 見直す→改善する→実行する→確かめる の図（PC専用。スマートフォンは App の PC専用の案内） */}
         {/* 図（幅668px）は、列（640px）より28px広い。左端をそろえ、右端の余白の側へはみ出させる（見出しと重ならないように） */}
         {/* 画面幅 1340px 以上では③④を25px右へ動かすため、図の幅が 693px になり、右の余白へ（従来の 1.75rem ＋ 25px）はみ出させる。25px は HeroVisual の GROUP34_SHIFT、1340px は WIDE_HERO_QUERY と同じ */}
-        <div className="hidden justify-center sm:flex xl:justify-end min-[1280px]:-mr-7 min-[1340px]:-mr-[calc(1.75rem+25px)]">
+        <div className="justify-center flex xl:justify-end min-[1280px]:-mr-7 min-[1340px]:-mr-[calc(1.75rem+25px)]">
           <HeroVisual />
-        </div>
-        <div className="sm:hidden">
-          <HeroVisualCompact />
         </div>
       </div>
     </section>
@@ -199,7 +196,7 @@ const KAIZEN_WAYS = [
 function Reasons() {
   return (
     <section id="features" className="scroll-mt-16 border-t border-edge/60 bg-nav">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
+      <div className="mx-auto max-w-7xl py-12 px-8 lg:py-14">
         <SectionHeading
           eyebrow="FlowCraft AIの6つの特徴"
           title="Excelの処理だけでなく、その前と後ろまで。"
@@ -223,7 +220,7 @@ function Reasons() {
                 作業の必要性・<span className="font-bold text-kaizen-text">ムダ・重複している工程を見直します。</span>
                 <span className="font-bold text-white">不要な作業は、わざわざ自動化しません。</span>
               </p>
-              <ol className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
+              <ol className="mt-5 grid gap-2 grid-cols-4 lg:grid-cols-2">
                 {KAIZEN_WAYS.map((w, i) => (
                   <li key={w.label} className={`rounded-xl px-3 py-2 ring-1 ${i === 3 ? 'bg-mint/12 ring-mint/40' : 'bg-panel-hi ring-edge'}`}>
                     <span className={`block font-bold ${i === 3 ? 'text-mint' : 'text-white'}`}>
@@ -244,7 +241,7 @@ function Reasons() {
           </article>
 
           {/* ①〜④ */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 grid-cols-2">
             {REASONS.map((r) => (
               <article key={r.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge">
                 {/* ①と同じく、アイコンの右に番号と見出し（「開発中」の表示は見出しの行に入れない。利用者の指示） */}
@@ -283,7 +280,7 @@ function ScheduleCard() {
   return (
     <article
       aria-label="決まった日時に無人で実行できる"
-      className="mt-4 grid gap-x-6 gap-y-4 rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-center"
+      className="mt-4 grid gap-x-6 gap-y-4 rounded-2xl bg-panel ring-1 ring-edge p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-center"
     >
       <div>
         {/* 利用者が得られるメリットを見出しに（技術的な説明は後ろ）。最も伝えたいのは「正常時は、結果を確認するだけ。」 */}
@@ -381,13 +378,13 @@ const STAGES: Stage[] = [
 function Stages() {
   return (
     <section id="flow" className="scroll-mt-16 bg-canvas">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
+      <div className="mx-auto max-w-7xl py-12 px-8 lg:py-14">
         <SectionHeading
           eyebrow="使い方"
           title="自動化だけでは終わらない"
           lead="見直さずに自動化すると、ムダな作業や誤りまで、毎月自動で繰り返してしまいます。だから FlowCraft AI は、自動化の前に見直し、自動化の後に確かめます。"
         />
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
+        <div className="mt-8 grid gap-4 grid-cols-2">
           <div className="rounded-2xl bg-kaizen/6 p-5 ring-1 ring-kaizen/35" aria-label="見直さずに自動化すると">
             <p className="flex items-center gap-2 font-bold text-kaizen-text">
               <TriangleAlert className="size-5" aria-hidden />
@@ -417,7 +414,7 @@ function Stages() {
             </ul>
           </div>
         </div>
-        <ol className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="4つの段階と、その理由">
+        <ol className="mt-4 grid gap-2.5 grid-cols-2 xl:grid-cols-4" aria-label="4つの段階と、その理由">
           {STAGES.map((st, i) => (
             <li key={st.title} className="flex items-center gap-3 rounded-xl bg-panel px-4 py-3 ring-1 ring-edge">
               <span className={`grid size-7 shrink-0 place-items-center rounded-full text-[0.85rem] font-bold ${i === 0 ? 'bg-kaizen text-canvas' : 'bg-mint text-on-mint'}`}>{i + 1}</span>
@@ -478,7 +475,7 @@ const DEMOS: Demo[] = [
 function Demos() {
   return (
     <section id="demo" className="scroll-mt-16 border-y border-edge/60 bg-nav">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
+      <div className="mx-auto max-w-7xl py-12 px-8 lg:py-14">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <SectionHeading
             eyebrow="デモ"
@@ -615,7 +612,7 @@ function TryOwnExcel() {
     <section id="try" className="relative scroll-mt-16 overflow-hidden bg-canvas">
       <div className="pointer-events-none absolute -bottom-48 -left-24 h-[460px] w-[680px] bg-[radial-gradient(closest-side,rgba(56,217,173,0.12),transparent)]" />
       {/* 1段目に見出し、2段目に「使い方」と「利用案内」を置き、2段目の左右の上端をそろえる */}
-      <div className="relative mx-auto grid max-w-7xl gap-x-14 gap-y-6 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:py-14">
+      <div className="relative mx-auto grid max-w-7xl gap-x-14 gap-y-6 py-12 px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:py-14">
         <div className="lg:col-start-1">
           <SectionHeading
             eyebrow="自分のExcelで試す"
@@ -673,14 +670,14 @@ function TryOwnExcel() {
           下の余った空間は埋めない（カードを引き伸ばさない）。左のボタンが自然に目立つ
         */}
         <div className="flex flex-col gap-4 self-start lg:col-start-2 lg:row-start-2">
-          <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6" role="region" aria-label="対応形式">
+          <div className="rounded-2xl bg-panel ring-1 ring-edge p-6" role="region" aria-label="対応形式">
             <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-white">
               <FileSpreadsheet className="size-5 text-mint" aria-hidden />
               対応形式
             </h3>
             <dl className="mt-3 divide-y divide-edge rounded-xl ring-1 ring-edge">
               {SPECS.map((s) => (
-                <div key={s.k} className="grid gap-0.5 px-3.5 py-2.5 sm:grid-cols-[8rem_1fr] sm:gap-2.5">
+                <div key={s.k} className="grid px-3.5 py-2.5 grid-cols-[8rem_1fr] gap-2.5">
                   <dt className="text-[0.86rem] font-bold text-subtle">{s.k}</dt>
                   <dd className="text-[0.92rem] text-white/90">{s.v}</dd>
                 </div>
@@ -688,7 +685,7 @@ function TryOwnExcel() {
             </dl>
           </div>
           {/* 背景は控えめに（ミントはアイコン・見出し・枠線だけに使う） */}
-          <div className="rounded-2xl bg-[#18221F] p-5 ring-1 ring-mint-line sm:p-6" role="region" aria-label="AI機能の利用について">
+          <div className="rounded-2xl bg-[#18221F] ring-1 ring-mint-line p-6" role="region" aria-label="AI機能の利用について">
             <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-mint-title">
               <KeyRound className="size-5" aria-hidden />
               AI機能の利用について
@@ -727,15 +724,15 @@ const CAUTIONS: { icon: LucideIcon; text: string }[] = [
 function Trust() {
   return (
     <section id="trust" className="scroll-mt-16 border-t border-edge/60 bg-nav">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8 lg:py-12">
+      <div className="mx-auto max-w-7xl py-10 px-8 lg:py-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <SectionHeading eyebrow="品質の確認" title="AI任せにしない。決めた基準で、毎回検証。" lead="件数・金額・重複・照合漏れなどを自動で確認。重大な異常があれば、正式な出力を止めます。" />
           <DevBadge feature="quality" className="mb-1" />
         </div>
 
-        <ol className="mt-6 grid gap-4 sm:grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
+        <ol className="mt-6 grid gap-4 grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
           {TRUST_FLOW.map((t, i) => (
-            <li key={t.title} className="flex items-center gap-4 rounded-2xl bg-panel px-5 py-8 ring-1 ring-edge">
+            <li key={t.title} className="flex items-center gap-4 rounded-2xl bg-panel px-5 py-6 ring-1 ring-edge">
               <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
                 <t.icon className="size-7" aria-hidden />
               </span>
@@ -744,7 +741,7 @@ function Trust() {
                   <span className="text-[0.85rem] text-subtle/70 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                   {t.title}
                 </span>
-                <span className="mt-2 block text-[0.9rem] leading-relaxed whitespace-pre-line text-subtle">{t.body}</span>
+                <span className="mt-1.5 block text-[0.9rem] leading-relaxed whitespace-pre-line text-subtle">{t.body}</span>
               </span>
             </li>
           ))}
@@ -764,14 +761,15 @@ function Trust() {
           </ul>
         </div>
 
-        {/* 実行結果のイメージ（架空のデータ）。セクションの主役：異常の検出 → 正式出力の停止 → 詳細の確認先、の流れを横に並べる。
+        {/* 実行結果のイメージ（架空のデータ）。セクションの主役：異常の検出 → 正式出力の停止 → 詳細の確認先、の流れを横に並べ、
+            その下（控えめな区切り線の下・右寄せ）に、結果をそのまま体験できるデモへの入口を置く。
             照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
-        <div className="mt-6 rounded-2xl bg-panel-hi px-6 py-11 ring-1 ring-mint/25 sm:px-9" role="region" aria-label="実行結果のイメージ">
+        <div className="mt-6 rounded-2xl bg-panel-hi px-9 pt-6 pb-5 ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
           <p className="flex flex-wrap items-center gap-2">
             <span className="text-[1.05rem] font-bold text-white">実行結果のイメージ</span>
             <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[0.8rem] text-subtle ring-1 ring-white/15">架空データの例（照合漏れを重大として設定した場合）</span>
           </p>
-          <div className="mt-8 grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,0.9fr)]">
+          <div className="mt-5 grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,0.9fr)]">
             <div className="flex items-center gap-5">
               <span className="grid size-20 shrink-0 place-items-center rounded-2xl bg-kaizen/15 text-kaizen ring-1 ring-kaizen/40">
                 <TriangleAlert className="size-10" aria-hidden />
@@ -791,19 +789,19 @@ function Trust() {
               詳しい根拠や該当データは、実行結果の画面で確認できます。
             </p>
           </div>
+          <div className="mt-5 flex justify-end border-t border-edge/70 pt-4">
+            <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary">
+              <CirclePlay className="size-5" aria-hidden />
+              品質異常のデモを体験する
+              <ArrowRight className="size-5" aria-hidden />
+            </Button>
+          </div>
         </div>
-        <div className="mt-8 flex justify-end">
-          <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary" size="lg">
-            <CirclePlay className="size-5" aria-hidden />
-            品質異常のデモを体験する
-            <ArrowRight className="size-5" aria-hidden />
-          </Button>
-        </div>
-        <p className="mt-3 text-[0.82rem] text-subtle">
+        <p className="mt-4 text-[0.82rem] text-subtle">
           確認できるのは、自動で行う確認と、設定した基準の範囲です。毎月の実行では、前月に正式出力した結果と自動で比べます（履歴はこのブラウザに保存）。品質ルールの複製は開発中です。
         </p>
         <h3 className="mt-8 text-[0.95rem] font-bold text-white">データの取り扱い・ご利用上の注意</h3>
-        <ul className="mt-3 grid gap-x-8 gap-y-2 md:grid-cols-2">
+        <ul className="mt-3 grid gap-x-8 gap-y-2 grid-cols-2">
           {CAUTIONS.map((c) => (
             <li key={c.text} className="flex gap-2.5 text-[0.9rem] leading-relaxed text-subtle">
               <c.icon className="mt-0.5 size-4 shrink-0 text-mint/80" aria-hidden />
@@ -864,7 +862,7 @@ function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: stri
     // data-section-heading：特徴カードからの移動先（固定ヘッダー 64px ＋ 余白 32px を空ける）
     <div className="max-w-3xl scroll-mt-24" data-section-heading>
       <p className="text-[0.88rem] font-bold text-mint">{eyebrow}</p>
-      <h2 className="mt-2 text-[1.6rem] leading-snug font-bold text-white sm:text-[2rem]">{title}</h2>
+      <h2 className="mt-2 leading-snug font-bold text-white text-[2rem]">{title}</h2>
       {lead && <p className="mt-3 leading-relaxed text-subtle">{lead}</p>}
     </div>
   )

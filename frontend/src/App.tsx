@@ -1,12 +1,15 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { isSmartphone } from './device'
 import DiagnosticsPage from './pages/DiagnosticsPage'
 import KaizenDemoPage from './pages/KaizenDemoPage'
 import NotFoundPage from './pages/NotFoundPage'
+import PcOnlyNotice from './pages/PcOnlyNotice'
 import TopPage from './pages/TopPage'
 import WorkspacePage from './pages/WorkspacePage'
 
-/** 画面の一覧（URL と表示する画面の対応表）。 */
+/** 画面の一覧（URL と表示する画面の対応表）。PC専用：スマートフォンには案内だけを出す */
 export default function App() {
+  if (isSmartphone(navigator.userAgent)) return <PcOnlyNotice />
   return (
     <Routes>
       <Route path="/" element={<TopPage />} />

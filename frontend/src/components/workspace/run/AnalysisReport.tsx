@@ -68,7 +68,7 @@ export function AnalysisReport({
           <ChartColumn className="size-4.5 text-mint" aria-hidden />
           今回の主要数値
         </h2>
-        <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="mt-3 grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Kpi label="入力ファイル" value={`${inputs.length}ファイル`} sub={`合計 ${totalInput.toLocaleString()}行`} />
           {analysis.tables.slice(0, 2).map((t) => (
             <Kpi key={t.reference} label={`出力：${t.sheet_name}`} value={`${t.rows.toLocaleString()}行`} />

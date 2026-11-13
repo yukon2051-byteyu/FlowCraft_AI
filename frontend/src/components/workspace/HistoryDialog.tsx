@@ -253,7 +253,7 @@ function Detail({ r, onBack, onDelete }: { r: RunRecord; onBack: () => void; onD
       {r.metrics.length > 0 && (
         <div>
           <p className="font-bold">記録した数値（前回との比較に使う）</p>
-          <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
+          <ul className="mt-1 grid gap-x-6 gap-y-0.5 grid-cols-2">
             {r.metrics.map((m) => (
               <li key={m.metric_id}>
                 {m.label}：<span className="tabular-nums">{Number(m.value).toLocaleString()}</span>

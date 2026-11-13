@@ -97,7 +97,7 @@ export function CriteriaPanel() {
         {menu === 'template' && (
           <section className="light-panel rounded-2xl p-4" aria-label="テンプレートを選ぶ">
             <p className="text-[0.85rem] text-muted">作業手順の中身から、対象の列などを推し当てて追加します。推し当てられなかった項目は、空のまま残すので設定してください。</p>
-            <ul className="mt-2 grid gap-2 sm:grid-cols-3">
+            <ul className="mt-2 grid gap-2 grid-cols-3">
               {TEMPLATES.map((t) => (
                 <li key={t.id}>
                   <button type="button" onClick={() => addTemplate(t.id)} className="h-full w-full rounded-xl bg-paper px-3 py-2.5 text-left ring-1 ring-line hover:ring-forest/50">
@@ -111,7 +111,7 @@ export function CriteriaPanel() {
         )}
         {menu === 'kind' && (
           <section className="light-panel rounded-2xl p-4" aria-label="追加する基準を選ぶ">
-            <ul className="grid gap-1.5 sm:grid-cols-2">
+            <ul className="grid gap-1.5 grid-cols-2">
               {KIND_ORDER.map((k) => (
                 <li key={k}>
                   <button type="button" onClick={() => add(k)} className="w-full rounded-lg bg-paper px-3 py-2 text-left ring-1 ring-line hover:ring-forest/50">
@@ -175,7 +175,7 @@ export function CriteriaPanel() {
             <ListChecks className="size-4.5 text-mint" aria-hidden />
             自動で行う確認（標準の確認・設定は不要）
           </h2>
-          <ul className="mt-2 grid list-disc gap-x-6 gap-y-0.5 pl-5 text-[0.88rem] text-subtle sm:grid-cols-2">
+          <ul className="mt-2 grid list-disc gap-x-6 gap-y-0.5 pl-5 text-[0.88rem] text-subtle grid-cols-2">
             {STANDARD_CHECKS.map((s) => (
               <li key={s}>{s}</li>
             ))}

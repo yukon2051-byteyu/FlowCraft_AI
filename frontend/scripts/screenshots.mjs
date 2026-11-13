@@ -10,18 +10,17 @@ const outDir = process.argv[2] ?? 'screenshots'
 const base = process.argv[3] ?? 'http://localhost:5173'
 mkdirSync(outDir, { recursive: true })
 
+// PC専用（docs/pc-only.md）：主要な確認解像度だけを撮る。スマートフォン・タブレットは対象外
 const VIEWPORTS = [
-  { name: 'pc-1440', width: 1440, height: 900 },
-  { name: 'pc-1280', width: 1280, height: 800 },
-  { name: 'laptop-1280x650', width: 1280, height: 650 }, // 13〜14インチ ノートPC（拡大表示150%）の実表示領域相当
-  { name: 'tablet-768', width: 768, height: 1024 },
-  { name: 'phone-390', width: 390, height: 844 },
+  { name: 'pc-1920x1080', width: 1920, height: 1080 },
+  { name: 'laptop-1366x768', width: 1366, height: 768 },
 ]
 
 const PAGES = [
   { name: 'top', path: '/' },
   { name: 'workspace', path: '/build' },
   { name: 'workspace-sample', path: '/build?view=sample' },
+  { name: 'kaizen-demo', path: '/kaizen-demo' },
 ]
 
 const browser = await chromium.launch()

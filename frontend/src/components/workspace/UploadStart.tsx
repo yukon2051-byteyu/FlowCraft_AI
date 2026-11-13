@@ -187,7 +187,7 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenS
         {!hasAny ? (
           // A案：左（約65%）＝ファイルを読み込む主操作、右（約35%）＝ほかの始め方。左右の上端をそろえ、高さはそろえない
           <div className="mx-auto grid max-w-[1400px] items-start gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
-            <section className="light-panel space-y-4 rounded-2xl p-6 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] sm:p-7" aria-label="Excel・CSVを読み込む">
+            <section className="light-panel space-y-4 rounded-2xl shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] p-7" aria-label="Excel・CSVを読み込む">
               <div>
                 <p className="text-[0.85rem] font-bold text-forest">新しい作業を始める</p>
                 <h1 className="mt-0.5 text-[1.75rem] leading-tight font-bold">Excel・CSVを読み込む</h1>

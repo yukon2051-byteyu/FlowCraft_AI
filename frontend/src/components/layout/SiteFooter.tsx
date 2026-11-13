@@ -4,12 +4,12 @@ import { Logo } from '../brand/Logo'
 export function SiteFooter() {
   return (
     <footer className="border-t border-edge bg-nav text-subtle">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 sm:px-8 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto flex max-w-7xl gap-6 py-10 px-8 flex-row items-center justify-between">
         <div className="space-y-2">
           <Logo />
           <p className="text-[0.9rem]">Excel業務を見直し、確かめながら、一度でも何度でも。</p>
         </div>
-        <div className="flex flex-col gap-2 text-[0.85rem] md:items-end">
+        <div className="flex flex-col gap-2 text-[0.85rem] items-end">
           <nav aria-label="フッターメニュー" className="flex flex-wrap gap-x-5 gap-y-1">
             <a href="/#features" className="hover:text-white">できること</a>
             <a href="/#demo" className="hover:text-white">デモ</a>

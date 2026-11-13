@@ -88,7 +88,7 @@ export default function KaizenDemoPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
+      <main className="mx-auto max-w-6xl py-8 px-8">
         <p className="text-[0.85rem] font-bold text-kaizen-text">
           <Search className="mr-1 inline size-4 align-[-3px]" aria-hidden />
           業務改善デモ：その集計、本当に必要？

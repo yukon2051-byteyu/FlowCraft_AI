@@ -304,7 +304,7 @@ function SettingsTab({ node, needsConfirm, onConfirm }: { node: SampleNode; need
               <span className="font-bold text-ink">確認する理由：</span>
               {q.reason}
             </p>
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            <ul className="mt-3 grid gap-2 grid-cols-2">
               {q.options.map((o) => (
                 <li key={o.label} className="flex flex-col gap-2 rounded-lg bg-card p-3 ring-1 ring-line">
                   <Button

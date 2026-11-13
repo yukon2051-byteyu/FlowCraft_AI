@@ -49,7 +49,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1000px] space-y-5 px-6 py-6">
-          <section className="light-panel space-y-4 rounded-2xl p-6 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] sm:p-7" aria-label="作業を伝える">
+          <section className="light-panel space-y-4 rounded-2xl shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] p-7" aria-label="作業を伝える">
             <div>
               <p className="text-[0.85rem] font-bold text-forest">やりたい作業から始める</p>
               <h1 className="mt-0.5 text-[1.6rem] leading-tight font-bold">やりたい作業を伝える</h1>
@@ -84,7 +84,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
           <section className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="この作業を見直しますか">
             <h2 className="font-bold text-white">この作業を見直しますか？（任意）</h2>
             <p className="mt-1 text-[0.88rem] text-subtle">どちらを選んでも、手順の作成と実行に進めます。実行するときの品質の確認は、必ず行います。</p>
-            <div className="mt-3 grid gap-2.5 md:grid-cols-3" role="radiogroup" aria-label="改善診断">
+            <div className="mt-3 grid gap-2.5 grid-cols-3" role="radiogroup" aria-label="改善診断">
               <Choice selected={false} disabled={!aiDiagnosis} title="AI改善診断を受ける" body="不要な作業や重複した工程を見つけ、より簡単な手順を検討します。" feature="kaizen" />
               <Choice selected={false} disabled={!quickCheck} title="簡易チェックで見直す" body="決まった6つの質問で、廃止・簡素化・標準化・自動化の方向を確かめます（AIを使いません）。" feature="kaizenCheck" />
               <Choice selected title="診断せずに進む" body="今の作業内容をもとに、処理手順の作成へ進みます。" />
@@ -93,7 +93,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
 
           <section className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="手順の作り方">
             <h2 className="font-bold text-white">手順の作り方</h2>
-            <div className="mt-3 grid gap-2.5 md:grid-cols-3" role="radiogroup" aria-label="手順の作り方">
+            <div className="mt-3 grid gap-2.5 grid-cols-3" role="radiogroup" aria-label="手順の作り方">
               <Choice selected={false} disabled={!aiBuild} title="AIで手順を作る" body="作業の説明から、AIが処理手順を提案します（使うときだけAI使用パスワードが必要です）。" feature="aiFlow" />
               <Choice
                 selected={method === 'template'}
@@ -111,7 +111,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
             {method === 'template' && (
               <div className="mt-3" role="radiogroup" aria-label="もとにするひな形">
                 {templates.isPending && <p className="text-[0.85rem] text-subtle">ひな形を読み込んでいます…</p>}
-                <div className="grid gap-2 md:grid-cols-3">
+                <div className="grid gap-2 grid-cols-3">
                   {(templates.data ?? []).map((t) => (
                     <Choice
                       key={t.template_id}

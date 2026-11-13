@@ -112,7 +112,7 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-6" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="light-panel w-full max-w-[560px] rounded-2xl p-6 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="light-panel max-h-[calc(100vh-3rem)] w-full max-w-[560px] overflow-y-auto rounded-2xl p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <h2 id={titleId} className="flex items-center gap-2 text-[1.2rem] font-bold">
             <Save className="size-5 text-forest" aria-hidden />

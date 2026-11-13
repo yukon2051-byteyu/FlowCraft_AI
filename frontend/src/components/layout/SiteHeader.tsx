@@ -13,11 +13,11 @@ const NAV = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-edge/70 bg-nav/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-8">
         <Link to="/" aria-label="FlowCraft AI トップへ" className="rounded-md focus-visible:outline-2 focus-visible:outline-mint">
           <Logo />
         </Link>
-        <nav aria-label="ページ内メニュー" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="ページ内メニュー" className="items-center gap-1 flex">
           {NAV.map((n) => (
             <a
               key={n.href}
@@ -33,8 +33,7 @@ export function SiteHeader() {
             デモを見る
           </a>
           <Button to="/build" variant="outlineDark" size="sm">
-            <span className="sm:hidden">試してみる</span>
-            <span className="hidden sm:inline">自分のExcelで試す</span>
+            自分のExcelで試す
           </Button>
         </div>
       </div>
