@@ -1,11 +1,12 @@
-import { CircleX, X } from 'lucide-react'
+import { CircleX, RotateCw, X } from 'lucide-react'
 import type { ApiErrorBody } from '../../api/client'
 
 /**
  * バックエンド共通形式のエラーを「何が起きたか・原因・直し方」の順で表示する。
  * 暗い面・明るい面のどちらに置いても読めるよう、自身は明るい下地を持つ。
+ * onRetry を渡すと「もう一度試す」を出す（同じ操作をやり直す。ダミーの結果には切り替えない）。
  */
-export function ErrorNotice({ error, title, onDismiss }: { error: ApiErrorBody; title?: string; onDismiss?: () => void }) {
+export function ErrorNotice({ error, title, onDismiss, onRetry }: { error: ApiErrorBody; title?: string; onDismiss?: () => void; onRetry?: () => void }) {
   return (
     <div role="alert" className="rounded-xl border-l-4 border-error bg-error-soft p-3.5 text-[0.9rem] text-ink">
       <div className="flex items-start gap-2">
@@ -19,6 +20,16 @@ export function ErrorNotice({ error, title, onDismiss }: { error: ApiErrorBody; 
               <span className="font-bold">対処方法：</span>
               {error.how_to_fix}
             </p>
+          )}
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-[0.85rem] font-bold text-error-ink ring-1 ring-error/40 hover:bg-error-soft focus-visible:outline-2 focus-visible:outline-error"
+            >
+              <RotateCw className="size-3.5" aria-hidden />
+              もう一度試す
+            </button>
           )}
         </div>
         {onDismiss && (

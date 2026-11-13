@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.api.session import current_session
 from app.config import Settings, get_settings
-from app.demos.catalog import DATA_DIR, DEMOS, Pattern
+from app.demos.catalog import DATA_DIR, DEMOS, DemoStory, Pattern
 from app.errors import AppError
 from app.files.service import accept_upload
 from app.sessions.store import Session
@@ -45,6 +45,28 @@ class BindingOut(BaseModel):
     header_row: int
 
 
+class StoryImprovementOut(BaseModel):
+    before: str
+    after: str
+    refs: list[str]
+
+
+class StoryStepOut(BaseModel):
+    label: str
+    refs: list[str]
+
+
+class StoryOut(BaseModel):
+    """STEP 1「作業を知る」・STEP 2「手順と改善を確認」の内容（架空の業務シナリオ・事前に用意した改善例）"""
+
+    business_name: str
+    purpose: str
+    current_work: list[str]
+    issues: list[str]
+    improvements: list[StoryImprovementOut]
+    steps: list[StoryStepOut]
+
+
 class StartResponse(BaseModel):
     demo_id: str
     title: str
@@ -58,6 +80,7 @@ class StartResponse(BaseModel):
     # 品質異常のとき：何を直して再実行するか、と直したデータの体験（M1-3「直して再実行」）
     fix_note: str | None
     fixed_pattern: Pattern | None
+    story: StoryOut | None
 
 
 @router.get("/demos", response_model=list[DemoOut])
@@ -109,6 +132,20 @@ def start_demo(demo_id: str, req: StartRequest, session: Session = Depends(curre
         run_parameters=dict(pattern.run_parameters),
         fix_note=pattern.fix_note,
         fixed_pattern=demo.fixed_pattern if req.pattern == "ng" else None,
+        story=_story(demo.story),
+    )
+
+
+def _story(st: DemoStory | None) -> StoryOut | None:
+    if st is None:
+        return None
+    return StoryOut(
+        business_name=st.business_name,
+        purpose=st.purpose,
+        current_work=list(st.current_work),
+        issues=list(st.issues),
+        improvements=[StoryImprovementOut(before=i.before, after=i.after, refs=list(i.refs)) for i in st.improvements],
+        steps=[StoryStepOut(label=x.label, refs=list(x.refs)) for x in st.steps],
     )
 
 

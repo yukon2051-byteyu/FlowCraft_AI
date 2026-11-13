@@ -39,6 +39,39 @@ class DemoPattern:
 
 
 @dataclass(frozen=True)
+class StoryImprovement:
+    """改善前 → 改善後（事前に用意した改善例。AIの提案ではない）。refs は改善後を実現している処理ステップ（n…）・完了基準（c…）"""
+
+    before: str
+    after: str
+    refs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class StoryStep:
+    """改善後の処理手順の1段（refs は実際の作業手順の処理ステップ・完了基準）"""
+
+    label: str
+    refs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DemoStory:
+    """デモの STEP 1「作業を知る」・STEP 2「手順と改善を確認」の内容（デモ全面改善指示書）。
+
+    架空の業務シナリオ。改善前の作業は説明のための例で、改善後は、このデモで実際に実行する作業手順と一致させる
+    （refs の対応先が作業手順にあることを tests/test_demo_story.py で確かめる）。
+    """
+
+    business_name: str
+    purpose: str
+    current_work: tuple[str, ...]
+    issues: tuple[str, ...]
+    improvements: tuple[StoryImprovement, ...]
+    steps: tuple[StoryStep, ...]
+
+
+@dataclass(frozen=True)
 class Demo:
     demo_id: str
     title: str
@@ -48,6 +81,7 @@ class Demo:
     patterns: dict[str, DemoPattern] = field(default_factory=dict)
     # 品質異常の体験で、問題を直したデータ（直して再実行・修正前後の比較に使う。M1-3）
     fixed_pattern: Pattern | None = None
+    story: DemoStory | None = None
 
     def flow(self) -> dict[str, Any]:
         assert self.flow_file is not None
@@ -83,6 +117,38 @@ DEMOS: dict[str, Demo] = {
                 ),
             },
             fixed_pattern="ok",
+            story=DemoStory(
+                business_name="月次売上の部署別・カテゴリ別集計",
+                purpose="毎月、売上実績に商品名・カテゴリと部署名を付けて、部署別・カテゴリ別の売上集計表を作る。",
+                current_work=(
+                    "売上実績のExcelから、集計に使う列をコピーする",
+                    "商品マスタを見ながら、商品名・カテゴリを転記する",
+                    "部署マスタを見ながら、部署名を転記する",
+                    "部署別とカテゴリ別に、売上を2回集計する",
+                    "別の月の伝票が混ざっていないか、合計が合うかを目で確かめる",
+                    "集計表をExcelにまとめる",
+                ),
+                issues=(
+                    "マスタからの転記に手間がかかり、転記ミスが起きる",
+                    "商品コードの照合漏れに気づきにくい",
+                    "別の月の伝票が混ざっても気づきにくい",
+                    "集計結果の正しさを、人が目で確かめている",
+                ),
+                improvements=(
+                    StoryImprovement("商品名・カテゴリを手作業で転記", "商品マスタと自動で照合して付け加える（照合できない商品コードが0件かも自動で確認）", ("n4", "c3")),
+                    StoryImprovement("部署名を手作業で転記", "部署マスタと自動で照合して付け加える", ("n6",)),
+                    StoryImprovement("部署別・カテゴリ別に2回集計", "同じ表から、部署別とカテゴリ別の集計を自動で作る", ("n7", "n8")),
+                    StoryImprovement("対象月・合計を目で確認", "品質ルールで毎回自動検証（対象月の伝票だけ・集計前後の合計が一致）", ("c1", "c2")),
+                ),
+                steps=(
+                    StoryStep("売上実績・商品マスタ・部署マスタを読み込む", ("n1", "n3", "n5")),
+                    StoryStep("集計に使う列を取り出す", ("n2",)),
+                    StoryStep("商品マスタ・部署マスタと照合して、情報を付け加える", ("n4", "n6")),
+                    StoryStep("部署別・カテゴリ別に集計する", ("n7", "n8")),
+                    StoryStep("品質ルールで検証する", ("c1", "c2", "c3", "c4")),
+                    StoryStep("Excelに出力する", ("n9",)),
+                ),
+            ),
         ),
         Demo(
             demo_id="product_match",
@@ -108,6 +174,34 @@ DEMOS: dict[str, Demo] = {
                 ),
             },
             fixed_pattern="ok",
+            story=DemoStory(
+                business_name="売上データの商品マスタ照合",
+                purpose="売上実績の商品コードを商品マスタと照合し、商品名・カテゴリを付けて、カテゴリ別の売上を集計する。",
+                current_work=(
+                    "売上実績の商品コードを、商品マスタで1行ずつ探す（VLOOKUP）",
+                    "見つからない商品コードを、目で探して直す",
+                    "カテゴリごとに売上を集計する",
+                    "集計の前後で合計が合うかを、電卓で確かめる",
+                ),
+                issues=(
+                    "表記揺れ（空白・全角）は見た目では分からず、照合漏れになる",
+                    "照合できなかった行が集計から漏れても気づきにくい",
+                    "確かめた結果が記録に残らない",
+                ),
+                improvements=(
+                    StoryImprovement("VLOOKUPで1行ずつ照合", "商品マスタと自動で照合し、照合できない行は原因（未登録・空白・全角）つきで示す", ("n3",)),
+                    StoryImprovement("見つからないコードを目で探す", "照合できない商品コードが0件かを、品質ルールで毎回確認（重大）", ("c1",)),
+                    StoryImprovement("集計の前後の合計を電卓で照合", "集計前後の売上金額が一致するかを自動で検証", ("n4", "c2")),
+                    StoryImprovement("空欄のコードに気づきにくい", "商品コードの空欄を自動で確認（注意）", ("c3",)),
+                ),
+                steps=(
+                    StoryStep("売上実績・商品マスタを読み込む", ("n1", "n2")),
+                    StoryStep("商品マスタと照合して、商品名・カテゴリを付け加える", ("n3",)),
+                    StoryStep("カテゴリ別に集計する", ("n4",)),
+                    StoryStep("品質ルールで検証する", ("c1", "c2", "c3")),
+                    StoryStep("Excelに出力する", ("n5",)),
+                ),
+            ),
         ),
         Demo(
             demo_id="inventory",
@@ -133,6 +227,34 @@ DEMOS: dict[str, Demo] = {
                 ),
             },
             fixed_pattern="ok",
+            story=DemoStory(
+                business_name="月末の在庫差異の確認",
+                purpose="入出庫履歴から理論上の在庫を計算し、在庫台帳（帳簿在庫）と合わない商品を一覧にする。",
+                current_work=(
+                    "入出庫履歴を、商品ごとに集計する",
+                    "在庫台帳に、入庫・出庫の合計を転記する",
+                    "前月末在庫＋入庫−出庫で、理論在庫を計算する",
+                    "帳簿在庫と比べて、差異のある商品を探す",
+                ),
+                issues=(
+                    "同じ伝票が二重に記録されても気づきにくい（差異の原因になる）",
+                    "台帳にない商品の入出庫を見落とす",
+                    "差異の計算を、毎月手で作り直している",
+                ),
+                improvements=(
+                    StoryImprovement("入出庫の合計を台帳へ転記", "商品ごとに自動で合計し、台帳と照合して付け加える（全商品を照合できるかも確認）", ("n2", "n4", "c2")),
+                    StoryImprovement("理論在庫・差異を手で計算", "計算式を作業手順として保存し、毎月同じ計算をする", ("n5", "n6")),
+                    StoryImprovement("二重記録に気づきにくい", "伝票番号の重複を、品質ルールで自動検出（重大）", ("c1",)),
+                    StoryImprovement("差異のある商品を目で探す", "差異のある商品だけを自動で残し、一覧として記録する", ("n7", "c4")),
+                ),
+                steps=(
+                    StoryStep("入出庫履歴・在庫台帳を読み込む", ("n1", "n3")),
+                    StoryStep("商品ごとに入出庫を合計し、台帳と照合する", ("n2", "n4")),
+                    StoryStep("理論在庫と差異を計算し、差異のある商品を残す", ("n5", "n6", "n7")),
+                    StoryStep("品質ルールで検証する", ("c1", "c2", "c3", "c4")),
+                    StoryStep("Excelに出力する", ("n8",)),
+                ),
+            ),
         ),
     )
 }

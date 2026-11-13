@@ -1,5 +1,7 @@
 """稼働確認APIのテスト。"""
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.config import Settings, get_settings
@@ -20,6 +22,12 @@ def test_health_returns_ok():
     body = res.json()
     assert body["status"] == "ok"
     assert body["engine_version"] == "0.1.0"
+    # 画面が起動時に確かめるAPIの版（画面の EXPECTED_API_REVISION と同じ値）
+    from app import API_REVISION
+
+    assert body["api_revision"] == API_REVISION
+    expected = (Path(__file__).parents[2] / "frontend" / "src" / "api" / "serverVersion.ts").read_text(encoding="utf-8")
+    assert f"EXPECTED_API_REVISION = {API_REVISION}" in expected
 
 
 def test_ai_mode_is_fixed_without_api_key():

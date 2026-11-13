@@ -58,7 +58,7 @@ async function ensureSession(): Promise<string> {
   // 同時に複数の通信が始まっても、セッションの作成は1回だけにする
   creating ??= (async () => {
     const res = await fetch('/api/session', { method: 'POST' })
-    if (!res.ok) throw await toApiError(res)
+    if (!res.ok) throw await toApiError(res, '/api/session')
     const body = (await res.json()) as { session_id: string }
     memorySession = body.session_id
     writeSession(memorySession)
@@ -80,20 +80,46 @@ export function forgetSession(): void {
   writeSession(null)
 }
 
-async function toApiError(res: Response): Promise<ApiError> {
+/**
+ * サーバーが共通の形のエラーを返さなかったときの説明（HTTP の状態ごとに、原因と直し方を変える）。
+ * 404 を一律に「通信できませんでした」としない：窓口がない（画面とサーバーの版の食い違い）ことが多いため（2026-11-14 の調査）。
+ */
+export function describeHttpFailure(status: number, path: string): ApiErrorBody {
+  if (status === 404) {
+    return {
+      code: 'API_NOT_FOUND',
+      message: 'サーバーに、この機能の窓口が見つかりません（HTTP 404）。',
+      cause: `画面とサーバーの版が合っていない可能性があります（サーバーが古い版のまま動いている、など）。窓口：${path.split('?')[0]}`,
+      how_to_fix: '開発環境では、サーバーを止めて起動し直してください（README「使い方」）。直らないときは、画面を再読み込みしてください。',
+      node_id: null,
+    }
+  }
+  if (status >= 500) {
+    return {
+      code: 'SERVER_ERROR',
+      message: `サーバーで問題が起きました（HTTP ${status}）。`,
+      cause: 'サーバーが止まっている、再起動の途中である、または処理の途中で問題が起きた可能性があります。',
+      how_to_fix: 'サーバーが起動しているかを確かめ、しばらく待ってから、もう一度お試しください。',
+      node_id: null,
+    }
+  }
+  return {
+    code: 'NETWORK_ERROR',
+    message: `サーバーから想定外の応答がありました（HTTP ${status}）。`,
+    cause: null,
+    how_to_fix: 'しばらく待ってから、もう一度お試しください。',
+    node_id: null,
+  }
+}
+
+async function toApiError(res: Response, path: string): Promise<ApiError> {
   try {
     const data = (await res.json()) as { error?: ApiErrorBody }
     if (data.error) return new ApiError(res.status, data.error)
   } catch {
     // JSONでない応答（サーバー停止中など）
   }
-  return new ApiError(res.status, {
-    code: 'NETWORK_ERROR',
-    message: 'サーバーと通信できませんでした。',
-    cause: `HTTP ${res.status}`,
-    how_to_fix: 'しばらく待ってから、もう一度お試しください。',
-    node_id: null,
-  })
+  return new ApiError(res.status, describeHttpFailure(res.status, path))
 }
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -111,7 +137,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     })
   }
   if (!res.ok) {
-    const err = await toApiError(res)
+    const err = await toApiError(res, path)
     if (err.isSessionLost) forgetSession()
     throw err
   }
@@ -135,7 +161,7 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
     })
   }
   if (!res.ok) {
-    const err = await toApiError(res)
+    const err = await toApiError(res, path)
     if (err.isSessionLost) forgetSession()
     throw err
   }
