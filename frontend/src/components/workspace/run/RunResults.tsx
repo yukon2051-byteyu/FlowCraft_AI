@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, CircleCheck, CircleMinus, CircleX, FileOutput, LoaderCircle, Save, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CircleCheck, CircleHelp, CircleMinus, CircleX, FileOutput, LoaderCircle, Save, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
 import { fetchRun } from '../../../api/flows'
-import type { RunSummary, StepRun } from '../../../api/flows'
+import type { RunSummary, StepRun, Verdict } from '../../../api/flows'
 import { contentSnapshot } from '../../../flow/ops'
 import { useFlowStore } from '../../../flow/store'
 import { Button } from '../../ui/Button'
@@ -34,13 +34,16 @@ type Props = {
   /** 出力したファイルの名前（この実行で出力済みのとき） */
   exportedName: string | null
   exportError: ApiErrorBody | null
+  /** 注意・未検証の結果を、確認したうえで出力すると選んだか */
+  confirmed: boolean
+  onConfirmChange: (v: boolean) => void
   /** 作業手順を保存する（今回だけの作業から、毎月の作業にする） */
   onSave: () => void
   /** 今の作業手順が保存済み（変更なし）か */
   saved: boolean
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, onSave, saved }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -57,6 +60,10 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
         ? { icon: TriangleAlert, cls: 'text-warning', text: '最後まで実行しました（確認が必要なお知らせがあります）', sub: `確認が必要なステップ：${warnings}個。内容を確かめてください。` }
         : { icon: CircleCheck, cls: 'text-success', text: '最後まで実行しました', sub: '処理の中で行った確認（件数・合計の照合など）で、問題は見つかりませんでした。' }
   const Head = headline.icon
+  const verdict = run.verdict
+  // 出力の扱い：調査用の確認結果だけ／確認したうえで出力／そのまま出力
+  const reportOnly = run.status === 'failed' || verdict?.export === 'report_only'
+  const needsConfirm = verdict?.export === 'needs_confirmation'
   const previews = detail.data?.output_previews ?? []
 
   return (
@@ -77,15 +84,29 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
                 実行した後に作業手順を変更しました。この結果は変更前の内容です。作業手順に戻って、もう一度実行してください。
               </p>
             )}
-            <p className="mt-3 text-[0.82rem] text-subtle">業務の完了基準による判定（正常・注意・重大）は、完了基準の機能ができてから表示します（開発中）。</p>
+            {verdict && <VerdictBox verdict={verdict} />}
 
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-edge pt-4">
-              <Button variant={run.status === 'failed' ? 'outlineDark' : 'primary'} onClick={onExport} disabled={exporting}>
+              {needsConfirm && !reportOnly && (
+                <label className="flex w-full items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[0.9rem] ring-1 ring-warning/35">
+                  <input type="checkbox" checked={confirmed} onChange={(e) => onConfirmChange(e.target.checked)} className="mt-1 size-4 accent-[#d4a72c]" />
+                  <span>
+                    <span className="font-bold text-warning">確認したうえで出力する</span>
+                    <span className="block text-[0.85rem] text-subtle">上の判定の理由を確かめました。この結果を業務で使ってよいと判断したときだけ、チェックを入れてください。</span>
+                  </span>
+                </label>
+              )}
+              <Button
+                variant={reportOnly ? 'outlineDark' : 'primary'}
+                onClick={onExport}
+                disabled={exporting || (needsConfirm && !reportOnly && !confirmed)}
+                title={needsConfirm && !confirmed ? '「確認したうえで出力する」にチェックを入れると出力できます' : undefined}
+              >
                 {exporting ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileOutput className="size-4" aria-hidden />}
-                {run.status === 'failed' ? '確認結果をExcelに出力する（調査用）' : 'Excelに出力する'}
+                {reportOnly ? '確認結果をExcelに出力する（調査用）' : 'Excelに出力する'}
               </Button>
               <span className="text-[0.85rem] text-subtle">
-                {run.status === 'failed'
+                {reportOnly
                   ? '処理結果のシートは含めず、「確認結果」と「処理の記録」だけを出力します。'
                   : '処理結果のシートに加えて、「確認結果」と「処理の記録」のシートも出力します。'}
               </span>
@@ -178,6 +199,36 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
         </Button>
       </div>
     </>
+  )
+}
+
+/* 総合判定（タスク2-3）。判定の根拠の詳しい表示は 2-5 で作る */
+const VERDICT_STYLE: Record<Verdict['verdict'], { label: string; cls: string; icon: typeof CircleCheck }> = {
+  normal: { label: '正常', cls: 'bg-success/12 text-success ring-success/35', icon: CircleCheck },
+  caution: { label: '注意', cls: 'bg-warning/12 text-warning ring-warning/40', icon: TriangleAlert },
+  unverified: { label: '未検証', cls: 'bg-warning/12 text-warning ring-warning/40', icon: CircleHelp },
+  critical: { label: '重大', cls: 'bg-error/12 text-error ring-error/40', icon: CircleX },
+}
+
+function VerdictBox({ verdict }: { verdict: Verdict }) {
+  const s = VERDICT_STYLE[verdict.verdict]
+  const Icon = s.icon
+  return (
+    <div className={`mt-3 rounded-lg px-3 py-2.5 ring-1 ${s.cls}`} role="status" aria-label="総合判定">
+      <p className="flex flex-wrap items-center gap-2 font-bold">
+        <Icon className="size-4.5" aria-hidden />
+        総合判定：{s.label}
+        <span className="text-[0.8rem] font-normal text-subtle">（{verdict.standard_only ? '標準の確認のみ' : '完了基準と標準の確認'}）</span>
+      </p>
+      <p className="mt-1 text-[0.9rem] text-white/90">{verdict.headline}</p>
+      {verdict.reasons.length > 0 && (
+        <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[0.85rem] text-white/80" aria-label="判定の理由">
+          {verdict.reasons.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

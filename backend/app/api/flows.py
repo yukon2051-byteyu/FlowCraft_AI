@@ -151,6 +151,15 @@ class CriterionResultOut(BaseModel):
     how_to_fix: str | None
 
 
+class VerdictOut(BaseModel):
+    verdict: str  # normal／caution／critical／unverified
+    standard_only: bool
+    headline: str
+    reasons: list[str]
+    export: str  # allowed／needs_confirmation／report_only
+    counts: dict[str, int]
+
+
 class RunSummary(BaseModel):
     run_id: str
     status: str
@@ -165,6 +174,7 @@ class RunSummary(BaseModel):
     fingerprints: dict[str, str]
     criteria: list[CriterionResultOut] = Field(default_factory=list)
     run_parameters: dict[str, str] = Field(default_factory=dict)
+    verdict: VerdictOut | None = None
 
 
 class RunDetail(RunSummary):
@@ -242,6 +252,7 @@ def _summary(run_id: str, ex: Execution, fhash: str, executed_at: datetime, run_
         "fingerprints": r.fingerprints,
         "criteria": [CriterionResultOut(**jsonable_encoder(asdict(c))) for c in r.criteria],
         "run_parameters": dict(run_values or {}),
+        "verdict": VerdictOut(**asdict(r.verdict)) if r.verdict is not None else None,
     }
 
 
@@ -345,19 +356,31 @@ _FILENAME_FORBIDDEN = str.maketrans({c: "_" for c in '\\/:*?"<>|'})
 
 
 @router.get("/runs/{run_id}/export")
-def export_run(run_id: str, session: Session = Depends(current_session)) -> Response:
-    """実行結果を Excel ファイルにする。
+def export_run(run_id: str, confirmed: bool = False, session: Session = Depends(current_session)) -> Response:
+    """実行結果を Excel ファイルにする（総合判定にもとづいて出力を制御する。タスク2-3）。
 
-    実行が失敗したときは、処理結果のシートを含めず「確認結果」と「処理の記録」だけを出力する（調査用）。
+    - 重大（エラーで止まった・重大な基準を満たさない）：処理結果のシートを含めず「確認結果」と「処理の記録」だけ（調査用）
+    - 注意・未検証：利用者が内容を確認した（confirmed=true）ときだけ出力する。確認なしでは 409
+    - 正常：そのまま出力する
     """
     stored = session.runs.get(run_id)
     if stored is None:
         raise AppError(404, "RUN_NOT_FOUND", "実行結果が見つかりません。", how_to_fix="もう一度実行してください。古い実行結果は自動で削除されます。")
     ex: Execution = stored["execution"]
+    v = ex.result.verdict
+    if v is not None and v.export == "needs_confirmation" and not confirmed:
+        label = "確かめられなかった完了基準" if v.verdict == "unverified" else "確認が必要な点"
+        raise AppError(
+            409,
+            "EXPORT_CONFIRMATION_REQUIRED",
+            f"{label}があるため、内容を確認してから出力してください。",
+            cause=" ／ ".join(v.reasons[:3]) or None,
+            how_to_fix="実行結果の画面で内容を確かめ、「確認したうえで出力する」にチェックを入れてください。",
+        )
     flow: FlowDefinition = stored["flow"]
     executed_at: datetime = stored["executed_at"]
     data = build_workbook(flow, ex, executed_at, stored["flow_hash"])
-    kind = "確認結果（調査用）" if ex.result.status == "failed" else "結果"
+    kind = "結果" if ex.result.can_export else "確認結果（調査用）"
     stamp = executed_at.astimezone().strftime("%Y%m%d-%H%M")
     name = f"{flow.flow_name}_{kind}_{stamp}.xlsx".translate(_FILENAME_FORBIDDEN)
     # 日本語のファイル名は RFC 5987 の形で渡す（古いブラウザ向けに英数字の名前も付ける）

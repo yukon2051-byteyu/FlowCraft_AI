@@ -51,13 +51,17 @@ export default function WorkspacePage() {
   // Excel出力の状態（結果の画面と、上部の「Excelに出力」ボタンで共有する）
   const [exporting, setExporting] = useState(false)
   const [exported, setExported] = useState<{ runId: string; name: string } | null>(null)
+  // 注意・未検証の結果を「確認したうえで出力する」と利用者が選んだ実行（実行ごとに選び直す）
+  const [confirmedRun, setConfirmedRun] = useState<string | null>(null)
+  const needsConfirm = lastRun?.run.verdict?.export === 'needs_confirmation'
+  const confirmed = lastRun !== null && confirmedRun === lastRun.run.run_id
   const [exportError, setExportError] = useState<ApiErrorBody | null>(null)
   const doExport = async () => {
     if (!lastRun) return
     setExporting(true)
     setExportError(null)
     try {
-      const name = await exportRun(lastRun.run.run_id)
+      const name = await exportRun(lastRun.run.run_id, needsConfirm && confirmed)
       setExported({ runId: lastRun.run.run_id, name })
       // 出力した内容を記録する（今回だけの作業なら、これで終われる。離れるときに確認しない）
       markExported(lastRun.snap)
@@ -115,6 +119,7 @@ export default function WorkspacePage() {
           canExport={!sample && screen === 'result' && lastRun !== null}
           onExport={doExport}
           exporting={exporting}
+          exportBlocked={needsConfirm && !confirmed ? '実行結果の画面で内容を確かめ、「確認したうえで出力する」にチェックを入れてください' : null}
         />
         {sample ? (
           <>
@@ -128,7 +133,7 @@ export default function WorkspacePage() {
               skipped={screen === 'data' ? [] : SKIP_AI}
               hint={
                 screen === 'result'
-                  ? lastRun?.run.status === 'failed'
+                  ? lastRun?.run.verdict?.export === 'report_only' || lastRun?.run.status === 'failed'
                     ? '止まった理由を確かめてください。調査用に、確認結果をExcelに出力できます'
                     : '実行結果を確かめて、Excelに出力してください'
                   : screen === 'edit'
@@ -176,6 +181,8 @@ export default function WorkspacePage() {
                 snap={lastRun.snap}
                 onBack={() => setScreen('edit')}
                 onExport={doExport}
+                confirmed={confirmed}
+                onConfirmChange={(v) => setConfirmedRun(v ? lastRun.run.run_id : null)}
                 onSave={() => setSaving(true)}
                 saved={saveState === 'none'}
                 exporting={exporting}

@@ -61,8 +61,16 @@ class RunResult:
     duration_ms: int = 0
     # 完了基準の評価結果（app.criteria.evaluate.CriterionResult）。本番の実行のときだけ作る
     criteria: list[Any] = field(default_factory=list)
+    # 総合判定（app.criteria.verdict.VerdictResult）。本番の実行のときだけ作る
+    verdict: Any = None
 
     @property
     def can_export(self) -> bool:
-        """不正な結果を成果物として出力しない（エラーがあれば出力不可）。"""
-        return self.status != "failed" and bool(self.outputs)
+        """確定した結果（処理結果のシート）を出力できるか。
+
+        エラーで止まった、または総合判定が「重大」のときは出力しない（調査用の確認結果だけ）。
+        「注意」「未検証」は、利用者が確認したうえで出力できる（確認は出力のAPIで求める）。
+        """
+        if self.status == "failed" or not self.outputs:
+            return False
+        return self.verdict is None or self.verdict.verdict != "critical"

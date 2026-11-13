@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from app import ENGINE_VERSION
 from app.criteria.evaluate import evaluate_criteria
+from app.criteria.verdict import decide
 from app.engine import nodes as _nodes  # noqa: F401  ノードを registry に登録する
 from app.engine.registry import NodeContext, get_handler
 from app.engine.result import EngineIssue, NodeFailure, NodeRun, OutputSheet, RunResult
@@ -65,6 +66,7 @@ def run_flow(
         blocked = RunResult("failed", ENGINE_VERSION, runs, flow_issues=issues)
         if require_confirmed:
             blocked.criteria = evaluate_criteria(flow, blocked, {}, run_values)
+            blocked.verdict = decide(blocked)
         return Execution(blocked, {})
 
     ctx = NodeContext(
@@ -153,5 +155,6 @@ def run_flow(
     )
     if require_confirmed and stop_after is None:
         result.criteria = evaluate_criteria(flow, result, tables, run_values)
+        result.verdict = decide(result)
         result.duration_ms = int((time.perf_counter() - started) * 1000)
     return Execution(result, tables)

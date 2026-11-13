@@ -91,6 +91,21 @@ export type RunSummary = {
   criteria: CriterionResult[]
   /** 実行時に指定した値 */
   run_parameters: Record<string, string>
+  /** 総合判定（タスク2-3）。実行できなかったときも返る */
+  verdict: Verdict | null
+}
+
+/**
+ * 総合判定。export：allowed（そのまま出力）／needs_confirmation（確認したうえで出力）／report_only（調査用の確認結果だけ）
+ * standard_only：業務の完了基準がなく、標準の確認だけで判定した（「正常」と言い切らない）
+ */
+export type Verdict = {
+  verdict: 'normal' | 'caution' | 'critical' | 'unverified'
+  standard_only: boolean
+  headline: string
+  reasons: string[]
+  export: 'allowed' | 'needs_confirmation' | 'report_only'
+  counts: Record<string, number>
 }
 
 /** 完了基準1つの評価結果。unverified（未検証）は「確かめられなかった」で、満たしているとはみなさない */
@@ -130,6 +145,7 @@ export function fetchRun(runId: string, limit = 50): Promise<RunDetail> {
 }
 
 /** 実行結果を Excel ファイルで保存する。失敗した実行は「確認結果」「処理の記録」だけ（調査用） */
-export function exportRun(runId: string): Promise<string> {
-  return downloadFile(`/api/runs/${encodeURIComponent(runId)}/export`, 'flowcraft_result.xlsx')
+export function exportRun(runId: string, confirmed = false): Promise<string> {
+  // 注意・未検証の結果は、利用者が確認したことを伝えないとサーバーが出力しない（409）
+  return downloadFile(`/api/runs/${encodeURIComponent(runId)}/export${confirmed ? '?confirmed=true' : ''}`, 'flowcraft_result.xlsx')
 }

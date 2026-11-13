@@ -55,7 +55,20 @@ SEVERITY_LABEL = {"info": "お知らせ", "warning": "確認が必要", "error":
 MAX_WIDTH = 60
 
 
+def verdict_text(result: RunResult) -> str:
+    """総合判定（タスク2-3）。確認結果のシートの「総合判定」の行に書く"""
+    v = result.verdict
+    if v is None:
+        return "（判定していません）"
+    label = {"normal": "正常", "caution": "注意", "critical": "重大", "unverified": "未検証"}[v.verdict]
+    basis = "標準の確認のみ" if v.standard_only else "完了基準と標準の確認"
+    return f"{label}（{basis}）：{v.headline}"
+
+
 def conclusion(result: RunResult) -> str:
+    """処理がどこまで進んだか（確認結果のシートの「結論」の行）"""
+    if result.status != "failed" and not result.can_export and result.outputs:
+        return "最後まで実行しましたが、総合判定が「重大」のため、処理結果は出力していません（調査用）。"
     if result.status == "failed":
         stopped = next((i for i, n in enumerate(result.nodes) if n.status == "error"), None)
         if stopped is not None:
@@ -117,7 +130,7 @@ def build_workbook(flow: FlowDefinition, ex: Execution, executed_at: datetime, f
     result = ex.result
     buf = io.BytesIO()
     book = _Book(buf)
-    include_results = result.status != "failed"
+    include_results = result.can_export
     user_sheets = [o.sheet_name for o in result.outputs] if include_results else []
     # 利用者が付けたシート名と重ならないようにする
     result_name = _free_name(RESULT_SHEET, user_sheets)
@@ -203,7 +216,8 @@ def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResul
         ["作業手順", flow.flow_name],
         ["実行日時", executed_at.astimezone().strftime("%Y/%m/%d %H:%M:%S")],
         ["結論", conclusion(result)],
-        ["業務の完了基準による判定", "（完了基準の機能は開発中のため、処理の中で行った確認のみを記載しています）"],
+        ["総合判定", verdict_text(result)],
+        *[["判定の理由", r] for r in (result.verdict.reasons if result.verdict else [])],
         [],
     ]
     if result.flow_issues:
@@ -265,7 +279,7 @@ def _write_record(book: _Book, name: str, flow: FlowDefinition, ex: Execution, e
             uses = "、".join(f"ステップ{producer[r] + 1}の結果" for r in node.input_references if r in producer)
         rows.append([str(i + 1), node.node_name, STEP_LABEL.get(node.node_type, node.node_type), uses])
     outputs_header = None
-    if result.status != "failed" and result.outputs:
+    if result.can_export:
         rows += [[], ["出力した表（指紋は、同じ内容かどうかを後から確かめるための値です）"]]
         outputs_header = len(rows)
         rows.append(["シート", "件数", "列数", "指紋"])

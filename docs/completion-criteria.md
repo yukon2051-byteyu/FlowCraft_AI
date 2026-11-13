@@ -1,6 +1,6 @@
 # 完了基準の設計（completion-criteria.md）
 
-- 版：v0.3（2026-11-13）：§3 のデータの形（2-1）と §5 の評価（2-2：`backend/app/criteria/evaluate.py`）を実装。総合判定（§6）は 2-3 で実装
+- 版：v0.4（2026-11-13）：§3 のデータの形（2-1）、§5 の評価（2-2：`backend/app/criteria/evaluate.py`）、§6 の総合判定と出力の制御（2-3：`backend/app/criteria/verdict.py`）を実装
 - 根拠：製品価値の追加・設計方針改訂指示書（単発業務への対応／業務の完了基準の管理）
 - 関連：[product-review.md](product-review.md) §14、[implementation-plan.md](implementation-plan.md) v3.0、[flow-schema.md](flow-schema.md)
 
