@@ -249,26 +249,47 @@ function RunCard({ className = '', style }: BoxProps) {
   )
 }
 
-function CheckCard({ className = '', style }: BoxProps) {
+/*
+ * ④確かめる（2026-11-13：白い背景をやめ、①〜③と同じ暗い面に。わずかに緑を含む背景と細いミントの枠で、品質の確認を目立たせる）
+ * 判定の状態ごとの色をまとめておく（正常＝ミント、注意＝ゴールド、重大＝コーラル）。ヒーローの見本は「注意」。
+ */
+const CHECK_CARD = { bg: '#252D2C', border: '#397568', text: '#F3F6F5', sub: '#B4C2BE' }
+const VERDICT_TONE = {
+  normal: { label: '正常', bg: '#203A33', border: '#2F7A65', title: '#39D9AD', sub: '#CBE9DF', icon: CircleCheck },
+  caution: { label: '注意', bg: '#423527', border: '#7B5A32', title: '#F2BE70', sub: '#E5D7C3', icon: TriangleAlert },
+  critical: { label: '重大', bg: '#432A2A', border: '#8A4A47', title: '#E89A95', sub: '#EBD3D1', icon: TriangleAlert },
+} as const
+const ICON = { ok: '#39D9AD', caution: '#D6A64D' }
+
+function CheckCard({ className = '', style, verdict = 'caution' }: BoxProps & { verdict?: keyof typeof VERDICT_TONE }) {
+  const tone = VERDICT_TONE[verdict]
+  const VerdictIcon = tone.icon
   return (
-    <div style={style} className={`light-panel flex flex-col rounded-xl p-3 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/10 ${className}`}>
+    <div
+      style={{ ...style, backgroundColor: CHECK_CARD.bg, borderColor: CHECK_CARD.border, color: CHECK_CARD.text }}
+      className={`flex flex-col rounded-xl border p-3 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] ${className}`}
+    >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-ink">
-          <StageLabel n={4} label="確かめる" icon={ShieldCheck} />
+        <StageLabel n={4} label="確かめる" icon={ShieldCheck} />
+        <span className="text-[0.64rem]" style={{ color: CHECK_CARD.sub }}>
+          完了基準
         </span>
-        <span className="text-[0.64rem] text-muted">完了基準</span>
       </div>
       <ul className="space-y-2 px-0.5 text-[0.78rem]">
         <CheckRow ok>集計前後の合計が一致</CheckRow>
         <CheckRow ok>対象期間外のデータ 0件</CheckRow>
-        <CheckRow>照合できない商品コード 4件</CheckRow>
+        <CheckRow>
+          照合できない商品コード <span className="font-bold" style={{ color: ICON.caution }}>4件</span>
+        </CheckRow>
       </ul>
-      <div className="mt-auto rounded-lg border-l-4 border-warning bg-warning-soft px-3 py-2.5 ring-1 ring-warning/30">
-        <p className="flex items-center gap-1.5 text-[0.86rem] font-bold text-warning-ink">
-          <TriangleAlert className="size-4" aria-hidden />
-          品質判定：注意
+      <div className="mt-auto rounded-lg border px-3 py-2.5" style={{ backgroundColor: tone.bg, borderColor: tone.border }}>
+        <p className="flex items-center gap-1.5 text-[0.86rem] font-bold" style={{ color: tone.title }}>
+          <VerdictIcon className="size-4" aria-hidden />
+          品質判定：{tone.label}
         </p>
-        <p className="mt-0.5 text-[0.7rem] text-ink/80">内容を確認してから、正式に出力</p>
+        <p className="mt-0.5 text-[0.7rem]" style={{ color: tone.sub }}>
+          内容を確認してから、正式に出力
+        </p>
       </div>
     </div>
   )
@@ -278,9 +299,9 @@ function CheckRow({ ok = false, children }: { ok?: boolean; children: ReactNode 
   return (
     <li className="flex items-center gap-1.5">
       {ok ? (
-        <CircleCheck className="size-3.5 shrink-0 text-success-ink" aria-label="満たしている" />
+        <CircleCheck className="size-3.5 shrink-0" style={{ color: ICON.ok }} aria-label="満たしている" />
       ) : (
-        <TriangleAlert className="size-3.5 shrink-0 text-warning-ink" aria-label="確認が必要" />
+        <TriangleAlert className="size-3.5 shrink-0" style={{ color: ICON.caution }} aria-label="確認が必要" />
       )}
       <span className="whitespace-nowrap">{children}</span>
     </li>
