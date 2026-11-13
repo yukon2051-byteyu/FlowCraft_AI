@@ -205,9 +205,9 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
 
 /* ---------- 共通の部品 ---------- */
 
-const inputCls = 'h-8 rounded-lg bg-card px-2 text-[0.9rem] ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none'
+export const inputCls = 'h-8 rounded-lg bg-card px-2 text-[0.9rem] ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none'
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <p className="text-[0.8rem] font-bold text-muted">{label}</p>
@@ -216,7 +216,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function ColumnSelect({ value, cols, onChange, label, allow }: { value: string; cols: Col[]; onChange: (v: string) => void; label: string; allow?: Col['type'][] }) {
+export function ColumnSelect({ value, cols, onChange, label, allow }: { value: string; cols: Col[]; onChange: (v: string) => void; label: string; allow?: Col['type'][] }) {
   const usable = allow ? cols.filter((c) => allow.includes(c.type)) : cols
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={`${inputCls} min-w-0 flex-1`}>
@@ -695,7 +695,7 @@ function OutputForm({ p, names, set }: { p: OutputParams; names: string[]; set: 
 const TYPE_OPTIONS: ColumnType[] = ['string', 'integer', 'decimal', 'date', 'boolean']
 
 /** 列のチェックボックス一覧（並びは元の表の列の順） */
-function ColumnChecks({ picked, cols, set, label }: { picked: string[]; cols: Col[]; set: (c: string[]) => void; label: (name: string) => string }) {
+export function ColumnChecks({ picked, cols, set, label }: { picked: string[]; cols: Col[]; set: (c: string[]) => void; label: (name: string) => string }) {
   return (
     <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
       {cols.map((c) => (

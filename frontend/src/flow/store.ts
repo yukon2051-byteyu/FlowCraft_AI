@@ -23,7 +23,8 @@ import {
   setInputs,
   snapshot,
 } from './ops'
-import type { Binding, FlowDoc, FlowNode, InputDefinition, NodeType } from './types'
+import { pruneRunParameters } from './criteria'
+import type { Binding, Criterion, FlowDoc, FlowNode, InputDefinition, NodeType, RunParameter } from './types'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -66,6 +67,8 @@ type FlowState = {
    * meta：保存の画面で入力した名前・説明
    */
   commitSave: (meta?: { flow_name?: string; description?: string }) => FlowDoc
+  /** 完了基準を置き換える（追加・変更・削除）。使われなくなった「実行時に指定する値」は消す */
+  setCriteria: (items: Criterion[], addParameters?: RunParameter[]) => void
 }
 
 /** 未保存の変更があるか */
@@ -188,6 +191,13 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   setBinding: (binding) => set((s) => ({ bindings: { ...s.bindings, [binding.input_id]: binding } })),
 
   clearBindings: () => set({ bindings: {} }),
+
+  setCriteria: (items, addParameters = []) =>
+    set((s) => {
+      const known = new Set(s.flow.run_parameters.map((p) => p.param_id))
+      const params = [...s.flow.run_parameters, ...addParameters.filter((p) => !known.has(p.param_id))]
+      return { flow: { ...s.flow, completion_criteria: { ...s.flow.completion_criteria, items }, run_parameters: pruneRunParameters(params, items) } }
+    }),
 
   commitSave: (meta) => {
     const s = get()

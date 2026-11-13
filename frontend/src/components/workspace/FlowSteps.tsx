@@ -13,6 +13,8 @@ import { contentSnapshot, dataChoices, describeInputs, snapshot, UNSELECTED, use
 import { inferColumns, paramProblems, summarize } from '../../flow/params'
 import type { FlowDoc } from '../../flow/types'
 import { StepSettings } from './StepSettings'
+import { CriteriaPanel } from './CriteriaPanel'
+import { criterionProblems } from '../../flow/criteria'
 import { useFlowStore } from '../../flow/store'
 import type { FlowNode, NodeType } from '../../flow/types'
 import { isAvailable } from '../../content/featureStatus'
@@ -26,6 +28,8 @@ import { StatusBadge } from '../ui/StatusBadge'
  * つながりを壊す操作は行わず、理由をそのステップのすぐ下に表示する。
  * 各ステップの細かい設定（列・条件など）はタスク1-4・1-5で作る。
  */
+const RUN_PARAM_PLACEHOLDER: Record<string, string> = { month: '2026-10', date: '2026-10-01', integer: '例 1000', decimal: '例 12.5', string: '' }
+
 export function FlowSteps({
   onBack,
   onRan,
@@ -61,7 +65,7 @@ export function FlowSteps({
   const bindings = useFlowStore((s) => s.bindings)
   const [runError, setRunError] = useState<ApiErrorBody | null>(null)
   const runMutation = useMutation({
-    mutationFn: () => runFlow(flow, Object.values(bindings)),
+    mutationFn: () => runFlow(flow, Object.values(bindings), runValues),
     onMutate: () => setRunError(null),
     onSuccess: (run) => onRan(run, contentSnapshot(flow)),
     onError: (e) => setRunError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '実行できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),
@@ -69,6 +73,11 @@ export function FlowSteps({
   // 全体を実行できない理由（押せないボタンの近くに表示する）
   const notConfirmed = flow.nodes.filter((n) => n.confirmation_status !== 'confirmed').length
   const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
+  const [view, setView] = useState<'steps' | 'criteria'>('steps')
+  const [runValues, setRunValues] = useState<Record<string, string>>({})
+  // 完了基準の設定が終わっていない（未検証にしかならない基準があると、実行の意味が薄れるため止める）
+  const criteriaUnset = flow.completion_criteria.items.filter((c) => criterionProblems(c, flow).length > 0).length
+  const missingValues = flow.run_parameters.filter((p) => p.required !== false && !(runValues[p.param_id] ?? '').trim())
   // ファイルを割り当てていない入力（保存した作業手順を、割り当てずに開いたとき）
   const unassigned = flow.input_definitions.filter((d) => !bindings[d.input_id]).length
   const runBlocker =
@@ -76,6 +85,10 @@ export function FlowSteps({
       ? '処理ステップがありません'
       : unassigned
         ? `ファイルを割り当てていない入力が${unassigned}つあります（「${backLabel.replace(/に戻る$/, '')}」で割り当ててください）`
+        : criteriaUnset
+          ? `設定が終わっていない完了基準が${criteriaUnset}つあります（「何を満たせば完了？」で設定してください）`
+        : missingValues.length
+          ? `実行時に指定する値（${missingValues.map((p) => p.label).join('・')}）を入力してください`
         : notConfirmed
         ? `確認済みでないステップが${notConfirmed}個あるため、まだ実行できません`
         : check.status !== 'done'
@@ -93,6 +106,31 @@ export function FlowSteps({
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* 「何をする？」（処理ステップ）と「何を満たせば完了？」（完了基準）は別の欄（docs/completion-criteria.md §1） */}
+        <div className="mx-auto flex max-w-[1400px] gap-1 px-6 pt-5" role="tablist" aria-label="作業手順の内容">
+          {(
+            [
+              ['steps', `何をする？（処理ステップ ${flow.nodes.length}）`],
+              ['criteria', `何を満たせば完了？（完了基準 ${flow.completion_criteria.items.length}）`],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`rounded-full px-4 py-1.5 text-[0.9rem] font-bold ring-1 ${view === v ? 'bg-mint text-on-mint ring-mint' : 'text-subtle ring-edge hover:text-white'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {view === 'criteria' ? (
+          <div className="pt-5">
+            <CriteriaPanel />
+          </div>
+        ) : (
         <div className="mx-auto grid max-w-[1400px] items-start gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_27rem]">
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-start gap-4">
@@ -167,6 +205,7 @@ export function FlowSteps({
           )}
         </div>
         </div>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
@@ -176,6 +215,19 @@ export function FlowSteps({
         </Button>
         <CheckSummary check={check} nodes={flow.nodes} problems={problems} />
         <div className="flex items-center gap-3">
+          {/* 実行するたびに指定する値（例：対象月）。完了基準の評価に使う */}
+          {flow.run_parameters.map((p) => (
+            <label key={p.param_id} className="flex items-center gap-1.5 text-[0.85rem] text-subtle">
+              {p.label}
+              <input
+                value={runValues[p.param_id] ?? ''}
+                onChange={(e) => setRunValues({ ...runValues, [p.param_id]: e.target.value })}
+                placeholder={RUN_PARAM_PLACEHOLDER[p.type]}
+                aria-label={`実行時に指定する値：${p.label}`}
+                className="h-8 w-32 rounded-lg bg-panel-hi px-2 text-white ring-1 ring-edge focus:ring-2 focus:ring-mint focus:outline-none"
+              />
+            </label>
+          ))}
           {runBlocker && <span className="text-[0.82rem] text-subtle">{runBlocker}</span>}
           <Button variant="primary" size="sm" disabled={runBlocker !== null || runMutation.isPending} onClick={() => runMutation.mutate()} title={runBlocker ?? undefined}>
             {runMutation.isPending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
