@@ -1,5 +1,6 @@
 import {
   Building2,
+  ArrowRight,
   Cloud,
   Monitor,
   CalendarClock,
@@ -567,12 +568,24 @@ function RunLook({ className, children }: { className: string; children: ReactNo
 
 /* ================= 自分のExcelで試す ================= */
 
-type StartWay = { icon: LucideIcon; title: string; body: string; feature: FeatureKey }
+/** primary：最も伝えたい使い方（02：翌月はExcelを差し替えるだけ）。控えめなミントの枠と、今月→翌月の流れを添える */
+type StartWay = { icon: LucideIcon; title: string; body: string; feature: FeatureKey; primary?: boolean }
 
 const START_WAYS: StartWay[] = [
-  { icon: Upload, title: '今回だけ実行する', body: '読み込んで、手順を作り、実行して、Excelに出力して終わり。保存は必要ありません。', feature: 'upload' },
-  { icon: FolderOpen, title: '手順を保存して、必要なときに再実行する', body: '保存した手順を開き、新しいファイルを選ぶだけ。完了基準も一緒に使い、同じ確認を行います。', feature: 'saveReuse' },
-  { icon: CalendarClock, title: '決まった日時に、無人で実行する', body: '保存した手順と完了基準を、指定した日時に自動で実行します。問題があれば出力を止めます。', feature: 'schedule' },
+  {
+    icon: Upload,
+    title: '今回のExcelを、すぐに処理',
+    body: 'ファイルを読み込み、加工・集計・検証してExcelに出力。今回だけの作業なら、手順を保存する必要はありません。',
+    feature: 'upload',
+  },
+  {
+    icon: FolderOpen,
+    title: '毎月のExcel作業を、次回からもっと簡単に',
+    body: '一度作った加工・集計の手順と品質確認ルールを保存。翌月は新しいExcelに差し替えるだけで、同じ処理を再実行できます。',
+    feature: 'saveReuse',
+    primary: true,
+  },
+  { icon: CalendarClock, title: '決まった日時に、無人で実行する', body: '保存した手順と完了基準を、指定した日時に自動で実行します。問題があれば正式出力を止めます。', feature: 'schedule' },
 ]
 
 const SPECS = [
@@ -589,12 +602,12 @@ function TryOwnExcel() {
         <div>
           <SectionHeading
             eyebrow="自分のExcelで試す"
-            title="一度きりの作業でも、毎月の作業でも。"
-            lead="使い方は3つ。今回だけの作業は保存しなくても終われます。毎月の作業は、保存して再実行するか、決まった日時に無人で実行します。"
+            title="一度作った手順を、何度でも使える。"
+            lead="一度きりのExcel処理から、毎月の繰り返し作業、無人での定期実行まで。作業に合わせて使い方を選べます。"
           />
           <ol className="mt-6 space-y-3">
             {START_WAYS.map((w) => (
-              <li key={w.title} className="flex gap-3.5 rounded-xl bg-panel p-4 ring-1 ring-edge">
+              <li key={w.title} className={`flex gap-3.5 rounded-xl bg-panel p-4 ring-1 ${w.primary ? 'ring-mint/45' : 'ring-edge'}`}>
                 <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-mint/12 text-mint ring-1 ring-mint/30">
                   <w.icon className="size-5" aria-hidden />
                 </span>
@@ -608,6 +621,21 @@ function TryOwnExcel() {
                     )}
                   </div>
                   <p className="mt-0.5 text-[0.92rem] text-subtle">{w.body}</p>
+                  {w.primary && (
+                    <p
+                      className="mt-2.5 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg px-3 py-1.5 text-[0.84rem]"
+                      style={{ backgroundColor: '#19372F', color: '#D3E6DE' }}
+                      aria-label="今月は手順を作り、翌月はExcelを差し替えて実行"
+                    >
+                      <span>
+                        <b className="font-bold">今月</b>：手順を作る
+                      </span>
+                      <ArrowRight className="size-3.5" aria-hidden />
+                      <span className="font-bold" style={{ color: '#39D9AD' }}>
+                        翌月：Excelを差し替えて実行
+                      </span>
+                    </p>
+                  )}
                 </div>
               </li>
             ))}
