@@ -26,6 +26,10 @@ export type DemoStart = {
   flow: unknown
   bindings: Omit<Binding, 'column_mapping'>[]
   run_parameters: Record<string, string>
+  /** 品質異常のとき：何を直して再実行するか */
+  fix_note: string | null
+  /** 品質異常のとき：直したデータの体験（いつも 'ok'） */
+  fixed_pattern: DemoPattern | null
 }
 
 export function listDemos(): Promise<DemoSummary[]> {

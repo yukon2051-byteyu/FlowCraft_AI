@@ -80,3 +80,33 @@ for (const [title, first, evidence] of [
     await expect(top).toContainText(evidence)
   })
 }
+
+test('品質異常の後に「直したデータで再実行する」と、自動で実行し、直す前と後を並べて比べる（M1-3）', async ({ page }) => {
+  test.setTimeout(150_000)
+  await page.goto('/build?demo=product_match&pattern=ng')
+  await expect(page.getByRole('article', { name: /^ステップ5：/ })).toBeVisible({ timeout: 20_000 })
+  await run(page)
+  await expect(verdictBox(page)).toContainText('総合判定：重大')
+  const fix = page.getByRole('region', { name: '直して再実行する' })
+  await expect(fix).toContainText('商品コードの空白を取り除き')
+  await fix.getByRole('button', { name: '直したデータで再実行する' }).click()
+
+  // ボタンを押し直さなくても、直したデータで実行され、比較が出る
+  const compare = page.getByRole('region', { name: '直す前と後の比較' })
+  await expect(compare).toBeVisible({ timeout: 30_000 })
+  await expect(verdictBox(page)).toContainText('総合判定：正常')
+  const rows = compare.locator('tbody tr')
+  await expect(rows.nth(0)).toContainText('総合判定重大正常改善')
+  await expect(rows.nth(1)).toContainText('正式な出力停止出力できる改善')
+  await expect(rows.filter({ hasText: '照合できない商品コードが0件' })).toContainText('満たしていない（未照合 6行）満たしている（未照合 0行）改善')
+  await expect(rows.filter({ hasText: '集計前後の売上金額が一致' })).toContainText('変わらない')
+  await expect(banner(page)).toContainText('直したデータで再実行')
+  // 直した後は「直して再実行する」を出さない。正式な結果を出力できる
+  await expect(page.getByRole('region', { name: '直して再実行する' })).toHaveCount(0)
+  await expect(conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toBeEnabled()
+
+  // 自分で実行し直したら、前の比較は消える
+  await page.getByRole('button', { name: '作業手順に戻る' }).click()
+  await run(page)
+  await expect(page.getByRole('region', { name: '直す前と後の比較' })).toHaveCount(0)
+})

@@ -34,6 +34,8 @@ class DemoPattern:
     run_parameters: dict[str, str]
     # 体験の手引き（何を見ればよいか）。結果の値は書かない（実際の実行結果を見てもらう）
     guide: str
+    # 品質異常のとき：何を直せば正常終了するか（直したデータ＝fixed_pattern のデータの説明。M1-3）
+    fix_note: str | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ DEMOS: dict[str, Demo] = {
                     inputs=(DemoInput("sales", "デモ_月次売上_期間外あり.xlsx", "売上"), *_MASTERS),
                     run_parameters={"target_month": "2026-10"},
                     guide="このファイルには問題が含まれています。「作業手順全体を実行する」を押し、何が・何件・どの行で見つかり、正式な出力がどうなるかを確かめてください。",
+                    fix_note="混ざっていた11月の伝票3件を取り除いた、10月分だけのファイルで再実行します。",
                 ),
             },
             fixed_pattern="ok",
@@ -101,6 +104,7 @@ DEMOS: dict[str, Demo] = {
                     inputs=(DemoInput("sales", "デモ_商品照合_表記揺れあり.xlsx", "売上"), DemoInput("products", "商品マスタ.xlsx", "商品")),
                     run_parameters={},
                     guide="「作業手順全体を実行する」を押し、照合できない行が何行あり、原因ごとに何行ずつか、どう直せばよいかを確かめてください。",
+                    fix_note="商品コードの空白を取り除き、全角を半角にそろえ、未登録のコードを正しいコードに直したファイルで再実行します。",
                 ),
             },
             fixed_pattern="ok",
@@ -125,6 +129,7 @@ DEMOS: dict[str, Demo] = {
                     inputs=(DemoInput("ledger", "デモ_在庫台帳.xlsx", "在庫"), DemoInput("moves", "デモ_入出庫履歴_重複あり.xlsx", "入出庫")),
                     run_parameters={},
                     guide="「作業手順全体を実行する」を押し、どの伝票が重複していて、正式な出力がどうなるかを確かめてください。",
+                    fix_note="二重に記録されていた伝票2件を取り除いた入出庫履歴で再実行します。",
                 ),
             },
             fixed_pattern="ok",

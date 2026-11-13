@@ -157,3 +157,17 @@ def test_inventory_ng_detects_double_counting(client):
     assert c["c4"]["evidence"]["該当件数"] == str(len(INV["ng_gap_products"]))
     gaps = {e["商品コード"]: e for e in ok_c["c4"]["examples"]}
     assert set(gaps) == set(INV["genuine_gaps"])
+
+
+@pytest.mark.parametrize("demo", ["monthly_sales", "product_match", "inventory"])
+def test_ng_explains_how_to_fix_and_fixed_data_is_normal(client, demo):
+    """M1-3：品質異常には「何を直すか」があり、直したデータ（正常のデータ）で再実行すると正常になる"""
+    h = session(client)
+    ng, ng_body, _ = start_and_run(client, h, "ng", demo)
+    assert ng["fix_note"] and ng["fixed_pattern"] == "ok"
+    assert ng_body["verdict"]["verdict"] == "critical"
+    fixed, fixed_body, _ = start_and_run(client, h, ng["fixed_pattern"], demo)
+    assert fixed["fix_note"] is None and fixed["fixed_pattern"] is None
+    assert fixed_body["verdict"]["verdict"] == "normal"
+    # 同じ作業手順（完了基準も同じ）で比べている
+    assert fixed["flow"] == ng["flow"]

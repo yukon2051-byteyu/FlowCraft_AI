@@ -17,7 +17,8 @@ import type { DemoPattern, DemoStart } from '../api/demos'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { OpenDialog } from '../components/workspace/OpenDialog'
 import { AssignInputs } from '../components/workspace/AssignInputs'
-import { exportRun } from '../api/flows'
+import { exportRun, runFlow } from '../api/flows'
+import { contentSnapshot } from '../flow/ops'
 import type { RunSummary } from '../api/flows'
 import { ApiError } from '../api/client'
 import type { ApiErrorBody } from '../api/client'
@@ -98,6 +99,31 @@ export default function WorkspacePage() {
   const setRunValues = useFlowStore((s) => s.setRunValues)
   const demoKey = `${params.get('demo') ?? ''}:${params.get('pattern') ?? ''}`
   const startedDemo = useRef('')
+  // M1-3：直したデータで再実行した後、直す前の実行結果と並べて比べる
+  const [beforeFix, setBeforeFix] = useState<RunSummary | null>(null)
+  const [fixing, setFixing] = useState(false)
+  const [fixError, setFixError] = useState<ApiErrorBody | null>(null)
+  const fixAndRerun = async () => {
+    if (!demo?.fixed_pattern || !lastRun) return
+    setFixing(true)
+    setFixError(null)
+    try {
+      const fixed = await startDemo(demo.demo_id, demo.fixed_pattern)
+      const current = useFlowStore.getState()
+      current.clearBindings()
+      fixed.bindings.forEach((b) => current.setBinding({ ...b, column_mapping: {} }))
+      current.setRunValues(fixed.run_parameters)
+      const flow = useFlowStore.getState().flow
+      const run = await runFlow(flow, Object.values(useFlowStore.getState().bindings), fixed.run_parameters)
+      setBeforeFix(lastRun.run)
+      setDemo({ ...fixed, pattern_label: '直したデータで再実行' })
+      setLastRun({ run, snap: contentSnapshot(flow) })
+    } catch (e) {
+      setFixError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '再実行できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null })
+    } finally {
+      setFixing(false)
+    }
+  }
   useEffect(() => {
     const id = params.get('demo')
     const pattern = params.get('pattern') as DemoPattern | null
@@ -112,6 +138,7 @@ export default function WorkspacePage() {
         setOrigin('opened')
         setOpenedKey((k) => k + 1)
         setLastRun(null)
+        setBeforeFix(null)
         setDemo(d)
         setScreen('edit')
       })
@@ -213,6 +240,7 @@ export default function WorkspacePage() {
                 onBack={() => setScreen(origin === 'opened' ? 'assign' : 'define')}
                 backLabel={origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る'}
                 onRan={(run, snap) => {
+                  setBeforeFix(null) // 自分で実行し直したら、前の比較は消す（古い比較を残さない）
                   setLastRun({ run, snap })
                   setScreen('result')
                 }}
@@ -228,6 +256,8 @@ export default function WorkspacePage() {
                 onConfirmChange={(v) => setConfirmedRun(v ? lastRun.run.run_id : null)}
                 onSave={() => setSaving(true)}
                 saved={saveState === 'none' && !demo} // デモの作業手順は、利用者が保存したものではない
+                fix={demo?.fix_note && demo.fixed_pattern && lastRun.run.verdict?.verdict !== 'normal' ? { note: demo.fix_note, busy: fixing, error: fixError, onRun: fixAndRerun } : null}
+                before={beforeFix}
                 exporting={exporting}
                 exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
                 exportError={exportError}

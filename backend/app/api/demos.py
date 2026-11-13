@@ -55,6 +55,9 @@ class StartResponse(BaseModel):
     flow: dict[str, Any]
     bindings: list[BindingOut]
     run_parameters: dict[str, str]
+    # 品質異常のとき：何を直して再実行するか、と直したデータの体験（M1-3「直して再実行」）
+    fix_note: str | None
+    fixed_pattern: Pattern | None
 
 
 @router.get("/demos", response_model=list[DemoOut])
@@ -104,4 +107,6 @@ def start_demo(demo_id: str, req: StartRequest, session: Session = Depends(curre
         flow=demo.flow(),
         bindings=bindings,
         run_parameters=dict(pattern.run_parameters),
+        fix_note=pattern.fix_note,
+        fixed_pattern=demo.fixed_pattern if req.pattern == "ng" else None,
     )

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, CircleCheck, CircleHelp, CircleMinus, CircleX, FileOutput, LoaderCircle, Save, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CircleCheck, CircleHelp, CircleMinus, CircleX, FileOutput, LoaderCircle, RefreshCw, Save, TriangleAlert, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
@@ -7,6 +7,7 @@ import { fetchRun } from '../../../api/flows'
 import type { CriterionResult, RunSummary, StepRun, Verdict } from '../../../api/flows'
 import { contentSnapshot } from '../../../flow/ops'
 import { useFlowStore } from '../../../flow/store'
+import { compareRuns } from '../../../flow/compare'
 import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
 import { IssueList } from './IssueList'
@@ -37,13 +38,17 @@ type Props = {
   /** 注意・未検証の結果を、確認したうえで出力すると選んだか */
   confirmed: boolean
   onConfirmChange: (v: boolean) => void
+  /** デモの品質異常：直したデータで再実行する（M1-3） */
+  fix?: { note: string; busy: boolean; error: ApiErrorBody | null; onRun: () => void } | null
+  /** 直す前の実行結果（直して再実行した後に、並べて比べる） */
+  before?: RunSummary | null
   /** 作業手順を保存する（今回だけの作業から、毎月の作業にする） */
   onSave: () => void
   /** 今の作業手順が保存済み（変更なし）か */
   saved: boolean
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -153,6 +158,10 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
             )}
           </section>
 
+          {before && <ComparePanel before={before} after={run} />}
+
+          {fix && <FixBox fix={fix} />}
+
           {run.criteria.length > 0 && <CriteriaResults criteria={run.criteria} />}
 
           {run.flow_issues.length > 0 && (
@@ -238,6 +247,67 @@ function VerdictBox({ verdict }: { verdict: Verdict }) {
         </ul>
       )}
     </div>
+  )
+}
+
+/* ---------- デモ：直して再実行・直す前と後の比較（M1-3） ---------- */
+
+function FixBox({ fix }: { fix: NonNullable<Props['fix']> }) {
+  return (
+    <section className="rounded-2xl bg-mint/6 p-5 ring-1 ring-mint/35" aria-label="直して再実行する">
+      <h2 className="flex items-center gap-2 font-bold text-mint">
+        <Wrench className="size-5" aria-hidden />
+        この問題を直すと、正常に終わるか確かめる
+      </h2>
+      <p className="mt-1.5 text-[0.92rem] text-white/85">{fix.note} 同じ作業手順・同じ完了基準で実行し、直す前と後を並べて比べます。</p>
+      <div className="mt-3">
+        <Button variant="primary" onClick={fix.onRun} disabled={fix.busy}>
+          {fix.busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <RefreshCw className="size-4" aria-hidden />}
+          直したデータで再実行する
+        </Button>
+      </div>
+      {fix.error && (
+        <div className="mt-3">
+          <ErrorNotice error={fix.error} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+const TREND = {
+  better: { label: '改善', cls: 'text-mint' },
+  worse: { label: '悪化', cls: 'text-kaizen-text' },
+  same: { label: '変わらない', cls: 'text-subtle' },
+} as const
+
+function ComparePanel({ before, after }: { before: RunSummary; after: RunSummary }) {
+  const rows = compareRuns(before, after)
+  return (
+    <section className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="直す前と後の比較">
+      <h2 className="font-bold text-white">直す前と後の比較</h2>
+      <p className="mt-0.5 text-[0.85rem] text-subtle">どちらも同じ作業手順・同じ完了基準で、実際に実行した結果です。</p>
+      <table className="mt-3 w-full text-[0.9rem]">
+        <thead className="text-left text-[0.82rem] text-subtle">
+          <tr>
+            <th className="border-b border-edge py-1.5 pr-3 font-bold">項目</th>
+            <th className="border-b border-edge py-1.5 pr-3 font-bold">直す前</th>
+            <th className="border-b border-edge py-1.5 pr-3 font-bold">直した後</th>
+            <th className="border-b border-edge py-1.5 font-bold">変化</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label} className="border-b border-edge/60 last:border-0">
+              <td className="py-2 pr-3 font-bold text-white">{r.label}</td>
+              <td className="py-2 pr-3 text-white/80">{r.before}</td>
+              <td className="py-2 pr-3 text-white">{r.after}</td>
+              <td className={`py-2 font-bold ${TREND[r.trend].cls}`}>{TREND[r.trend].label}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   )
 }
 
