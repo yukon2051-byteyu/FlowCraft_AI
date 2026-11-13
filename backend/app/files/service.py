@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -28,6 +29,8 @@ class UploadedFile:
     size_bytes: int
     uploaded_at: datetime
     sheets: dict[str, RawSheet]
+    # ファイルの中身から計算する識別（SHA-256）。品質の履歴に「どのデータを検証したか」を残す（中身そのものは残さない）
+    sha256: str = ""
 
     @property
     def data_rows(self) -> int:
@@ -188,6 +191,7 @@ def accept_upload(session: Session, data: bytes, original_name: str | None, sett
         size_bytes=len(data),
         uploaded_at=datetime.now(timezone.utc),
         sheets={s.name: s for s in sheets},
+        sha256=hashlib.sha256(data).hexdigest(),
     )
     if all(not s.grid for s in sheets):
         raise file_error("EMPTY_FILE", f"「{filename}」にはデータがありません。", how_to_fix="データが入っているファイルを選んでください。")

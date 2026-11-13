@@ -93,6 +93,8 @@ export type RunSummary = {
   run_parameters: Record<string, string>
   /** 総合判定（タスク2-3）。実行できなかったときも返る */
   verdict: Verdict | null
+  /** 実行の記録（品質の履歴1件。backend/app/quality/record.py）。品質MVP QM-3 でブラウザに保存する */
+  record?: Record<string, unknown> | null
 }
 
 /**

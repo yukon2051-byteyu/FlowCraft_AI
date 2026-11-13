@@ -29,6 +29,8 @@ from app.engine.table import Table
 from app.errors import AppError
 from app.export.excel import build_workbook
 from app.files.compare import compare_input
+from app.quality.output import decide_output
+from app.quality.record import build_record
 from app.files.profile import build_table
 from app.flow.schema import FlowDefinition
 from app.flow.validate import FlowSchemaError, compute_dependencies, execution_blockers, parse_flow, validate_structure
@@ -177,6 +179,8 @@ class RunSummary(BaseModel):
     criteria: list[CriterionResultOut] = Field(default_factory=list)
     run_parameters: dict[str, str] = Field(default_factory=dict)
     verdict: VerdictOut | None = None
+    # 実行の記録（品質の履歴1件。app/quality/record.py）。画面はこれをブラウザに保存する。サーバーは保存しない
+    record: dict[str, Any] | None = None
 
 
 class RunDetail(RunSummary):
@@ -409,7 +413,8 @@ def execute(
 ) -> RunSummary:
     """本番の実行。未確定のノード・構造エラーがあれば実行せず、理由を返す（status=failed）。"""
     flow = _parse_or_422(req.flow)
-    ex = run_flow(flow, _bindings(flow, req.bindings), session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters)
+    bindings = _bindings(flow, req.bindings)
+    ex = run_flow(flow, bindings, session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters)
     run_id = "r_" + secrets.token_urlsafe(9)
     executed_at = datetime.now(timezone.utc)
     fhash = flow_hash(flow)
@@ -417,7 +422,8 @@ def execute(
     session.runs[run_id] = {"execution": ex, "flow_hash": fhash, "executed_at": executed_at, "flow": flow, "run_values": dict(req.run_parameters)}
     while len(session.runs) > MAX_STORED_RUNS:  # 古い実行結果から捨てる（メモリ保護）
         session.runs.pop(next(iter(session.runs)))
-    return RunSummary(**_summary(run_id, ex, fhash, executed_at, req.run_parameters))
+    record = build_record(flow, ex, run_id=run_id, executed_at=executed_at, flow_hash=fhash, bindings=bindings, files=session.files, run_values=req.run_parameters)
+    return RunSummary(**_summary(run_id, ex, fhash, executed_at, req.run_parameters), record=record.model_dump(mode="json"))
 
 
 @router.get("/runs/{run_id}", response_model=RunDetail)
@@ -447,7 +453,9 @@ def export_run(run_id: str, confirmed: bool = False, session: Session = Depends(
         raise AppError(404, "RUN_NOT_FOUND", "実行結果が見つかりません。", how_to_fix="もう一度実行してください。古い実行結果は自動で削除されます。")
     ex: Execution = stored["execution"]
     v = ex.result.verdict
-    if v is not None and v.export == "needs_confirmation" and not confirmed:
+    # 正式な出力の可否は、共通の関数で決める（Worker も同じ関数を使う。app/quality/output.py）
+    decision = decide_output(ex.result, confirmed)
+    if v is not None and decision.needs_confirmation:
         label = "確かめられなかった完了基準" if v.verdict == "unverified" else "確認が必要な点"
         raise AppError(
             409,
@@ -459,7 +467,7 @@ def export_run(run_id: str, confirmed: bool = False, session: Session = Depends(
     flow: FlowDefinition = stored["flow"]
     executed_at: datetime = stored["executed_at"]
     data = build_workbook(flow, ex, executed_at, stored["flow_hash"], stored.get("run_values"))
-    kind = "結果" if ex.result.can_export else "確認結果（調査用）"
+    kind = "結果" if decision.official else "確認結果（調査用）"
     stamp = executed_at.astimezone().strftime("%Y%m%d-%H%M")
     name = f"{flow.flow_name}_{kind}_{stamp}.xlsx".translate(_FILENAME_FORBIDDEN)
     # 日本語のファイル名は RFC 5987 の形で渡す（古いブラウザ向けに英数字の名前も付ける）
