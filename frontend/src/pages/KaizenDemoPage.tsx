@@ -2,8 +2,9 @@ import { ArrowLeft, ArrowRight, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
 import type { ApiErrorBody } from '../api/client'
-import { diagnoseScenario, fetchScenario } from '../api/kaizen'
-import type { Diagnosis, ScenarioResponse } from '../api/kaizen'
+import { buildImprovement, diagnoseScenario, fetchScenario } from '../api/kaizen'
+import type { Diagnosis, Improvement, ScenarioResponse } from '../api/kaizen'
+import { AfterProcedure } from '../components/kaizen/AfterProcedure'
 import { CandidateList } from '../components/kaizen/CandidateList'
 import { DecisionList } from '../components/kaizen/DecisionList'
 import { CurrentWork } from '../components/kaizen/CurrentWork'
@@ -20,11 +21,12 @@ import type { Decisions } from '../kaizen/decisions'
  * 廃止 → 簡素化 → 標準化 → 自動化 の順に見直し、採用した改善だけを、実行できる作業手順にする。
  * 改善候補は決まった規則で検出する（AIは使わない。AIの診断として表示しない）。
  *
- * 実装済み：STEP 1（現在の作業）・STEP 2（改善候補と根拠）・STEP 3（利用者の判断）。STEP 4・5 は準備中（押せない）。
+ * 実装済み：STEP 1（現在の作業）・STEP 2（改善候補と根拠）・STEP 3（利用者の判断）・STEP 4（改善後の手順。サーバーが判断から組み立てる）。
+ * STEP 5 は準備中（押せない）。
  * 判断は画面の中だけに持つ（読み込み直す・「最初からやり直す」で初期状態に戻る。前の判断が意図せず残らない）。
  */
 
-const READY_STEPS = 3 // 使えるSTEPの数（Phase 3 以降で増やす）
+const READY_STEPS = 4 // 使えるSTEPの数（Phase 3 以降で増やす）
 
 const HEADINGS = [
   (min: number) => `毎月${min}分のExcel作業。何に時間がかかっている？`,
@@ -46,6 +48,7 @@ export default function KaizenDemoPage() {
   const [error, setError] = useState<ApiErrorBody | null>(null)
   const [busy, setBusy] = useState(false)
   const [decisions, setDecisions] = useState<Decisions>({})
+  const [improvement, setImprovement] = useState<Improvement | null>(null)
 
   useEffect(() => {
     document.title = '業務改善デモ：その集計、本当に必要？ | FlowCraft AI'
@@ -74,7 +77,22 @@ export default function KaizenDemoPage() {
     setStep(1)
   }
 
+  /** 判断から改善後の手順を作る（判断を変えて戻ってきたときも、その時点の判断で作り直す） */
+  async function buildAfter() {
+    setError(null)
+    setBusy(true)
+    try {
+      setImprovement(await buildImprovement(decisions))
+      setStep(3)
+    } catch (e) {
+      setError(toBody(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function restart() {
+    setImprovement(null)
     setDecisions(diagnosis ? initialDecisions(diagnosis.candidates) : {})
     setError(null)
     setStep(0)
@@ -114,6 +132,7 @@ export default function KaizenDemoPage() {
           {scenario && step === 2 && diagnosis && (
             <DecisionList candidates={diagnosis.candidates} scenario={scenario.scenario} decisions={decisions} onChange={setDecisions} />
           )}
+          {scenario && step === 3 && improvement && <AfterProcedure data={improvement} scenario={scenario.scenario} />}
         </div>
 
         <nav aria-label="STEPの移動" className="mt-8 flex flex-wrap items-center gap-3 border-t border-edge pt-6">
@@ -144,10 +163,17 @@ export default function KaizenDemoPage() {
             )}
             {step === 2 && (
               <>
-                <p className="max-w-md text-right text-[0.85rem] text-subtle">
-                  {decisionIssues.length ? '判断がすべてそろうと、次へ進めます。' : 'STEP 4（改善後の手順を作成）は準備中です'}
-                </p>
-                <Button variant="primary" size="lg" disabled title={decisionIssues[0] ?? 'STEP 4（改善後の手順を作成）は準備中です'}>
+                {decisionIssues.length > 0 && <p className="max-w-md text-right text-[0.85rem] text-subtle">判断がすべてそろうと、次へ進めます。</p>}
+                <Button variant="primary" size="lg" onClick={() => void buildAfter()} disabled={decisionIssues.length > 0 || busy} title={decisionIssues[0]}>
+                  {busy ? '作成しています…' : '次へ進む：改善後の手順を作る'}
+                  <ArrowRight className="size-4.5" aria-hidden />
+                </Button>
+              </>
+            )}
+            {step === 3 && (
+              <>
+                <p className="max-w-md text-right text-[0.85rem] text-subtle">STEP 5（改善前後の比較・実行）は準備中です</p>
+                <Button variant="primary" size="lg" disabled title="STEP 5（改善前後の比較・実行）は準備中です">
                   次へ進む
                   <ArrowRight className="size-4.5" aria-hidden />
                 </Button>

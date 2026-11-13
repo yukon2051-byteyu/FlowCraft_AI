@@ -82,3 +82,37 @@ export function fetchScenario(id: string = KAIZEN_DEMO): Promise<ScenarioRespons
 export function diagnoseScenario(id: string = KAIZEN_DEMO): Promise<Diagnosis> {
   return apiRequest<Diagnosis>(`/api/kaizen/scenarios/${encodeURIComponent(id)}/diagnose`, { method: 'POST' })
 }
+
+export type AfterStep = {
+  name: string
+  mode: 'manual' | 'auto' | 'mixed'
+  minutes: number
+  from_steps: string[]
+  node_ids: string[]
+  criteria: string[]
+  changed_by: string[]
+  note: string
+}
+
+export type Improvement = {
+  after_steps: AfterStep[]
+  /** 実行できる作業手順（通常の作業手順と同じ形）。自動化を採用しなかったときは null */
+  flow: Record<string, unknown> | null
+  flow_note: string
+  changes: { candidate_id: string; status: 'adopt' | 'hold' | 'reject'; text: string }[]
+  minutes_before: number
+  minutes_after: number
+  kept_rules: string[]
+  unsupported: string[]
+  ai_used: boolean
+}
+
+export type DecisionPayload = Record<string, { status: 'adopt' | 'hold' | 'reject' | null; confirm: 'none' | 'exists' | 'unknown' | null; reason: string }>
+
+export function buildImprovement(decisions: DecisionPayload, id: string = KAIZEN_DEMO): Promise<Improvement> {
+  return apiRequest<Improvement>(`/api/kaizen/scenarios/${encodeURIComponent(id)}/build`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decisions }),
+  })
+}

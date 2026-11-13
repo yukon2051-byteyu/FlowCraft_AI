@@ -4,7 +4,8 @@ import { BANNED } from './helpers'
 /*
  * 業務改善診断デモ（デモ①「その集計、本当に必要？」）。
  * Phase 2：STEP 1（現在の7工程・90分〈想定〉）→ STEP 2（改善候補 A〜D と根拠。決まった規則。AIは使っていない）。
- * Phase 3：STEP 3（採用する／保留する／採用しない。廃止は確認してから。前提の候補。理由）。STEP 4 以降は準備中。
+ * Phase 3：STEP 3（採用する／保留する／採用しない。廃止は確認してから。前提の候補。理由）。
+ * Phase 4：STEP 4（判断から、改善後の作業の流れと、実行できる作業手順を作る。判断を変えると手順が変わる）。STEP 5 は準備中。
  */
 
 test('現在の作業を確認し、改善候補を根拠とともに見る（AIは使っていない）', async ({ page }) => {
@@ -60,7 +61,7 @@ test('改善する作業を判断する：廃止は確認してから、前提�
   const summary = page.getByRole('region', { name: '判断の集計' })
   await expect(summary).toContainText('未判断：4件')
   await expect(summary).toContainText('まだ判断していない候補があります（候補A・B・C・D）')
-  await expect(page.getByRole('button', { name: '次へ進む', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '次へ進む：改善後の手順を作る' })).toBeDisabled()
 
   const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
   // 廃止（候補A）：確認の前は採用できない
@@ -98,7 +99,7 @@ test('改善する作業を判断する：廃止は確認してから、前提�
   await expect(summary).toContainText('候補B：前提の候補Cを採用すると選べます（判断を見直してください）')
   await decision('C').getByText('採用する').click()
   await expect(summary).not.toContainText('判断を見直してください')
-  await expect(page.getByText('STEP 4（改善後の手順を作成）は準備中です')).toBeVisible()
+  await expect(page.getByRole('button', { name: '次へ進む：改善後の手順を作る' })).toBeEnabled()
 
   // STEP 2 に戻ると、判断の状態が見える
   await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
@@ -110,6 +111,58 @@ test('改善する作業を判断する：廃止は確認してから、前提�
   await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
   await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
   await expect(page.getByRole('article', { name: /^候補A：/ }).getByLabel('判断の状態：未判断')).toBeVisible()
+  const text = await page.locator('main').innerText()
+  expect(text).not.toMatch(BANNED)
+})
+
+test('改善後の手順：判断を変えると、実際の処理ステップと工程が変わる。合計の一致は必ず残る', async ({ page }) => {
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
+  // A 採用しない／B 採用しない／C 採用／D 採用
+  await decision('A').getByText('採用しない').click()
+  await decision('B').getByText('採用しない').click()
+  await decision('C').getByText('採用する').click()
+  await decision('D').getByText('採用する').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('必要な作業だけを残して、手順を作り直しました。')
+
+  const after = page.getByRole('list', { name: '改善後の工程' }).getByRole('listitem')
+  const nodes = page.getByRole('list', { name: '処理ステップ' }).getByRole('listitem')
+  const rules = page.getByRole('list', { name: '完了基準' })
+  await expect(after.filter({ hasText: '同じ集計結果を会議用資料に転記する' })).toContainText('手作業のまま')
+  await expect(page.getByText('7工程・90分 →')).toContainText('7工程・35分')
+  await expect(nodes.filter({ hasText: '営業2部の列名を共通の列名にそろえる（日付→売上日・伝票No→伝票番号・金額→売上金額）' })).toHaveCount(1)
+  await expect(nodes.filter({ hasText: /^.*の売上を集計する$/ })).toHaveCount(3) // 部署ごとに集計
+  await expect(nodes.filter({ hasText: 'まとめる' })).toHaveCount(0)
+  await expect(rules).toContainText('営業2部：集計前後の売上金額が一致')
+  await expect(page.getByText('候補A（採用しない）：工程5は手作業のまま残しました')).toBeVisible()
+  await expect(page.getByText('未対応：工程5「同じ集計結果を会議用資料に転記する」')).toBeVisible()
+
+  // 判断を変える：A・B も採用 → 転記の工程がなくなり、3部署を1つの表にまとめて1回で集計する
+  await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
+  await page.getByRole('radiogroup', { name: /確認：会議用資料への転記は/ }).getByRole('radio', { name: /要件はない/ }).check()
+  await decision('A').getByText('採用する').click()
+  await decision('B').getByText('採用する').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await expect(page.getByText('7工程・90分 →')).toContainText('5工程・20分')
+  await expect(after).toHaveCount(5)
+  await expect(after.filter({ hasText: '会議用資料' })).toHaveCount(0)
+  await expect(nodes.filter({ hasText: '3部署の売上を1つの表にまとめる' })).toHaveCount(1)
+  await expect(nodes.filter({ hasText: '部署別に売上を集計する' })).toHaveCount(1)
+  await expect(rules).toContainText('集計前後の売上金額が一致')
+  await expect(rules).toContainText('満たさないとき：重大（出力を止める）')
+  await expect(page.getByRole('region', { name: '引き継ぐ品質の確認' })).toContainText('元データとの合計一致（必ず残す）')
+  await expect(page.getByText('月次報告資料の作成（改善後）')).toBeVisible()
+  await expect(page.getByText('所要時間はすべて想定値です（実測ではありません）')).toBeVisible()
+
+  // 自動化を採用しないと、作業手順は作らない
+  await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
+  await decision('D').getByText('採用しない').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await expect(page.getByText('実行できる作業手順はありません')).toBeVisible()
+  await expect(page.getByText(/実行できる作業手順は作りません/)).toBeVisible()
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(BANNED)
 })
