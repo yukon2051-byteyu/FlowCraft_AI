@@ -263,7 +263,7 @@ def _eval_unique(c: UniqueCriterion, ctx: _Context) -> Outcome:
     ev = {"重複したキー": f"{d['duplicate_keys']:,}種類", "重複している行": f"{d['duplicate_rows']:,}行", "キーに空欄を含む行": f"{d['blank_key_rows']:,}行"}
     ex = [{"キー": e["key"], "件数": e["count"], "結果の行": "、".join(map(str, e["rows"]))} for e in d["examples"]]
     if d["duplicate_keys"]:
-        return ("failed", f"「{label}」が重複している行が{d['duplicate_rows']:,}行（{d['duplicate_keys']:,}種類）あります。", ev, ex, "重複している行を確かめてください。")
+        return ("failed", f"「{label}」が重複している行が{d['duplicate_rows']:,}行（{d['duplicate_keys']:,}種類）あります。", ev, ex, "重複している行を確かめ、同じものが二重に記録されていれば、元のファイルから取り除いて再実行してください（二重計上の防止）。")
     return ("passed", f"「{label}」に重複はありません。", ev, ex, None)
 
 

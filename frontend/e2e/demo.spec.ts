@@ -64,9 +64,19 @@ test('案内の帯から正常終了のデモに切り替えると、正常と�
   expect((await files.json()).length).toBe(3)
 })
 
-test('まだ使えないデモは、開発中と表示して押せない', async ({ page }) => {
-  await page.goto('/')
-  const card = page.getByRole('article', { name: '在庫差異検出デモ' })
-  await expect(card).toContainText('開発中')
-  await expect(card.getByRole('link')).toHaveCount(0)
-})
+for (const [title, first, evidence] of [
+  ['商品マスタ照合デモ', '完了基準：照合できない商品コードが0件', '原因：相手の表（マスタ）にない値2行'],
+  ['在庫差異検出デモ', '完了基準：伝票番号が重複しない', '重複したキー2種類'],
+] as const) {
+  test(`${title}：品質異常は、案件ごとの原因で重大になる`, async ({ page }) => {
+    test.setTimeout(150_000)
+    await page.goto('/')
+    await page.getByRole('article', { name: title }).getByRole('link', { name: /品質異常/ }).click()
+    await expect(banner(page)).toContainText(`デモ：${title}（品質異常）`, { timeout: 20_000 })
+    await run(page)
+    await expect(verdictBox(page)).toContainText('総合判定：重大')
+    const top = page.getByRole('region', { name: '完了基準の判定' }).getByRole('listitem').first()
+    await expect(top).toHaveAttribute('aria-label', first)
+    await expect(top).toContainText(evidence)
+  })
+}

@@ -1,0 +1,259 @@
+{
+  "schema_version": "1.1",
+  "engine_version": "0.1.0",
+  "flow_version": 1,
+  "created_at": "2026-11-13T00:00:00+09:00",
+  "updated_at": "2026-11-13T00:00:00+09:00",
+  "run_parameters": [],
+  "flow_id": "8a4f2c11-3b6d-4e2a-9c7f-1d5e6b7a8c92",
+  "flow_name": "商品マスタ照合（デモ）",
+  "description": "デモ用の架空データで、売上の商品コードを商品マスタと照合し、カテゴリ別に集計する。",
+  "input_definitions": [
+    {
+      "input_id": "sales",
+      "label": "売上実績",
+      "file_kind": "xlsx",
+      "sheet_hint": "売上",
+      "columns": [
+        {
+          "name": "売上日",
+          "type": "date"
+        },
+        {
+          "name": "伝票番号",
+          "type": "string"
+        },
+        {
+          "name": "部署コード",
+          "type": "string"
+        },
+        {
+          "name": "商品コード",
+          "type": "string"
+        },
+        {
+          "name": "数量",
+          "type": "integer"
+        },
+        {
+          "name": "単価",
+          "type": "integer"
+        },
+        {
+          "name": "売上金額",
+          "type": "decimal",
+          "scale": 0
+        },
+        {
+          "name": "備考",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "input_id": "products",
+      "label": "商品マスタ",
+      "file_kind": "xlsx",
+      "sheet_hint": "商品",
+      "columns": [
+        {
+          "name": "商品コード",
+          "type": "string"
+        },
+        {
+          "name": "商品名",
+          "type": "string"
+        },
+        {
+          "name": "カテゴリ",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "n1",
+      "node_type": "load",
+      "node_name": "売上実績を読み込む",
+      "parameters": {
+        "input_id": "sales"
+      },
+      "input_references": [],
+      "confirmation_status": "confirmed",
+      "output_reference": "sales"
+    },
+    {
+      "node_id": "n2",
+      "node_type": "load",
+      "node_name": "商品マスタを読み込む",
+      "parameters": {
+        "input_id": "products"
+      },
+      "input_references": [],
+      "confirmation_status": "confirmed",
+      "output_reference": "products"
+    },
+    {
+      "node_id": "n3",
+      "node_type": "join",
+      "node_name": "商品マスタと照合して商品名・カテゴリを付け加える",
+      "parameters": {
+        "keys": [
+          {
+            "left": "商品コード",
+            "right": "商品コード"
+          }
+        ],
+        "how": "left",
+        "expected_relationship": "many_to_one",
+        "unmatched_policy": "warn",
+        "check_amount_columns": [
+          "売上金額"
+        ]
+      },
+      "input_references": [
+        "sales",
+        "products"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "sales_p"
+    },
+    {
+      "node_id": "n4",
+      "node_type": "aggregate",
+      "node_name": "カテゴリごとに売上を合計する",
+      "parameters": {
+        "group_by": [
+          "カテゴリ"
+        ],
+        "aggregations": [
+          {
+            "function": "sum",
+            "column": "売上金額",
+            "output_column": "売上合計",
+            "scale": 0
+          },
+          {
+            "function": "count",
+            "output_column": "件数"
+          }
+        ]
+      },
+      "input_references": [
+        "sales_p"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "by_category"
+    },
+    {
+      "node_id": "n5",
+      "node_type": "output",
+      "node_name": "Excelに出力する",
+      "parameters": {
+        "sheets": [
+          {
+            "reference": "by_category",
+            "sheet_name": "カテゴリ別売上"
+          },
+          {
+            "reference": "sales_p",
+            "sheet_name": "照合済みの明細"
+          }
+        ]
+      },
+      "input_references": [
+        "by_category",
+        "sales_p"
+      ],
+      "confirmation_status": "confirmed"
+    }
+  ],
+  "completion_criteria": {
+    "version": 1,
+    "changelog": [
+      {
+        "version": 1,
+        "changed_at": "2026-11-13T00:00:00+09:00",
+        "summary": "完了基準を設定（3件）"
+      }
+    ],
+    "items": [
+      {
+        "criterion_id": "c1",
+        "name": "照合できない商品コードが0件",
+        "kind": "all_matched",
+        "target": {
+          "ref": "sales_p"
+        },
+        "params": {
+          "max_count": 0
+        },
+        "on_fail": "critical",
+        "origin": "template",
+        "note": "未登録のコードや表記揺れがあると、商品名・カテゴリが付かず、カテゴリ別の集計が誤る"
+      },
+      {
+        "criterion_id": "c2",
+        "name": "集計前後の売上金額が一致",
+        "kind": "total_match",
+        "target": {
+          "ref": "by_category",
+          "column": "売上合計"
+        },
+        "params": {
+          "compare_ref": "sales_p",
+          "compare_column": "売上金額",
+          "tolerance": "0"
+        },
+        "on_fail": "critical",
+        "origin": "template"
+      },
+      {
+        "criterion_id": "c3",
+        "name": "商品コードに空欄がない",
+        "kind": "no_blank",
+        "target": {
+          "ref": "sales",
+          "column": "商品コード"
+        },
+        "params": {
+          "max_count": 0
+        },
+        "on_fail": "caution",
+        "origin": "manual"
+      }
+    ]
+  },
+  "dependencies": [
+    {
+      "node_id": "n1",
+      "depends_on": []
+    },
+    {
+      "node_id": "n2",
+      "depends_on": []
+    },
+    {
+      "node_id": "n3",
+      "depends_on": [
+        "n1",
+        "n2"
+      ]
+    },
+    {
+      "node_id": "n4",
+      "depends_on": [
+        "n3"
+      ]
+    },
+    {
+      "node_id": "n5",
+      "depends_on": [
+        "n4",
+        "n3"
+      ]
+    }
+  ]
+}

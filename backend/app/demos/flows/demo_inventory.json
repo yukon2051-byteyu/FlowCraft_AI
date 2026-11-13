@@ -1,0 +1,366 @@
+{
+  "schema_version": "1.1",
+  "engine_version": "0.1.0",
+  "flow_version": 1,
+  "created_at": "2026-11-13T00:00:00+09:00",
+  "updated_at": "2026-11-13T00:00:00+09:00",
+  "run_parameters": [],
+  "flow_id": "3e9b7d24-6f1a-4c58-8b0d-2a7c5e9f1b36",
+  "flow_name": "在庫差異検出（デモ）",
+  "description": "デモ用の架空データで、入出庫履歴から理論上の在庫を計算し、在庫台帳の帳簿在庫と合わない商品を一覧にする。",
+  "input_definitions": [
+    {
+      "input_id": "ledger",
+      "label": "在庫台帳",
+      "file_kind": "xlsx",
+      "sheet_hint": "在庫",
+      "columns": [
+        {
+          "name": "商品コード",
+          "type": "string"
+        },
+        {
+          "name": "商品名",
+          "type": "string"
+        },
+        {
+          "name": "前月末在庫",
+          "type": "integer"
+        },
+        {
+          "name": "帳簿在庫",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "input_id": "moves",
+      "label": "入出庫履歴",
+      "file_kind": "xlsx",
+      "sheet_hint": "入出庫",
+      "columns": [
+        {
+          "name": "伝票番号",
+          "type": "string"
+        },
+        {
+          "name": "日付",
+          "type": "date"
+        },
+        {
+          "name": "商品コード",
+          "type": "string"
+        },
+        {
+          "name": "入庫数",
+          "type": "integer"
+        },
+        {
+          "name": "出庫数",
+          "type": "integer"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "n1",
+      "node_type": "load",
+      "node_name": "入出庫履歴を読み込む",
+      "parameters": {
+        "input_id": "moves"
+      },
+      "input_references": [],
+      "confirmation_status": "confirmed",
+      "output_reference": "moves"
+    },
+    {
+      "node_id": "n2",
+      "node_type": "aggregate",
+      "node_name": "商品ごとに入庫・出庫を合計する",
+      "parameters": {
+        "group_by": [
+          "商品コード"
+        ],
+        "aggregations": [
+          {
+            "function": "sum",
+            "column": "入庫数",
+            "output_column": "入庫合計"
+          },
+          {
+            "function": "sum",
+            "column": "出庫数",
+            "output_column": "出庫合計"
+          }
+        ]
+      },
+      "input_references": [
+        "moves"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "move_sum"
+    },
+    {
+      "node_id": "n3",
+      "node_type": "load",
+      "node_name": "在庫台帳を読み込む",
+      "parameters": {
+        "input_id": "ledger"
+      },
+      "input_references": [],
+      "confirmation_status": "confirmed",
+      "output_reference": "ledger"
+    },
+    {
+      "node_id": "n4",
+      "node_type": "join",
+      "node_name": "在庫台帳に入出庫の合計を付け加える",
+      "parameters": {
+        "keys": [
+          {
+            "left": "商品コード",
+            "right": "商品コード"
+          }
+        ],
+        "how": "left",
+        "expected_relationship": "one_to_one",
+        "unmatched_policy": "warn",
+        "check_amount_columns": []
+      },
+      "input_references": [
+        "ledger",
+        "move_sum"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "stock"
+    },
+    {
+      "node_id": "n5",
+      "node_type": "calculate",
+      "node_name": "理論在庫を計算する（前月末在庫＋入庫−出庫）",
+      "parameters": {
+        "output_column": "理論在庫",
+        "expression": {
+          "kind": "operation",
+          "op": "subtract",
+          "left": {
+            "kind": "operation",
+            "op": "add",
+            "left": {
+              "kind": "column",
+              "column": "前月末在庫"
+            },
+            "right": {
+              "kind": "column",
+              "column": "入庫合計"
+            }
+          },
+          "right": {
+            "kind": "column",
+            "column": "出庫合計"
+          }
+        },
+        "scale": 0
+      },
+      "input_references": [
+        "stock"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "stock_th"
+    },
+    {
+      "node_id": "n6",
+      "node_type": "calculate",
+      "node_name": "差異を計算する（帳簿在庫−理論在庫）",
+      "parameters": {
+        "output_column": "差異",
+        "expression": {
+          "kind": "operation",
+          "op": "subtract",
+          "left": {
+            "kind": "column",
+            "column": "帳簿在庫"
+          },
+          "right": {
+            "kind": "column",
+            "column": "理論在庫"
+          }
+        },
+        "scale": 0
+      },
+      "input_references": [
+        "stock_th"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "stock_diff"
+    },
+    {
+      "node_id": "n7",
+      "node_type": "filter",
+      "node_name": "差異のある商品だけ残す",
+      "parameters": {
+        "condition": {
+          "kind": "group",
+          "logic": "and",
+          "conditions": [
+            {
+              "kind": "condition",
+              "column": "差異",
+              "operator": "ne",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "input_references": [
+        "stock_diff"
+      ],
+      "confirmation_status": "confirmed",
+      "output_reference": "gaps"
+    },
+    {
+      "node_id": "n8",
+      "node_type": "output",
+      "node_name": "Excelに出力する",
+      "parameters": {
+        "sheets": [
+          {
+            "reference": "gaps",
+            "sheet_name": "差異のある商品"
+          },
+          {
+            "reference": "stock_diff",
+            "sheet_name": "在庫照合（全商品）"
+          }
+        ]
+      },
+      "input_references": [
+        "gaps",
+        "stock_diff"
+      ],
+      "confirmation_status": "confirmed"
+    }
+  ],
+  "completion_criteria": {
+    "version": 1,
+    "changelog": [
+      {
+        "version": 1,
+        "changed_at": "2026-11-13T00:00:00+09:00",
+        "summary": "完了基準を設定（4件）"
+      }
+    ],
+    "items": [
+      {
+        "criterion_id": "c1",
+        "name": "伝票番号が重複しない",
+        "kind": "unique",
+        "target": {
+          "ref": "moves"
+        },
+        "params": {
+          "columns": [
+            "伝票番号"
+          ]
+        },
+        "on_fail": "critical",
+        "origin": "template",
+        "note": "同じ伝票を二重に記録すると、入出庫が二重に計上され、在庫の差異の計算が誤る"
+      },
+      {
+        "criterion_id": "c2",
+        "name": "全商品の入出庫を照合できる",
+        "kind": "all_matched",
+        "target": {
+          "ref": "stock"
+        },
+        "params": {
+          "max_count": 0
+        },
+        "on_fail": "critical",
+        "origin": "template"
+      },
+      {
+        "criterion_id": "c3",
+        "name": "商品は20件",
+        "kind": "row_count",
+        "target": {
+          "ref": "stock_diff"
+        },
+        "params": {
+          "min": 20,
+          "max": 20
+        },
+        "on_fail": "caution",
+        "origin": "manual"
+      },
+      {
+        "criterion_id": "c4",
+        "name": "差異のある商品の一覧",
+        "kind": "list_rows",
+        "target": {
+          "ref": "stock_diff"
+        },
+        "params": {
+          "condition": {
+            "kind": "condition",
+            "column": "差異",
+            "operator": "ne",
+            "value": "0"
+          }
+        },
+        "on_fail": "record",
+        "origin": "template"
+      }
+    ]
+  },
+  "dependencies": [
+    {
+      "node_id": "n1",
+      "depends_on": []
+    },
+    {
+      "node_id": "n2",
+      "depends_on": [
+        "n1"
+      ]
+    },
+    {
+      "node_id": "n3",
+      "depends_on": []
+    },
+    {
+      "node_id": "n4",
+      "depends_on": [
+        "n3",
+        "n2"
+      ]
+    },
+    {
+      "node_id": "n5",
+      "depends_on": [
+        "n4"
+      ]
+    },
+    {
+      "node_id": "n6",
+      "depends_on": [
+        "n5"
+      ]
+    },
+    {
+      "node_id": "n7",
+      "depends_on": [
+        "n6"
+      ]
+    },
+    {
+      "node_id": "n8",
+      "depends_on": [
+        "n7",
+        "n6"
+      ]
+    }
+  ]
+}

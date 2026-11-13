@@ -16,6 +16,10 @@ M1「価値を示す3つのデモ」に使う：
   デモ（M1・docs/demo-design.md）用：
   デモ_月次売上_期間外あり.xlsx  10月分に、11月の日付の伝票を3件混ぜたもの（品質異常のデモ。原因は「対象期間外」だけ）
                                  正常のデモと「直したデータ」は 売上実績_2026-10.xlsx を使う
+  デモ_商品照合_表記揺れあり.xlsx 10月分の6行の商品コードを、未登録（2行）・末尾の空白（2行）・全角（2行）にしたもの
+  デモ_在庫台帳.xlsx              20商品の前月末在庫と帳簿在庫（2商品は実際の棚卸差異あり）
+  デモ_入出庫履歴.xlsx            10月の入出庫（正常）
+  デモ_入出庫履歴_重複あり.xlsx   同じ伝票を2件、二重に記録したもの（二重計上）
 
 乱数の種（シード）を固定しているため、何度生成しても同じ内容になる。
 
@@ -240,6 +244,66 @@ def generate(out_dir: Path = DATA_DIR) -> dict[str, Any]:
     )
     demo_rows = sorted(mixed.index(e) + 2 for e in extra)  # Excel上の行番号
 
+    # ---------- デモ：商品マスタ照合の品質異常（未登録・表記揺れ） ----------
+    pm_rng = random.Random(SEED + 2)
+    pm_sales = [Sale(s.day, s.slip, s.dept, s.product, s.qty, s.price, s.note, s.staff) for s in oct_sales]
+    pm_rows = pm_rng.sample(range(len(pm_sales)), 6)
+    pm_kinds: dict[str, list[int]] = {"unknown": [], "trailing_space": [], "full_width": []}
+    for k, idx in enumerate(sorted(pm_rows)):
+        s = pm_sales[idx]
+        code = s.product or ""
+        if k < 2:
+            s.product = "P-1099" if k == 0 else "P-2001"  # 商品マスタにないコード
+            pm_kinds["unknown"].append(idx + 2)
+        elif k < 4:
+            s.product = code + " "  # 末尾に空白（見た目では分からない）
+            pm_kinds["trailing_space"].append(idx + 2)
+        else:
+            s.product = code.translate(str.maketrans("P-0123456789", "Ｐ－０１２３４５６７８９"))  # 全角
+            pm_kinds["full_width"].append(idx + 2)
+    demo_pm = "デモ_商品照合_表記揺れあり.xlsx"
+    _write_sheet(
+        out_dir / demo_pm,
+        "売上",
+        OCT_HEADER,
+        [[datetime(s.day.year, s.day.month, s.day.day), s.slip, s.dept, s.product, s.qty, s.price, s.amount, s.note] for s in pm_sales],
+    )
+
+    # ---------- デモ：在庫差異検出（正常／伝票の二重計上） ----------
+    inv_rng = random.Random(SEED + 3)
+    inv_products = PRODUCTS[:20]
+    opening = {code: inv_rng.randint(20, 80) for code, *_ in inv_products}
+    moves: list[list[Any]] = []
+    for i, (code, *_rest) in enumerate(inv_products):
+        for _ in range(inv_rng.randint(3, 8)):
+            incoming = inv_rng.choice([0, 0, 5, 10, 20])
+            outgoing = 0 if incoming else inv_rng.choice([1, 2, 3, 5])
+            moves.append([date(2026, 10, inv_rng.randint(1, 31)), code, incoming, outgoing])
+    moves.sort(key=lambda m: (m[0], m[1]))
+    moves = [[f"M2610-{n + 1:04d}", datetime(d.year, d.month, d.day), c, a, b] for n, (d, c, a, b) in enumerate(moves)]
+
+    def theory(rows: list[list[Any]]) -> dict[str, int]:
+        t = dict(opening)
+        for _slip, _d, c, a, b in rows:
+            t[c] += a - b
+        return t
+
+    th = theory(moves)
+    gaps = dict(zip(sorted(inv_rng.sample([c for c, *_ in inv_products], 2)), [-1, -2]))  # 実際の棚卸差異（帳簿が少ない）
+    ledger = [[code, name, opening[code], th[code] + gaps.get(code, 0)] for code, name, *_ in inv_products]
+    _write_sheet(out_dir / "デモ_在庫台帳.xlsx", "在庫", ["商品コード", "商品名", "前月末在庫", "帳簿在庫"], ledger)
+    move_header = ["伝票番号", "日付", "商品コード", "入庫数", "出庫数"]
+    _write_sheet(out_dir / "デモ_入出庫履歴.xlsx", "入出庫", move_header, moves)
+    dup_idx = sorted(inv_rng.sample(range(len(moves)), 2))
+    dup_moves: list[list[Any]] = []
+    for i, m in enumerate(moves):
+        dup_moves.append(m)
+        if i in dup_idx:
+            dup_moves.append(list(m))  # 同じ伝票を、もう一度記録した（二重計上）
+    _write_sheet(out_dir / "デモ_入出庫履歴_重複あり.xlsx", "入出庫", move_header, dup_moves)
+    th_dup = theory(dup_moves)
+    ledger_book = {row[0]: row[3] for row in ledger}
+
     manifest = {
         "seed": SEED,
         "description": "FlowCraft AI デモ用の架空データ。実在の企業・人物・商品とは関係ありません。",
@@ -250,6 +314,10 @@ def generate(out_dir: Path = DATA_DIR) -> dict[str, Any]:
             "商品マスタ_重複あり.xlsx": {"sheet": "商品", "rows": len(PRODUCTS) + 1, "duplicate_codes": {"P-1003": 2}},
             "部署マスタ.csv": {"encoding": "cp932", "rows": len(DEPTS)},
             demo_ng: {"sheet": "売上", "rows": len(mixed), "header": OCT_HEADER},
+            demo_pm: {"sheet": "売上", "rows": len(pm_sales), "header": OCT_HEADER},
+            "デモ_在庫台帳.xlsx": {"sheet": "在庫", "rows": len(ledger)},
+            "デモ_入出庫履歴.xlsx": {"sheet": "入出庫", "rows": len(moves), "header": move_header},
+            "デモ_入出庫履歴_重複あり.xlsx": {"sheet": "入出庫", "rows": len(dup_moves), "header": move_header},
         },
         "expected": {
             "2026-10": {"total_amount": sum(s.amount for s in oct_sales), "dept_totals": dept_totals(oct_sales)},
@@ -263,6 +331,22 @@ def generate(out_dir: Path = DATA_DIR) -> dict[str, Any]:
             "out_of_period_rows": demo_rows,
             "out_of_period_dates": sorted(e.day.isoformat() for e in extra),
             "ng_total_amount": sum(s.amount for s in mixed),
+        },
+        "demo_product_match": {
+            "ok_file": "売上実績_2026-10.xlsx",
+            "ng_file": demo_pm,
+            "unmatched_rows": {k: sorted(v) for k, v in pm_kinds.items()},
+            "total_amount": sum(s.amount for s in pm_sales),
+        },
+        "demo_inventory": {
+            "ledger_file": "デモ_在庫台帳.xlsx",
+            "ok_file": "デモ_入出庫履歴.xlsx",
+            "ng_file": "デモ_入出庫履歴_重複あり.xlsx",
+            "products": len(ledger),
+            "genuine_gaps": gaps,
+            "ok_gap_products": sorted(c for c in th if ledger_book[c] != th[c]),
+            "duplicated_slips": [moves[i][0] for i in dup_idx],
+            "ng_gap_products": sorted(c for c in th_dup if ledger_book[c] != th_dup[c]),
         },
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

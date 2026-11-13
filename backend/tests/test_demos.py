@@ -19,6 +19,8 @@ from app.main import create_app
 
 MANIFEST = json.loads((Path(__file__).parent.parent / "app" / "demos" / "data" / "manifest.json").read_text(encoding="utf-8"))
 DEMO = MANIFEST["demo_monthly_sales"]
+PM = MANIFEST["demo_product_match"]
+INV = MANIFEST["demo_inventory"]
 
 
 @pytest.fixture
@@ -34,8 +36,8 @@ def session(client):
     return {"X-Session-Id": client.post("/api/session").json()["session_id"]}
 
 
-def start_and_run(client, h, pattern):
-    started = client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": pattern})
+def start_and_run(client, h, pattern, demo="monthly_sales"):
+    started = client.post(f"/api/demos/{demo}/start", headers=h, json={"pattern": pattern})
     assert started.status_code == 200, started.text
     s = started.json()
     run = client.post("/api/runs", headers=h, json={"flow": s["flow"], "bindings": s["bindings"], "run_parameters": s["run_parameters"]})
@@ -47,7 +49,7 @@ def start_and_run(client, h, pattern):
 def test_list_demos(client):
     demos = client.get("/api/demos").json()
     assert [d["demo_id"] for d in demos] == ["monthly_sales", "product_match", "inventory"]
-    assert [d["available"] for d in demos] == [True, False, False]
+    assert [d["available"] for d in demos] == [True, True, True]
     assert demos[0]["patterns"]["ok"]["label"] == "正常終了" and demos[0]["patterns"]["ng"]["label"] == "品質異常"
 
 
@@ -99,7 +101,6 @@ def test_too_many_files_and_unknown_demo(client):
         client.post("/api/files", headers=h, files={"file": (f"表{i}.csv", "a\r\n1\r\n".encode())})
     res = client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": "ok"})
     assert res.status_code == 409 and res.json()["error"]["code"] == "TOO_MANY_FILES_FOR_DEMO"
-    assert client.post("/api/demos/inventory/start", headers=h, json={"pattern": "ok"}).status_code == 404  # まだ使えない
     assert client.post("/api/demos/nothing/start", headers=h, json={"pattern": "ok"}).status_code == 404
     assert client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": "bad"}).status_code == 422
 
@@ -112,3 +113,47 @@ def test_same_result_every_time(client):
         _, body, c = start_and_run(client, h, "ng")
         results.append((body["verdict"]["verdict"], {k: (v["status"], v["evidence"]) for k, v in c.items()}, body["fingerprints"]))
     assert results[0] == results[1]
+
+
+# ===================== M1-2：商品マスタ照合・在庫差異検出 =====================
+
+
+@pytest.mark.parametrize("demo", ["product_match", "inventory"])
+def test_other_demos_ok_is_normal(client, demo):
+    h = session(client)
+    _, body, c = start_and_run(client, h, "ok", demo)
+    assert body["verdict"]["verdict"] == "normal", body["verdict"]
+    assert all(x["status"] in ("passed", "recorded") for x in c.values())
+
+
+def test_product_match_ng_breaks_down_causes(client):
+    h = session(client)
+    _, body, c = start_and_run(client, h, "ng", "product_match")
+    assert body["verdict"]["verdict"] == "critical"
+    rows = PM["unmatched_rows"]
+    ev = c["c1"]["evidence"]
+    assert c["c1"]["status"] == "failed"
+    assert ev["照合できない行"] == str(sum(len(v) for v in rows.values()))
+    assert ev["原因：前後の空白（取り除けば一致）"] == f"{len(rows['trailing_space'])}行"
+    assert ev["原因：全角・半角の違い（そろえれば一致）"] == f"{len(rows['full_width'])}行"
+    assert ev["原因：相手の表（マスタ）にない値"] == f"{len(rows['unknown'])}行"
+    # 原因は照合だけ。金額は失われていない（左結合で行は残る）
+    assert {k: v["status"] for k, v in c.items() if k != "c1"} == {"c2": "passed", "c3": "passed"}
+    assert f"{PM['total_amount']:,}" in c["c2"]["summary"]
+
+
+def test_inventory_ng_detects_double_counting(client):
+    h = session(client)
+    _, ok_body, ok_c = start_and_run(client, h, "ok", "inventory")
+    h2 = session(client)
+    _, body, c = start_and_run(client, h2, "ng", "inventory")
+    assert body["verdict"]["verdict"] == "critical" and body["can_export"] is False
+    assert c["c1"]["status"] == "failed"
+    assert c["c1"]["evidence"]["重複したキー"] == f"{len(INV['duplicated_slips'])}種類"
+    assert {e["キー"] for e in c["c1"]["examples"]} == set(INV["duplicated_slips"])
+    assert {k: v["status"] for k, v in c.items() if k != "c1"} == {"c2": "passed", "c3": "passed", "c4": "recorded"}
+    # 差異の一覧（記録）：正常は実際の棚卸差異の商品、二重計上では差異が増える（＝二重計上が在庫の計算を狂わせる）
+    assert ok_c["c4"]["evidence"]["該当件数"] == str(len(INV["ok_gap_products"]))
+    assert c["c4"]["evidence"]["該当件数"] == str(len(INV["ng_gap_products"]))
+    gaps = {e["商品コード"]: e for e in ok_c["c4"]["examples"]}
+    assert set(gaps) == set(INV["genuine_gaps"])

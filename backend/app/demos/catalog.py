@@ -81,7 +81,53 @@ DEMOS: dict[str, Demo] = {
             },
             fixed_pattern="ok",
         ),
-        Demo(demo_id="product_match", title="商品マスタ照合デモ", summary="売上の商品コードを商品マスタと照合し、商品名・カテゴリを付けます。", available=False),
-        Demo(demo_id="inventory", title="在庫差異検出デモ", summary="入出庫履歴から理論上の在庫を計算し、在庫台帳と合わない商品を一覧にします。", available=False),
+        Demo(
+            demo_id="product_match",
+            title="商品マスタ照合デモ",
+            summary="売上の商品コードを商品マスタと照合し、商品名・カテゴリを付けて、カテゴリ別に集計します。",
+            available=True,
+            flow_file="demo_product_match.json",
+            patterns={
+                "ok": DemoPattern(
+                    label="正常終了",
+                    description="すべての商品コードが、商品マスタに登録されたとおりに書かれています。",
+                    inputs=(DemoInput("sales", "売上実績_2026-10.xlsx", "売上"), DemoInput("products", "商品マスタ.xlsx", "商品")),
+                    run_parameters={},
+                    guide="「作業手順全体を実行する」を押すと、照合と集計、完了基準の確認が行われます。結果の画面で、照合できない行が0件であることと、その根拠を確かめてください。",
+                ),
+                "ng": DemoPattern(
+                    label="品質異常",
+                    description="一部の商品コードが、未登録のコードや、見た目では分からない表記揺れ（空白・全角）になっています。",
+                    inputs=(DemoInput("sales", "デモ_商品照合_表記揺れあり.xlsx", "売上"), DemoInput("products", "商品マスタ.xlsx", "商品")),
+                    run_parameters={},
+                    guide="「作業手順全体を実行する」を押し、照合できない行が何行あり、原因ごとに何行ずつか、どう直せばよいかを確かめてください。",
+                ),
+            },
+            fixed_pattern="ok",
+        ),
+        Demo(
+            demo_id="inventory",
+            title="在庫差異検出デモ",
+            summary="入出庫履歴から理論上の在庫を計算し、在庫台帳と合わない商品を一覧にします。",
+            available=True,
+            flow_file="demo_inventory.json",
+            patterns={
+                "ok": DemoPattern(
+                    label="正常終了",
+                    description="入出庫履歴に問題はありません。在庫台帳と合わない商品（棚卸の差異）を一覧にします。",
+                    inputs=(DemoInput("ledger", "デモ_在庫台帳.xlsx", "在庫"), DemoInput("moves", "デモ_入出庫履歴.xlsx", "入出庫")),
+                    run_parameters={},
+                    guide="「作業手順全体を実行する」を押すと、理論在庫と差異を計算し、完了基準で確かめます。差異のある商品の一覧（記録）も確かめてください。",
+                ),
+                "ng": DemoPattern(
+                    label="品質異常",
+                    description="入出庫履歴に、同じ伝票が二重に記録されています（二重計上）。",
+                    inputs=(DemoInput("ledger", "デモ_在庫台帳.xlsx", "在庫"), DemoInput("moves", "デモ_入出庫履歴_重複あり.xlsx", "入出庫")),
+                    run_parameters={},
+                    guide="「作業手順全体を実行する」を押し、どの伝票が重複していて、正式な出力がどうなるかを確かめてください。",
+                ),
+            },
+            fixed_pattern="ok",
+        ),
     )
 }
