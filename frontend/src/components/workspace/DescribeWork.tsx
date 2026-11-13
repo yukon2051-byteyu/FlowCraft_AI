@@ -94,7 +94,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
           <section className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="手順の作り方">
             <h2 className="font-bold text-white">手順の作り方</h2>
             <div className="mt-3 grid gap-2.5 grid-cols-3" role="radiogroup" aria-label="手順の作り方">
-              <Choice selected={false} disabled={!aiBuild} title="AIで手順を作る" body="作業の説明から、AIが処理手順を提案します（使うときだけAI使用パスワードが必要です）。" feature="aiFlow" />
+              <Choice selected={false} disabled={!aiBuild} title="AIで手順を作る" body="作業の説明から、AIが処理手順を提案します（開発中。使うときにはAI使用パスワードが必要になります）。" feature="aiFlow" />
               <Choice
                 selected={method === 'template'}
                 onSelect={() => setMethod('template')}

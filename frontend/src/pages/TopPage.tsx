@@ -1,4 +1,5 @@
 import {
+  Bot,
   Building2,
   ArrowDownRight,
   ArrowRight,
@@ -17,7 +18,6 @@ import {
   KeyRound,
   Lightbulb,
   ListChecks,
-  Lock,
   Play,
   ScanSearch,
   ShieldCheck,
@@ -30,6 +30,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { AI_NOTE, HANDLING_SUMMARY, UNSUPPORTED_NOTE } from '../content/dataHandling'
 import { isAvailable } from '../content/featureStatus'
 import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
@@ -670,30 +671,46 @@ function TryOwnExcel() {
           下の余った空間は埋めない（カードを引き伸ばさない）。左のボタンが自然に目立つ
         */}
         <div className="flex flex-col gap-4 self-start lg:col-start-2 lg:row-start-2">
-          <div className="rounded-2xl bg-panel ring-1 ring-edge p-6" role="region" aria-label="対応形式">
+          <div className="rounded-2xl bg-panel px-6 py-5 ring-1 ring-edge" role="region" aria-label="対応形式">
             <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-white">
               <FileSpreadsheet className="size-5 text-mint" aria-hidden />
               対応形式
             </h3>
             <dl className="mt-3 divide-y divide-edge rounded-xl ring-1 ring-edge">
               {SPECS.map((s) => (
-                <div key={s.k} className="grid px-3.5 py-2.5 grid-cols-[8rem_1fr] gap-2.5">
+                <div key={s.k} className="grid grid-cols-[8rem_1fr] gap-2.5 px-3.5 py-2">
                   <dt className="text-[0.86rem] font-bold text-subtle">{s.k}</dt>
                   <dd className="text-[0.92rem] text-white/90">{s.v}</dd>
                 </div>
               ))}
             </dl>
+            <p className="mt-2.5 text-[0.8rem] text-subtle">{UNSUPPORTED_NOTE}</p>
           </div>
-          {/* 背景は控えめに（ミントはアイコン・見出し・枠線だけに使う） */}
-          <div className="rounded-2xl bg-[#18221F] ring-1 ring-mint-line p-6" role="region" aria-label="AI機能の利用について">
+          {/* データの取り扱い（2026-11-14：独立した「データの取り扱い・ご利用上の注意」から統合）。背景は控えめに（ミントはアイコン・見出し・枠線だけ）。
+              文章は src/content/dataHandling.ts の1か所だけに書く（読み込む画面・確認の画面と同じ文章） */}
+          <div className="rounded-2xl bg-[#18221F] px-6 py-5 ring-1 ring-mint-line" role="region" aria-label="データの取り扱い">
             <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-mint-title">
-              <KeyRound className="size-5" aria-hidden />
-              AI機能の利用について
+              <ShieldCheck className="size-5" aria-hidden />
+              データの取り扱い
             </h3>
-            <p className="mt-2 text-[0.9rem] leading-relaxed text-mint-body">
-              AIによる作業手順の作成や改善の提案には、<span className="font-bold text-white">AI使用パスワード</span>が必要です。AIを使う操作のときにだけ入力を求めます。
-            </p>
-            <p className="mt-1 text-[0.88rem] leading-relaxed text-subtle">ファイルの読み込みや、Excelの加工・集計など、AIを使わない機能はパスワードなしで使えます。</p>
+            <ul className="mt-2.5 space-y-1.5 text-[0.9rem] leading-relaxed">
+              {HANDLING_SUMMARY.map((h) => {
+                const Icon = h.kind === 'warn' ? TriangleAlert : h.kind === 'ai' ? Bot : Clock3
+                return (
+                  <li key={h.text} className={`flex gap-2.5 ${h.kind === 'warn' ? 'text-white' : 'text-mint-body'}`}>
+                    <Icon className={`mt-0.5 size-4 shrink-0 ${h.kind === 'warn' ? 'text-warning' : 'text-mint'}`} aria-hidden />
+                    {h.text}
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="mt-3 border-t border-mint-line/70 pt-3">
+              <p className="flex items-center gap-1.5 text-[0.88rem] font-bold text-mint-title">
+                <KeyRound className="size-4" aria-hidden />
+                AI機能について
+              </p>
+              <p className="mt-1 text-[0.86rem] leading-relaxed text-subtle">{AI_NOTE}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -712,13 +729,6 @@ const TRUST_FLOW: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: ScanSearch, title: '検証する', body: '決めたルールで、件数・金額・\n重複などを確認。' },
   { icon: ListChecks, title: '根拠を残す', body: '異常の内容・該当データ・\n判定理由を記録。' },
   { icon: ShieldCheck, title: '誤出力を防ぐ', body: '重大な異常を検出した場合、\n正式出力を停止。' },
-]
-
-const CAUTIONS: { icon: LucideIcon; text: string }[] = [
-  { icon: Lock, text: 'AI機能（開発中）では、列名・データの形式・一部のサンプル値だけを送り、個人情報と思われる列の値は送信前に伏せる設計です。現在はAIに何も送信していません。' },
-  { icon: Clock3, text: '読み込んだデータは保存せず、最後の操作から60分で自動的に削除します。' },
-  { icon: TriangleAlert, text: 'パスワード付きのExcel、マクロ（VBA）の実行には対応していません。' },
-  { icon: ShieldCheck, text: '公開版では、機密情報や実在の個人情報を含むファイルは使わないでください。' },
 ]
 
 function Trust() {
@@ -761,20 +771,20 @@ function Trust() {
           </ul>
         </div>
 
-        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。タイトルの行（タイトル＋ラベル）と、その下の5要素を、それぞれ1つのグループとしてカードの中央に置く（中心線が一致する）：
-              異常の検出 → 正式出力を停止 → デモのボタン（矢印は32pxの箱の中央）
-            ・Flex（justify-content: center・align-items: center）。各要素は内容の幅のまま並べ、間隔は gap で統一（20px）
-              → グループは実際の幅を基準に中央に置かれ、左右の余白が等しくなる（全幅に引き伸ばさない）
-            ・ボタンの補足説明はボタンの下に絶対配置する → 補足説明がボタンの上下中央の計算に入らず、
-              矢印・正式出力停止・ボタンの中心線が揃う（margin・translateY による位置合わせはしない）
+        {/* 実行結果のイメージ（架空のデータ）。セクションの主役（2026-11-14 最終：利用者の完成イメージに合わせる）。
+            ・タイトルの行（タイトル＋ラベル）は左揃え
+            ・その下の5要素（異常の検出 → 矢印 → 正式出力を停止 → 矢印 → デモのボタン）は、内容の幅の Grid（w-fit）にまとめ、
+              カードの中央に置く（mx-auto。全幅に引き伸ばさない・space-between で散らさない）。間隔は gap で統一
+            ・Grid は2行：1行目に5要素、2行目はボタンの列だけに補足説明。1行目の中央揃えだけで、矢印・正式出力停止・ボタンの
+              中心線が揃う（補足説明の高さは1行目の中央の計算に入らない。絶対配置・個別の margin による位置合わせはしない）
             固定の高さは付けない。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
-        <div className="mt-[22px] rounded-2xl bg-panel-hi px-[26px] pt-[22px] pb-[32px] ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
-          <p className="flex flex-wrap items-center justify-center gap-2.5" data-flow="title">
+        <div className="mt-[22px] rounded-2xl bg-panel-hi px-[30px] pt-[20px] pb-[20px] ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
+          <p className="flex flex-wrap items-center gap-2.5" data-flow="title">
             <span className="text-[1.05rem] font-bold text-white">実行結果のイメージ</span>
             <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[0.8rem] text-subtle ring-1 ring-white/15">架空データの例（照合漏れを重大として設定した場合）</span>
           </p>
-          <div className="mt-[16px] flex items-center justify-center gap-[20px]" data-flow="group">
-            <div className="flex shrink-0 items-center gap-[18px]" data-flow="detect">
+          <div className="mx-auto mt-[16px] grid w-fit grid-cols-[repeat(5,auto)] items-center gap-x-[22px] gap-y-[4px]" data-flow="group">
+            <div className="flex items-center gap-[18px]" data-flow="detect">
               <span className="grid size-[64px] shrink-0 place-items-center rounded-2xl bg-kaizen/15 text-kaizen ring-1 ring-kaizen/40">
                 <TriangleAlert className="size-8" aria-hidden />
               </span>
@@ -783,41 +793,29 @@ function Trust() {
                 <span className="mt-[7px] block text-white/80">商品マスタ照合漏れ：15件</span>
               </span>
             </div>
-            <span className="flex w-[32px] shrink-0 justify-center" data-flow="arrow1">
-              <ArrowRight className="size-7 text-white/60" aria-hidden />
-            </span>
+            <ArrowRight className="size-7 text-white/60" aria-hidden data-flow="arrow1" />
             <p className="flex items-center justify-center gap-2.5 rounded-xl bg-kaizen/15 px-6 py-3.5 text-[1.3rem] font-bold whitespace-nowrap text-kaizen-text ring-1 ring-kaizen/55" data-flow="stop">
               <Ban className="size-6" aria-hidden />
               正式出力を停止
             </p>
-            <span className="flex w-[32px] shrink-0 justify-center" data-flow="arrow2">
-              <ArrowRight className="size-7 text-white/60" aria-hidden />
-            </span>
-            <div className="relative shrink-0" data-flow="demo">
+            <ArrowRight className="size-7 text-white/60" aria-hidden data-flow="arrow2" />
+            <div data-flow="demo">
               <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary">
                 <CirclePlay className="size-5" aria-hidden />
                 品質異常のデモを体験する
                 <ArrowRight className="size-5" aria-hidden />
               </Button>
-              <span className="absolute inset-x-0 top-full mt-[8px] flex items-center justify-center gap-1 text-[12.5px] whitespace-nowrap text-subtle">
-                <Info className="size-3.5" aria-hidden />
-                異常の詳細・判定根拠も確認できます
-              </span>
             </div>
+            {/* 2行目：ボタンの列だけ（ボタンの直下・ボタンの幅の中央） */}
+            <p className="col-start-5 flex items-center justify-center gap-1 text-[12.5px] whitespace-nowrap text-subtle" data-flow="note">
+              <Info className="size-3.5" aria-hidden />
+              異常の詳細・判定根拠も確認できます
+            </p>
           </div>
         </div>
         <p className="mt-[16px] text-[0.82rem] text-subtle">
           確認できるのは、自動で行う確認と、設定した基準の範囲です。毎月の実行では、前月に正式出力した結果と自動で比べます（履歴はこのブラウザに保存）。品質ルールの複製は開発中です。
         </p>
-        <h3 className="mt-8 text-[0.95rem] font-bold text-white">データの取り扱い・ご利用上の注意</h3>
-        <ul className="mt-3 grid gap-x-8 gap-y-2 grid-cols-2">
-          {CAUTIONS.map((c) => (
-            <li key={c.text} className="flex gap-2.5 text-[0.9rem] leading-relaxed text-subtle">
-              <c.icon className="mt-0.5 size-4 shrink-0 text-mint/80" aria-hidden />
-              {c.text}
-            </li>
-          ))}
-        </ul>
       </div>
     </section>
   )

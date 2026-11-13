@@ -119,11 +119,19 @@ test('最初の画面：読み込む前に始め方を選ばせず、すぐに�
   const derive = side.locator('[aria-disabled="true"]', { hasText: '手順を複製してカスタマイズ' })
   await expect(derive).toContainText('開発中')
   await expect(derive.getByRole('button')).toHaveCount(0)
-  // AI利用・データの取扱い：詳細は開いたときだけ表示する
-  const ai = side.getByRole('region', { name: 'AI利用・データの取扱い' })
-  await expect(ai.getByText('現在はAIに何も送信していません', { exact: false })).toBeHidden()
-  await ai.getByText('詳細を確認する').click()
-  await expect(ai.getByText('現在はAIに何も送信していません', { exact: false })).toBeVisible()
+  // データの取り扱い：要点は右側に。詳しい説明は、ファイルを選ぶ場所のすぐ下の「データの取り扱いを確認」から開く（同意は求めない）
+  const handling = side.getByRole('region', { name: 'データの取り扱い' })
+  await expect(handling).toContainText('最後の操作から60分で自動的に削除します')
+  await expect(handling).toContainText('現在、AIへのデータ送信は行っていません')
+  await main.getByRole('button', { name: 'データの取り扱いを確認' }).click()
+  const dialog = page.getByRole('dialog', { name: 'データの取り扱い' })
+  for (const t of ['読み込んだデータの保存と削除', 'このブラウザに残るもの', 'AIへの送信', '機密情報・個人情報', '対応していないもの']) {
+    await expect(dialog.getByRole('region', { name: t })).toBeVisible()
+  }
+  await expect(dialog).toContainText('1MBを超えるファイルは、受け取る間だけサーバーの一時フォルダを使い')
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
 
   // そのままファイルを読み込める
   await page.getByTestId('file-input').first().setInputFiles(fixture('sales_sample.xlsx'))

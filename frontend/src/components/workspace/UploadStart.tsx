@@ -1,6 +1,8 @@
-import { ArrowRight, ChevronDown, ChevronRight, CircleCheck, Database, Eye, FileCode, FileSpreadsheet, Files, FolderOpen, Layers, Route, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ArrowRight, Bot, ChevronRight, Clock3, Database, Eye, FileCode, FileSpreadsheet, Files, FolderOpen, KeyRound, Layers, Route, ShieldCheck, TriangleAlert } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { AI_NOTE, HANDLING_SUMMARY } from '../../content/dataHandling'
 import { isAvailable } from '../../content/featureStatus'
+import { DataHandlingDialog } from '../ui/DataHandlingDialog'
 import { DevBadge } from '../ui/DevBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, hasSession } from '../../api/client'
@@ -37,6 +39,9 @@ type Props = {
 
 export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenSaved }: Props) {
   const [files, setFiles] = useState<Loaded[]>([])
+  // データの取り扱いの説明（ファイルを選ぶ前に確かめられるように、選ぶ場所のすぐ下から開く）
+  const [showHandling, setShowHandling] = useState(false)
+  const openHandling = () => setShowHandling(true)
   const [uploading, setUploading] = useState<string[]>([])
   const [failures, setFailures] = useState<UploadFailure[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -183,6 +188,7 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenS
 
   return (
     <>
+      {showHandling && <DataHandlingDialog onClose={() => setShowHandling(false)} />}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!hasAny ? (
           // A案：左（約65%）＝ファイルを読み込む主操作、右（約35%）＝ほかの始め方。左右の上端をそろえ、高さはそろえない
@@ -202,6 +208,9 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenS
                   </li>
                 ))}
               </ul>
+              <p className="-mt-1.5 text-center">
+                <HandlingLink onClick={openHandling} />
+              </p>
               {/* 上部の5つの段階を置き換えるものではない。初めての人に、読み込んだ後の流れを1行で示す */}
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-mint-soft/70 px-4 py-2.5 text-[0.88rem] ring-1 ring-forest/15" aria-label="読み込み後の流れ">
                 <span className="flex items-center gap-1.5 font-bold text-forest">
@@ -217,7 +226,7 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenS
               </p>
               {notices}
             </section>
-            <SideCards onShowSample={onShowSample} onOpenSaved={onOpenSaved} />
+            <SideCards onShowSample={onShowSample} onOpenSaved={onOpenSaved} onOpenHandling={openHandling} />
           </div>
         ) : (
           <div className="mx-auto grid max-w-[1500px] gap-6 px-6 py-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
@@ -237,6 +246,9 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenS
                 deletingId={deletingId}
               />
               <Dropzone onFiles={addFiles} compact disabled={full} disabledReason={full ? `上限（${MAX_FILES}ファイル）に達しています` : undefined} />
+              <p className="px-1">
+                <HandlingLink onClick={openHandling} dark />
+              </p>
               {notices}
             </aside>
             <div className="min-w-0">
@@ -296,7 +308,7 @@ const NEXT_FLOW = ['① データ内容・列構成の確認', '② 作業内容
  * 開始方法を選ぶ大きなカード（すぐに自動化する／作業の見直しから始める）はこの画面に出さない
  * （AI業務改善診断の機能と設定 featureStatus.kaizen は残す。将来、別の導線から始められるようにする）。
  */
-function SideCards({ onShowSample, onOpenSaved }: { onShowSample: () => void; onOpenSaved?: () => void }) {
+function SideCards({ onShowSample, onOpenSaved, onOpenHandling }: { onShowSample: () => void; onOpenSaved?: () => void; onOpenHandling: () => void }) {
   const deriveReady = isAvailable('derive')
   return (
     <aside className="space-y-3" aria-label="ほかの始め方">
@@ -339,61 +351,57 @@ function SideCards({ onShowSample, onOpenSaved }: { onShowSample: () => void; on
         </div>
       </div>
 
-      <AiAndData />
+      <AiAndData onOpen={onOpenHandling} />
     </aside>
   )
 }
 
-/**
- * AI利用・データの取扱い。実装と一致することだけを書く：
- * - 読み込んだデータはサーバーのメモリ上にだけ置き、最後の操作から60分で削除する（backend/app/sessions/store.py・config.py）
- * - AI機能は開発中で、今はAIに何も送信していない。送る情報は設計（docs/ai-auth-design.md）として書く
- */
-function AiAndData() {
+/** 「データの取り扱いを確認」（明るい面・暗い面のどちらにも置ける控えめなリンク） */
+function HandlingLink({ onClick, dark = false }: { onClick: () => void; dark?: boolean }) {
   return (
-    <section className="rounded-2xl bg-panel/60 p-4 ring-1 ring-edge" aria-label="AI利用・データの取扱い">
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        'inline-flex items-center gap-1 rounded text-[0.85rem] font-bold underline-offset-2 hover:underline focus-visible:outline-2 ' +
+        (dark ? 'text-mint focus-visible:outline-mint' : 'text-forest focus-visible:outline-forest')
+      }
+    >
+      <ShieldCheck className="size-4" aria-hidden />
+      データの取り扱いを確認
+    </button>
+  )
+}
+
+/**
+ * データの取り扱い（要点）。文章は src/content/dataHandling.ts の1か所だけに書く（TOP・確認の画面と同じ）。
+ * 詳しい説明は「データの取り扱いを確認」の画面で読む。
+ */
+function AiAndData({ onOpen }: { onOpen: () => void }) {
+  return (
+    <section className="rounded-2xl bg-panel/60 p-4 ring-1 ring-edge" aria-label="データの取り扱い">
       <h2 className="flex items-center gap-2 font-bold text-white">
         <ShieldCheck className="size-5 shrink-0 text-mint" aria-hidden />
-        AI利用・データの取扱い
+        データの取り扱い
       </h2>
       <ul className="mt-2 space-y-1.5 text-[0.86rem] text-white/85">
-        <li className="flex gap-2">
-          <CircleCheck className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
-          AI機能を使うときだけパスワードが必要です。Excelの読み込み・加工・集計には必要ありません。
-        </li>
-        <li className="flex gap-2">
-          <CircleCheck className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
-          読み込んだデータは保存せず、最後の操作から60分で自動的に削除します。
-        </li>
-        <li className="flex gap-2">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-          公開版では、機密情報や実在の個人情報を含むファイルは使わないでください。
-        </li>
+        {HANDLING_SUMMARY.map((h) => {
+          const Icon = h.kind === 'warn' ? TriangleAlert : h.kind === 'ai' ? Bot : Clock3
+          return (
+            <li key={h.text} className="flex gap-2">
+              <Icon className={`mt-0.5 size-4 shrink-0 ${h.kind === 'warn' ? 'text-warning' : 'text-mint'}`} aria-hidden />
+              {h.text}
+            </li>
+          )
+        })}
       </ul>
-      <details className="group mt-3 rounded-xl bg-white/4 ring-1 ring-edge">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[0.88rem] font-bold text-white/90 hover:text-white focus-visible:outline-2 focus-visible:outline-mint [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
-          詳細を確認する
-        </summary>
-        <dl className="space-y-2.5 px-3 pt-1 pb-3 text-[0.84rem] leading-relaxed">
-          <div>
-            <dt className="font-bold text-white/90">AI使用パスワードが必要になる操作</dt>
-            <dd className="text-subtle">AIによる作業手順の作成と、改善の提案（どちらも開発中）。AIを使う操作のときにだけ入力を求めます。</dd>
-          </div>
-          <div>
-            <dt className="font-bold text-white/90">AIに送る情報</dt>
-            <dd className="text-subtle">AI機能は開発中で、現在はAIに何も送信していません。完成後は、列名・データの形式・一部のサンプル値だけを送り、個人情報と思われる列の値は送信前に伏せる設計です。</dd>
-          </div>
-          <div>
-            <dt className="font-bold text-white/90">ファイルの一時保存と削除</dt>
-            <dd className="text-subtle">読み込んだファイルはサーバーのメモリ上にだけ置き、ディスクには保存しません。最後の操作から60分で、データごと自動的に削除します。保存した作業手順には、業務データやファイルの中身は含まれません。</dd>
-          </div>
-          <div>
-            <dt className="font-bold text-white/90">ご利用上の注意</dt>
-            <dd className="text-subtle">パスワード付きのExcel、マクロ（VBA）の実行には対応していません。</dd>
-          </div>
-        </dl>
-      </details>
+      <p className="mt-2.5 flex gap-2 border-t border-edge pt-2.5 text-[0.84rem] leading-relaxed text-subtle">
+        <KeyRound className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+        {AI_NOTE}
+      </p>
+      <div className="mt-2">
+        <HandlingLink onClick={onOpen} dark />
+      </div>
     </section>
   )
 }

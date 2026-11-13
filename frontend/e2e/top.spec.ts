@@ -83,7 +83,7 @@ test('キーボードでも使える。動きを減らす設定では、すぐ�
   expect(y).toBeLessThan(160)
 })
 
-test('品質の確認：実行結果のイメージは中央揃えの横一列。4つの間隔がそろい、矢印とボタンの中心が一致。ボタンでデモへ', async ({ page }) => {
+test('品質の確認：実行結果のイメージはタイトル左揃え・5要素は中央。間隔がそろい、矢印とボタンの中心が一致。ボタンでデモへ', async ({ page }) => {
   for (const [w, h] of [
     [1366, 768],
     [1920, 1080],
@@ -93,31 +93,50 @@ test('品質の確認：実行結果のイメージは中央揃えの横一列�
     const m = await page.evaluate(() => {
       const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect()
       const q = (k: string) => r(`#trust [data-flow="${k}"]`)
-      const det = q('detect'), a1 = q('arrow1'), stop = q('stop'), a2 = q('arrow2')
+      const card = r('#trust [aria-label="実行結果のイメージ"]')
+      const det = q('detect'), a1 = q('arrow1'), stop = q('stop'), a2 = q('arrow2'), note = q('note')
       const btn = r('#trust [data-flow="demo"] a')
+      const title = q('title').left
       const cy = (b: DOMRect) => b.top + b.height / 2
+      const right = Math.max(btn.right, note.right)
       return {
         gaps: [a1.left - det.right, stop.left - a1.right, a2.left - stop.right, btn.left - a2.right],
         centers: [cy(a1), cy(stop), cy(a2), cy(btn), cy(det)],
-        card: r('#trust [aria-label="実行結果のイメージ"]').height,
-        // 5要素のグループの左右の余白（カードの内側の端から）。中央揃えなら等しい
-        sides: [det.left - r('#trust [data-flow="group"]').left, r('#trust [data-flow="group"]').right - r('#trust [data-flow="demo"]').right],
-        // タイトルの行の中心と、5要素のグループの中心（中心線が一致する）
-        titleCenterDiff: (() => {
-          const t = [...document.querySelectorAll('#trust [data-flow="title"] > span')].map((e) => e.getBoundingClientRect())
-          return (t[0].left + t[t.length - 1].right) / 2 - (det.left + btn.right) / 2
-        })(),
+        card: card.height,
+        // 5要素のグループの左右の余白（カードの端から）。中央揃えなら等しい
+        sides: [det.left - card.left, card.right - right],
+        // タイトルは左揃え（カードの内側の余白の位置）
+        titleIndent: title - card.left,
+        noteBelowButton: note.top - btn.bottom,
+        noteCenterDiff: (note.left + note.right) / 2 - (btn.left + btn.right) / 2,
         cards: [...document.querySelectorAll('#trust ol li')].map((e) => e.getBoundingClientRect().height),
       }
     })
     expect(Math.max(...m.gaps) - Math.min(...m.gaps), `${w}px：間隔の差`).toBeLessThanOrEqual(2)
     expect(Math.max(...m.centers) - Math.min(...m.centers), `${w}px：中心の差`).toBeLessThanOrEqual(2)
-    expect(m.card).toBeLessThanOrEqual(175)
+    expect(m.card).toBeLessThanOrEqual(180)
     expect(Math.abs(m.sides[0] - m.sides[1]), `${w}px：左右の余白の差`).toBeLessThanOrEqual(2)
-    expect(m.sides[0], `${w}px：全幅に広げていない`).toBeGreaterThan(50)
-    expect(Math.abs(m.titleCenterDiff), `${w}px：タイトルと5要素の中心線の差`).toBeLessThanOrEqual(2)
+    expect(m.sides[0], `${w}px：全幅に広げていない`).toBeGreaterThan(80)
+    expect(m.titleIndent, `${w}px：タイトルは左揃え`).toBeLessThanOrEqual(40)
+    expect(m.noteBelowButton).toBeGreaterThanOrEqual(4)
+    expect(Math.abs(m.noteCenterDiff)).toBeLessThanOrEqual(2)
     expect(new Set(m.cards.map(Math.round)).size).toBe(1)
   }
   await page.locator('#trust').getByRole('link', { name: '品質異常のデモを体験する' }).click()
   await expect(page).toHaveURL(/[/]build[?]demo=monthly_sales&pattern=ng/)
+})
+
+test('データの取り扱いは「自分のExcelで試す」の右側に統合し、独立したセクションは置かない', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'データの取り扱い・ご利用上の注意' })).toHaveCount(0)
+  const formats = page.getByRole('region', { name: '対応形式' })
+  await expect(formats).toContainText('※ パスワード付きExcel、VBAマクロの実行には対応していません。')
+  const handling = page.getByRole('region', { name: 'データの取り扱い' })
+  await expect(handling).toContainText('読み込んだデータは、最後の操作から60分で自動的に削除します。')
+  await expect(handling).toContainText('現在、AIへのデータ送信は行っていません（AI機能は開発中です）。')
+  await expect(handling).toContainText('公開版では、機密情報や実在する個人情報を含むファイルは使用しないでください。')
+  await expect(handling).toContainText('AI機能について')
+  await expect(page.getByRole('region', { name: 'AI機能の利用について' })).toHaveCount(0)
+  // 同じ説明をTOPの中で重複させない
+  await expect(page.getByText('最後の操作から60分で自動的に削除します', { exact: false })).toHaveCount(1)
 })
