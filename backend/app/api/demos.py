@@ -110,3 +110,43 @@ def start_demo(demo_id: str, req: StartRequest, session: Session = Depends(curre
         fix_note=pattern.fix_note,
         fixed_pattern=demo.fixed_pattern if req.pattern == "ng" else None,
     )
+
+
+# ---------------------------------------------------------------------------
+# ひな形（新ワークフロー Phase 2）：デモの作業手順を、作業起点の「仮の手順」のもとにする。
+# ファイルは読み込まない（列名は、データを読み込んだ後の列の照合で確かめる）。
+# ---------------------------------------------------------------------------
+
+
+class TemplateOut(BaseModel):
+    template_id: str
+    title: str
+    summary: str
+    inputs: list[str]
+
+
+def _template_title(demo_title: str) -> str:
+    return demo_title.removesuffix("デモ")
+
+
+@router.get("/templates", response_model=list[TemplateOut])
+def list_templates() -> list[TemplateOut]:
+    return [
+        TemplateOut(
+            template_id=d.demo_id,
+            title=_template_title(d.title),
+            summary=d.summary,
+            inputs=[i["label"] for i in d.flow()["input_definitions"]],
+        )
+        for d in DEMOS.values()
+        if d.available and d.flow_file
+    ]
+
+
+@router.get("/templates/{template_id}")
+def get_template(template_id: str) -> dict[str, Any]:
+    demo = DEMOS.get(template_id)
+    if demo is None or not demo.available or not demo.flow_file:
+        raise AppError(404, "TEMPLATE_NOT_FOUND", "このひな形は見つかりません。", how_to_fix="ひな形の一覧から選び直してください。")
+    return demo.flow()
+

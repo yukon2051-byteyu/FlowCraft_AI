@@ -171,3 +171,16 @@ def test_ng_explains_how_to_fix_and_fixed_data_is_normal(client, demo):
     assert fixed_body["verdict"]["verdict"] == "normal"
     # 同じ作業手順（完了基準も同じ）で比べている
     assert fixed["flow"] == ng["flow"]
+
+
+# ===================== ひな形（新ワークフロー Phase 2） =====================
+
+
+def test_templates_list_and_flow_without_loading_files(client):
+    items = client.get("/api/templates").json()
+    assert [t["template_id"] for t in items] == ["monthly_sales", "product_match", "inventory"]
+    assert items[0]["title"] == "月次売上集計" and items[0]["inputs"] == ["売上実績", "商品マスタ", "部署マスタ"]
+    flow = client.get("/api/templates/monthly_sales").json()
+    assert flow["flow_name"] and flow["nodes"] and flow["completion_criteria"]["items"]
+    # ファイルは読み込まない（セッションも不要）
+    assert client.get("/api/templates/nothing").status_code == 404

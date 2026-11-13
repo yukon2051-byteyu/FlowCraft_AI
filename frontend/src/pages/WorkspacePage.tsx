@@ -8,6 +8,8 @@ import { Stepper } from '../components/workspace/Stepper'
 import { StartChooser } from '../components/workspace/StartChooser'
 import { DescribeWork } from '../components/workspace/DescribeWork'
 import { modeFromParam, START_PARAM, stepViews } from '../flow/journey'
+import { fetchTemplate } from '../api/templates'
+import { copyFlow } from '../flow/copy'
 import type { BuildMethod, Facts, Screen, StartMode } from '../flow/journey'
 import { UploadStart } from '../components/workspace/UploadStart'
 import type { DefineSource } from '../components/workspace/UploadStart'
@@ -41,6 +43,7 @@ import { selectNeedsLeaveGuard, selectSaveState, useFlowStore } from '../flow/st
  */
 
 const NO_FACTS: Facts = { described: false, dataReady: false, procedureReady: false, ran: false, outputDone: false }
+const DEFAULT_NAME = '無題の作業手順'
 
 /** 選んだファイル・シート・見出し行が同じなら、決めた内容を残す（変わったら最初から決め直す） */
 const sourcesKey = (sources: DefineSource[]) => sources.map((s) => `${s.summary.file_id}:${s.detail.sheet}:${s.detail.header_row}`).join('|')
@@ -182,6 +185,9 @@ export default function WorkspacePage() {
   }, [screen, fileCount])
 
   const renameFlow = useFlowStore((s) => s.renameFlow)
+  const startNewFlow = useFlowStore((s) => s.startNewFlow)
+  const [templateBusy, setTemplateBusy] = useState(false)
+  const [templateError, setTemplateError] = useState<ApiErrorBody | null>(null)
   const setDescription = useFlowStore((s) => s.setDescription)
   const description = useFlowStore((s) => s.flow.description)
   const defs = useFlowStore((s) => s.flow.input_definitions)
@@ -195,7 +201,8 @@ export default function WorkspacePage() {
   }
   // 段階の完了は、実際に終えたことから決める（未完了の段階を完了として表示しない）
   const facts: Facts = {
-    described,
+    // Excel起点では、使う列を決める画面で作業の名前を入れたら「作業を伝える」を完了とする（任意）
+    described: mode === 'FILE_FIRST' ? flowName !== DEFAULT_NAME : described,
     dataReady: defs.length > 0 && defs.every((d) => bindings[d.input_id]),
     procedureReady: nodes.length > 0 && nodes.every((n) => n.confirmation_status === 'confirmed'),
     ran: lastRun !== null,
@@ -248,7 +255,9 @@ export default function WorkspacePage() {
                         ? '判定の理由を確かめ、確認したうえでExcelに出力してください'
                         : '実行結果を確かめて、Excelに出力してください'
                   : screen === 'edit'
-                  ? editHint(nodes)
+                  ? method === 'template' && !facts.dataReady
+                    ? '仮の手順です。手順を確かめたら「次へ：データを読み込む」で今回のファイルを読み込み、列を照合してください'
+                    : editHint(nodes)
                   : screen === 'define'
                     ? '作業手順で使う列と、データの形式を決めてください'
                     : screen === 'assign'
@@ -273,7 +282,29 @@ export default function WorkspacePage() {
                   setParams({}, { replace: true })
                   setScreen('start')
                 }}
-                onNext={(v) => {
+                busy={templateBusy}
+                onNext={async (v) => {
+                  setTemplateError(null)
+                  if (v.method === 'template' && v.templateId) {
+                    // ひな形から「仮の手順」を作る（新しい手順ID・品質ルールは未確認）。データを読み込んだ後、列を照合して確定する
+                    setTemplateBusy(true)
+                    try {
+                      startNewFlow(copyFlow(await fetchTemplate(v.templateId), { name: v.name, description: v.description }))
+                      setDemo(null)
+                      setLastRun(null)
+                      setOrigin('opened')
+                      setOpenedKey((k) => k + 1)
+                    } catch (e) {
+                      setTemplateError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'ひな形を読み込めませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null })
+                      return
+                    } finally {
+                      setTemplateBusy(false)
+                    }
+                    setDescribed(true)
+                    setMethod('template')
+                    setScreen('edit')
+                    return
+                  }
                   renameFlow(v.name)
                   setDescription(v.description)
                   setDescribed(true)
@@ -281,6 +312,11 @@ export default function WorkspacePage() {
                   setScreen('data')
                 }}
               />
+            )}
+            {screen === 'describe' && templateError && (
+              <div className="shrink-0 border-t border-edge px-6 py-3">
+                <ErrorNotice error={templateError} title="ひな形を読み込めませんでした" />
+              </div>
             )}
             {/* 戻ったときに選んだ内容が消えないよう、画面を切り替えても部品は残しておく */}
             <div className={screen === 'data' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
@@ -296,14 +332,35 @@ export default function WorkspacePage() {
             </div>
             {sources && (
               <div className={screen === 'define' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
-                <DefineInputs key={sourcesKey(sources)} sources={sources} onBack={() => setScreen('data')} onStart={start} replaceCount={addedSteps} />
+                <DefineInputs
+                  key={sourcesKey(sources)}
+                  sources={sources}
+                  onBack={() => setScreen('data')}
+                  onStart={start}
+                  replaceCount={addedSteps}
+                  naming={
+                    mode === 'FILE_FIRST'
+                      ? {
+                          name: flowName === DEFAULT_NAME ? '' : flowName,
+                          description,
+                          onChange: (v) => {
+                            renameFlow(v.name.trim() ? v.name : DEFAULT_NAME)
+                            setDescription(v.description)
+                          },
+                        }
+                      : undefined
+                  }
+                />
               </div>
             )}
             {screen === 'assign' && <AssignInputs key={openedKey} onDone={() => setScreen('edit')} onSkip={() => setScreen('edit')} />}
             {screen === 'edit' && (
               <FlowSteps
                 onBack={() => setScreen(origin === 'opened' ? 'assign' : 'define')}
-                backLabel={origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る'}
+                backLabel={
+                  // ひな形から作った仮の手順は、まだデータを読み込んでいない（次に進む操作として示す）
+                  method === 'template' && !facts.dataReady ? '次へ：データを読み込む' : origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る'
+                }
                 onRan={(run, snap) => {
                   setBeforeFix(null) // 自分で実行し直したら、前の比較は消す（古い比較を残さない）
                   setLastRun({ run, snap })

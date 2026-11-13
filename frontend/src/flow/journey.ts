@@ -84,7 +84,7 @@ export function stepViews(mode: StartMode, screen: Screen, facts: Facts, method:
     const label = STEP_LABEL[id]
     if (id === 'describe' && mode === 'SAVED_WORKFLOW') return { id, label, state: 'skipped', reason: '保存した手順を使うため、作業の説明は不要です' }
     if (id === 'describe' && mode === 'FILE_FIRST' && !facts.described && current !== 'describe') {
-      return { id, label, state: 'skipped', reason: 'AIで作業を伝える機能は開発中のため、手順は処理部品を組み合わせて作ります' }
+      return { id, label, state: 'skipped', reason: '作業の名前・目的は入力していません（任意。AIで作業を伝える機能は開発中です）' }
     }
     if (id === current) return { id, label, state: 'current' }
     const done = { describe: facts.described, data: facts.dataReady, procedure: facts.procedureReady, run: facts.ran, output: facts.outputDone }[id]

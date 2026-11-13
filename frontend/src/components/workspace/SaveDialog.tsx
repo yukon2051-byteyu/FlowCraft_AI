@@ -30,6 +30,9 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
   const commitSave = useFlowStore((s) => s.commitSave)
   const [name, setName] = useState(flow.flow_name)
   const [description, setDescription] = useState(flow.description)
+  // 保存済みの手順を開いているとき：上書き（新しい版）か、別名で保存（複製：新しい手順として版1から）か
+  const [asCopy, setAsCopy] = useState(false)
+  const duplicateAsNew = useFlowStore((s) => s.duplicateAsNew)
   const [toLibrary, setToLibrary] = useState(true)
   const [toFile, setToFile] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -84,7 +87,8 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
         setProblems([...new Set([...fromLocal, ...fromServer, ...structural])])
         return
       }
-      // 3〜4. 保存
+      // 3〜4. 保存（別名で保存するときは、先に新しい手順IDの写しにする。複製元は品質ルールごとに記録される）
+      if (asCopy && !neverSaved) duplicateAsNew({ name: meta.flow_name, description: meta.description })
       const saved = commitSave(meta)
       const lib = toLibrary ? saveToLibrary(saved) : null
       let fileName: string | null = null
@@ -178,6 +182,38 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
               />
             </label>
 
+            {!neverSaved && (
+              <fieldset>
+                <legend className="text-[0.9rem] font-bold">保存のしかた</legend>
+                <label className="mt-1.5 flex items-start gap-2">
+                  <input type="radio" name="save-mode" checked={!asCopy} onChange={() => setAsCopy(false)} className="mt-1 size-4 accent-forest" />
+                  <span>
+                    この作業手順を更新する（上書き）
+                    <span className="block text-[0.82rem] text-muted">同じ作業手順の新しい版として保存します。</span>
+                  </span>
+                </label>
+                <label className="mt-1.5 flex items-start gap-2">
+                  <input
+                    type="radio"
+                    name="save-mode"
+                    checked={asCopy}
+                    onChange={() => {
+                      setAsCopy(true)
+                      // 同じ名前の手順が2つにならないよう、名前を変えていなければ「（コピー）」を付ける
+                      if (name.trim() === flow.flow_name) setName(`${flow.flow_name}（コピー）`)
+                    }}
+                    className="mt-1 size-4 accent-forest"
+                  />
+                  <span>
+                    別名で保存（複製して新しい作業手順にする）
+                    <span className="block text-[0.82rem] text-muted">
+                      新しい手順として版1から保存し、もとの手順はそのまま残します。品質ルールは写しますが、対象の列・期間・基準値を確かめるまで「未確認」になります。実行の記録と前回比較の基準は引き継ぎません。
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+            )}
+
             <fieldset>
               <legend className="text-[0.9rem] font-bold">保存先</legend>
               <label className="mt-1.5 flex items-start gap-2">
@@ -198,7 +234,7 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
             </fieldset>
 
             <p className="rounded-lg bg-ink/5 px-3 py-2 text-[0.85rem] text-ink/80">
-              {neverSaved ? '初めての保存です。版1として保存します。' : changed ? `変更があるため、版${nextVersion}として保存します（前の版：${flow.flow_version}）。` : `変更はありません。版${nextVersion}のまま、もう一度保存します。`}
+              {neverSaved ? '初めての保存です。版1として保存します。' : asCopy ? '新しい作業手順として、版1で保存します。' : changed ? `変更があるため、版${nextVersion}として保存します（前の版：${flow.flow_version}）。` : `変更はありません。版${nextVersion}のまま、もう一度保存します。`}
               <br />
               保存するのは処理の手順と使う列の定義だけです。Excelの中身（業務データ）は保存しません。
             </p>

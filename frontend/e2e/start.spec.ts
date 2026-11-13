@@ -38,6 +38,8 @@ test('作業起点：案件名と作業を入れると、作業手順の名前�
   await expect(diagnosis.getByRole('radio', { name: '診断せずに進む' })).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByRole('radiogroup', { name: '手順の作り方' }).getByRole('radio', { name: 'AIで手順を作る' })).toHaveAttribute('aria-disabled', 'true')
 
+  // 処理部品を組み合わせて作る（Excelを読み込んで列を確かめながら）を選ぶ
+  await page.getByRole('radiogroup', { name: '手順の作り方' }).getByRole('radio', { name: '処理部品を組み合わせて作る' }).click()
   // 案件名がないと進めない
   const next = page.getByRole('button', { name: '次へ：データを読み込む' })
   await expect(next).toBeDisabled()
@@ -57,6 +59,7 @@ test('作業起点：案件名と作業を入れると、作業手順の名前�
 test('作業起点で開始方法を選び直すと、開始画面に戻る（入力した案件名は残る）', async ({ page }) => {
   await page.goto('/build?start=work')
   await page.getByRole('textbox', { name: '案件名' }).fill('在庫の確認')
+  await page.getByRole('radiogroup', { name: '手順の作り方' }).getByRole('radio', { name: '処理部品を組み合わせて作る' }).click()
   await page.getByRole('button', { name: '次へ：データを読み込む' }).click()
   await page.goto('/build?start=work')
   await page.getByRole('button', { name: '開始方法を選び直す' }).click()

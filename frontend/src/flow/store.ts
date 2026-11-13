@@ -24,6 +24,7 @@ import {
   snapshot,
 } from './ops'
 import { advanceCriteriaVersion, pruneRunParameters } from './criteria'
+import { copyFlow } from './copy'
 import type { Binding, Criterion, FlowDoc, FlowNode, InputDefinition, NodeType, RunParameter } from './types'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -43,6 +44,10 @@ type FlowState = {
   newFlow: (name: string) => void
   /** 作業手順を開く。ファイルから読んだ内容をそのまま渡してよい（省略された項目を補う） */
   openFlow: (flow: unknown) => void
+  /** 保存していない新しい作業手順として読み込む（ひな形・複製から作ったもの。保存するまで「未保存」） */
+  startNewFlow: (flow: FlowDoc) => void
+  /** 別名で保存（複製）の準備：今の作業手順を、新しい手順IDの写しにする（割当・実行時に指定する値は残す。未保存になる） */
+  duplicateAsNew: (meta: { name: string; description?: string }) => void
   renameFlow: (name: string) => void
   /** 作業の説明・目的（作業起点で入力した内容。作業手順の description に持つ） */
   setDescription: (text: string) => void
@@ -114,6 +119,9 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     const flow = normalizeFlow(raw)
     set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: snapshot(flow), exportedSnapshot: null, runValues: {} })
   },
+
+  duplicateAsNew: (meta) => set((s) => ({ flow: copyFlow(s.flow, meta), savedSnapshot: null, exportedSnapshot: null })),
+  startNewFlow: (flow) => set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: null, exportedSnapshot: null, runValues: {} }),
 
   renameFlow: (name) => set((s) => ({ flow: { ...s.flow, flow_name: name } })),
   setDescription: (text) => set((s) => ({ flow: { ...s.flow, description: text } })),

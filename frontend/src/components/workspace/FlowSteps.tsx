@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowLeft, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Play, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Play, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
@@ -210,10 +210,18 @@ export function FlowSteps({
       </div>
 
       <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
-        <Button variant="ghostDark" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" aria-hidden />
-          {backLabel}
-        </Button>
+        {/* 「次へ：」で始まるとき（ひな形から作った仮の手順で、まだデータを読み込んでいない）は、先へ進む操作として目立たせる */}
+        {backLabel.startsWith('次へ：') ? (
+          <Button variant="primary" size="sm" onClick={onBack}>
+            {backLabel}
+            <ArrowRight className="size-4" aria-hidden />
+          </Button>
+        ) : (
+          <Button variant="ghostDark" size="sm" onClick={onBack}>
+            <ArrowLeft className="size-4" aria-hidden />
+            {backLabel}
+          </Button>
+        )}
         <CheckSummary check={check} nodes={flow.nodes} problems={problems} />
         <div className="flex items-center gap-3">
           {/* 実行するたびに指定する値（例：対象月）。完了基準の評価に使う */}

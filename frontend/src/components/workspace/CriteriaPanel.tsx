@@ -146,7 +146,12 @@ export function CriteriaPanel() {
                       <span className={`ml-auto rounded-full px-2 py-0.5 text-[0.75rem] font-bold ring-1 ring-inset ${ON_FAIL_STYLE[c.on_fail]}`}>{ON_FAIL_SHORT[c.on_fail]}</span>
                     </span>
                     <span className="mt-1 block text-[0.85rem] text-ink/80">{describeCriterion(c, flow, paramLabel)}</span>
-                    {problems.length > 0 ? (
+                    {c.confirmation_status === 'pending' ? (
+                      <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-warning-ink">
+                        <CircleAlert className="size-3.5" aria-hidden />
+                        未確認：写したルールです。内容を確かめてください
+                      </span>
+                    ) : problems.length > 0 ? (
                       <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-warning-ink">
                         <CircleAlert className="size-3.5" aria-hidden />
                         設定が必要：{problems[0]}
@@ -268,6 +273,23 @@ function CriterionEditor({ c, onChange, onRemove }: { c: Criterion; onChange: (c
         </button>
       </div>
       <div className="space-y-4 px-5 py-4">
+        {/* ひな形・複製から写したルール：対象の列・期間・基準値を確かめるまで、評価では未検証（重大なら正式な出力を止める） */}
+        {c.confirmation_status === 'pending' && (
+          <div className="rounded-lg bg-warning-soft px-3 py-2.5 text-[0.85rem] text-warning-ink ring-1 ring-warning/40" role="note" aria-label="未確認のルール">
+            <p>
+              ひな形・複製から写したルールです。<b>確かめる対象・列・期間・基準値</b>が今回の業務に合っているかを確かめてください。確認するまで、このルールは「未検証」として扱います（重大のルールなら正式な出力を止めます）。
+            </p>
+            <button
+              type="button"
+              onClick={() => onChange({ ...c, confirmation_status: 'confirmed' })}
+              disabled={problems.length > 0}
+              className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg bg-forest px-3 text-[0.85rem] font-bold text-white hover:bg-[#0f4f43] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CircleCheck className="size-4" aria-hidden />
+              内容を確かめた（確認済みにする）
+            </button>
+          </div>
+        )}
         <Field label="基準の名前">
           <input value={c.name} maxLength={100} onChange={(e) => onChange({ ...c, name: e.target.value })} aria-label="基準の名前" className={`${inputCls} w-full`} />
         </Field>

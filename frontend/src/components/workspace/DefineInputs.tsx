@@ -32,6 +32,8 @@ type Props = {
   onStart: (choices: InputChoice[]) => void
   /** すでに追加した処理ステップの数。作り直すと消えるため、ボタンの近くで知らせる */
   replaceCount?: number
+  /** Excel起点：作業の名前と目的（任意。入れると「作業を伝える」の段階が完了になる） */
+  naming?: { name: string; description: string; onChange: (v: { name: string; description: string }) => void }
 }
 
 /**
@@ -39,7 +41,7 @@ type Props = {
  * 形式を変えるたびに、サーバーで全件を変換してみて、変換できない値があれば行番号つきで示す。
  * （実行時の読み込みと同じ変換を使うので、「ここではOKだったのに実行で失敗する」ことはない）
  */
-export function DefineInputs({ sources, onBack, onStart, replaceCount = 0 }: Props) {
+export function DefineInputs({ sources, onBack, onStart, replaceCount = 0, naming }: Props) {
   const [choices, setChoices] = useState<InputChoice[]>(() => sources.map(initialChoice))
   const samples = Object.fromEntries(sources.map((s) => [s.summary.file_id, Object.fromEntries(s.detail.columns.map((c) => [c.name, c]))]))
 
@@ -90,6 +92,32 @@ export function DefineInputs({ sources, onBack, onStart, replaceCount = 0 }: Pro
               たとえば「必ずある列」がなくなっていたら、実行する前に知らせます。
             </p>
           </div>
+
+          {naming && (
+            <section className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="作業の名前と目的">
+              <h2 className="font-bold text-white">
+                作業の名前と目的<span className="ml-2 text-[0.8rem] font-normal text-subtle">任意（作業手順を保存するときにも使います）</span>
+              </h2>
+              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                <input
+                  value={naming.name}
+                  onChange={(e) => naming.onChange({ name: e.target.value, description: naming.description })}
+                  maxLength={100}
+                  placeholder="例：月次売上集計"
+                  aria-label="作業の名前"
+                  className="h-10 rounded-lg bg-card px-3 text-ink ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
+                />
+                <input
+                  value={naming.description}
+                  onChange={(e) => naming.onChange({ name: naming.name, description: e.target.value })}
+                  maxLength={2000}
+                  placeholder="例：部署別の売上を集計し、営業会議で使う"
+                  aria-label="やりたい作業・目的"
+                  className="h-10 rounded-lg bg-card px-3 text-ink ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
+                />
+              </div>
+            </section>
+          )}
 
           {choices.map((c, i) => {
             const query = checks[i]

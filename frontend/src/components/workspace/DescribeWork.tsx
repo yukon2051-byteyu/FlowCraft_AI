@@ -1,5 +1,7 @@
 import { ArrowLeft, ArrowRight, Info } from 'lucide-react'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listTemplates } from '../../api/templates'
 import { DevBadge } from '../ui/DevBadge'
 import { Button } from '../ui/Button'
 import { isAvailable } from '../../content/featureStatus'
@@ -19,19 +21,29 @@ type Props = {
   initialName: string
   initialDescription: string
   onBack: () => void
-  onNext: (v: { name: string; description: string; diagnosis: DiagnosisState; method: BuildMethod }) => void
+  onNext: (v: { name: string; description: string; diagnosis: DiagnosisState; method: BuildMethod; templateId: string | null }) => void
+  busy?: boolean
 }
 
 const DEFAULT_NAME = '無題の作業手順'
 
-export function DescribeWork({ initialName, initialDescription, onBack, onNext }: Props) {
+export function DescribeWork({ initialName, initialDescription, onBack, onNext, busy = false }: Props) {
   const [name, setName] = useState(initialName === DEFAULT_NAME ? '' : initialName)
   const [description, setDescription] = useState(initialDescription)
   const aiDiagnosis = isAvailable('kaizen')
   const quickCheck = isAvailable('kaizenCheck')
   const aiBuild = isAvailable('aiFlow')
+  const [method, setMethod] = useState<BuildMethod>('template')
+  const [templateId, setTemplateId] = useState<string | null>(null)
+  const templates = useQuery({ queryKey: ['templates'], queryFn: listTemplates })
   const trimmed = name.trim()
-  const problem = !trimmed ? '案件名を入れてください' : trimmed.length > 100 ? '案件名は100文字以内にしてください' : null
+  const problem = !trimmed
+    ? '案件名を入れてください'
+    : trimmed.length > 100
+      ? '案件名は100文字以内にしてください'
+      : method === 'template' && !templateId
+        ? 'もとにするひな形を選んでください'
+        : null
 
   return (
     <>
@@ -81,10 +93,37 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext }
 
           <section className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="手順の作り方">
             <h2 className="font-bold text-white">手順の作り方</h2>
-            <div className="mt-3 grid gap-2.5 md:grid-cols-2" role="radiogroup" aria-label="手順の作り方">
+            <div className="mt-3 grid gap-2.5 md:grid-cols-3" role="radiogroup" aria-label="手順の作り方">
               <Choice selected={false} disabled={!aiBuild} title="AIで手順を作る" body="作業の説明から、AIが処理手順を提案します（使うときだけAI使用パスワードが必要です）。" feature="aiFlow" />
-              <Choice selected title="処理部品を組み合わせて作る" body="Excelを読み込み、実際の列を確かめながら、加工・集計の部品を組み合わせます。AIを使いません。" />
+              <Choice
+                selected={method === 'template'}
+                onSelect={() => setMethod('template')}
+                title="ひな形から作る"
+                body="よくある業務の手順をもとに、仮の手順を作ります。Excelを読み込んだ後に、列を照合して確定します。"
+              />
+              <Choice
+                selected={method === 'parts_from_data'}
+                onSelect={() => setMethod('parts_from_data')}
+                title="処理部品を組み合わせて作る"
+                body="Excelを読み込み、実際の列を確かめながら、加工・集計の部品を組み合わせます。ひな形にない業務にも使えます。"
+              />
             </div>
+            {method === 'template' && (
+              <div className="mt-3" role="radiogroup" aria-label="もとにするひな形">
+                {templates.isPending && <p className="text-[0.85rem] text-subtle">ひな形を読み込んでいます…</p>}
+                <div className="grid gap-2 md:grid-cols-3">
+                  {(templates.data ?? []).map((t) => (
+                    <Choice
+                      key={t.template_id}
+                      selected={templateId === t.template_id}
+                      onSelect={() => setTemplateId(t.template_id)}
+                      title={t.title}
+                      body={`${t.summary}（使うファイル：${t.inputs.join('・')}）`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="mt-3 flex items-start gap-1.5 text-[0.82rem] text-subtle">
               <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
               「改善診断を受けない」と「AIを使わない」は別のことです。AIを使う操作を選んだときだけ、その直前にパスワードの入力を求めます。
@@ -101,10 +140,10 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext }
           {problem && <span className="text-[0.85rem] text-warning">{problem}</span>}
           <Button
             variant="primary"
-            disabled={problem !== null}
-            onClick={() => onNext({ name: trimmed, description: description.trim(), diagnosis: 'skipped', method: 'parts_from_data' })}
+            disabled={problem !== null || busy}
+            onClick={() => onNext({ name: trimmed, description: description.trim(), diagnosis: 'skipped', method, templateId: method === 'template' ? templateId : null })}
           >
-            次へ：データを読み込む
+            {method === 'template' ? '次へ：手順を確認する' : '次へ：データを読み込む'}
             <ArrowRight className="size-4" aria-hidden />
           </Button>
         </div>
@@ -113,16 +152,45 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext }
   )
 }
 
-/** 選択肢の表示。開発中のものは押せない（選んだように見せない） */
-function Choice({ selected, disabled = false, title, body, feature }: { selected: boolean; disabled?: boolean; title: string; body: string; feature?: Parameters<typeof DevBadge>[0]['feature'] }) {
+/** 選択肢の表示。開発中のものは押せない（選んだように見せない）。onSelect があるものだけ選べる */
+function Choice({
+  selected,
+  disabled = false,
+  title,
+  body,
+  feature,
+  onSelect,
+}: {
+  selected: boolean
+  disabled?: boolean
+  title: string
+  body: string
+  feature?: Parameters<typeof DevBadge>[0]['feature']
+  onSelect?: () => void
+}) {
+  const selectable = !!onSelect && !disabled
   return (
     <div
       role="radio"
       aria-checked={selected}
       aria-disabled={disabled || undefined}
       aria-label={title}
+      tabIndex={selectable ? 0 : undefined}
+      onClick={selectable ? onSelect : undefined}
+      onKeyDown={
+        selectable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onSelect()
+              }
+            }
+          : undefined
+      }
       title={disabled ? 'この機能は開発中のため、まだ選べません' : undefined}
-      className={`rounded-xl p-3.5 ring-1 ${selected ? 'bg-mint/10 ring-2 ring-mint/60' : disabled ? 'bg-white/3 ring-edge' : 'bg-white/5 ring-edge'}`}
+      className={`rounded-xl p-3.5 ring-1 ${selected ? 'bg-mint/10 ring-2 ring-mint/60' : disabled ? 'bg-white/3 ring-edge' : 'bg-white/5 ring-edge'} ${
+        selectable ? 'cursor-pointer hover:bg-white/8 focus-visible:outline-2 focus-visible:outline-mint' : ''
+      }`}
     >
       <p className={`flex flex-wrap items-center gap-2 font-bold ${selected ? 'text-mint' : disabled ? 'text-white/55' : 'text-white'}`}>
         {title}
