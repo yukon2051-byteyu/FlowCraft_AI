@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.config import Settings
 from app.files.detect import FileKind, decode_csv, detect_kind, file_error, safe_filename
 from app.files.parse import RawSheet, read_csv, read_xlsx
-from app.files.profile import ColumnType, Table, build_table, preview_rows, profile_columns
+from app.files.profile import ColumnType, FileWarning, Table, build_table, preview_rows, profile_columns, suggest_header_row
 from app.sessions.store import Session
 
 
@@ -111,7 +111,8 @@ def summarize(f: UploadedFile) -> FileSummary:
     )
 
 
-def sheet_detail(f: UploadedFile, sheet: str | None, header_row: int) -> SheetDetail:
+def sheet_detail(f: UploadedFile, sheet: str | None, header_row: int | None) -> SheetDetail:
+    """header_row が None のときは、見出しの行を推定する（表題・空行を飛ばす）"""
     name = sheet or f.default_sheet()
     raw = f.sheets.get(name)
     if raw is None:
@@ -121,7 +122,18 @@ def sheet_detail(f: UploadedFile, sheet: str | None, header_row: int) -> SheetDe
             how_to_fix="一覧からシートを選び直してください。",
             status=404,
         )
+    guessed = header_row is None
+    if header_row is None:
+        header_row = suggest_header_row(raw.grid) if f.kind == "xlsx" else 1
     table: Table = build_table(raw, header_row, is_csv=f.kind == "csv")
+    if guessed and header_row > 1:
+        table.warnings.insert(
+            0,
+            FileWarning(
+                "HEADER_ROW_GUESSED",
+                f"見出しの行を{header_row}行目と推定しました（上の行は表題や空行のため）。違う場合は、見出しの行を変えてください。",
+            ),
+        )
     rows = preview_rows(table)
     return SheetDetail(
         sheet=name,

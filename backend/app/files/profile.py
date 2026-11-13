@@ -55,6 +55,26 @@ class Table:
 # ---------------------------------------------------------------------------
 
 
+HEADER_SEARCH_ROWS = 20
+
+
+def suggest_header_row(grid: list[list[Any]]) -> int:
+    """見出しの行を推定する（1始まり）。
+
+    表の上に「表題」（値が1つだけの行。結合セルの表題も、値は左上の1つだけ）や空行があるとき、それを飛ばして、
+    値が2つ以上ある最初の行を見出しとする。表全体が1列なら1行目。分からないときは1行目（従来どおり）。
+    推定は画面に「推定しました」と示し、利用者が見出しの行を変えられる（確定はしない）。
+    """
+    width = max((len(_trim_row(r)) for r in grid[: HEADER_SEARCH_ROWS * 5]), default=0)
+    if width <= 1:
+        return 1
+    for i, row in enumerate(grid[:HEADER_SEARCH_ROWS]):
+        filled = sum(1 for v in row if not _is_blank(v))
+        if filled >= 2:
+            return i + 1
+    return 1
+
+
 def build_table(sheet: RawSheet, header_row: int, *, is_csv: bool) -> Table:
     grid = sheet.grid
     if not grid:

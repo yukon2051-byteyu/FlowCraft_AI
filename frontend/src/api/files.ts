@@ -53,9 +53,13 @@ export function listFiles(): Promise<FileSummary[]> {
   return apiRequest<FileSummary[]>('/api/files')
 }
 
-/** sheet を省略すると、サーバーが選ぶ既定のシート（表示中でデータのある最初のシート） */
-export function fetchSheet(fileId: string, sheet: string | null, headerRow: number): Promise<SheetDetail> {
-  const q = new URLSearchParams({ header_row: String(headerRow) })
+/**
+ * sheet を省略すると、サーバーが選ぶ既定のシート（表示中でデータのある最初のシート）
+ * headerRow を null にすると、サーバーが見出しの行を推定する（表題・空行を飛ばす）
+ */
+export function fetchSheet(fileId: string, sheet: string | null, headerRow: number | null): Promise<SheetDetail> {
+  const q = new URLSearchParams()
+  if (headerRow !== null) q.set('header_row', String(headerRow))
   if (sheet !== null) q.set('sheet', sheet)
   return apiRequest<SheetDetail>(`/api/files/${encodeURIComponent(fileId)}?${q}`)
 }

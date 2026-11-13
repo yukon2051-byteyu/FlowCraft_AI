@@ -55,7 +55,7 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenS
         const summaries = await listFiles()
         const restored = await Promise.all(
           summaries.map(async (summary): Promise<Loaded> => {
-            const detail = await fetchSheet(summary.file_id, null, 1)
+            const detail = await fetchSheet(summary.file_id, null, null) // 見出しの行は推定する
             return { summary, initialDetail: detail, current: detail, rowCount: detail.row_count, columnCount: detail.column_count, warningCount: detail.warnings.length }
           }),
         )

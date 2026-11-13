@@ -38,7 +38,7 @@ def upload_file(
         file.file.close()  # 受信時の一時領域をすぐに解放する
     uploaded = accept_upload(session, data, file.filename, settings)
     del data
-    detail = sheet_detail(uploaded, None, 1)
+    detail = sheet_detail(uploaded, None, None)  # 見出しの行は推定する
     return UploadResult(**summarize(uploaded).model_dump(), detail=detail)
 
 
@@ -51,7 +51,8 @@ def list_files(session: Session = Depends(current_session)) -> list[FileSummary]
 def file_detail(
     file_id: str,
     sheet: str | None = None,
-    header_row: Annotated[int, Query(ge=1, le=100)] = 1,
+    # 省略すると、見出しの行を推定する（表題・空行を飛ばす）
+    header_row: Annotated[int | None, Query(ge=1, le=100)] = None,
     session: Session = Depends(current_session),
 ) -> SheetDetail:
     return sheet_detail(get_file(session, file_id), sheet, header_row)
