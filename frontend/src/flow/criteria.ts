@@ -12,7 +12,7 @@
 
 import { inferColumns } from './params'
 import type { Col } from './params'
-import { nextId } from './ops'
+import { nextId, snapshot } from './ops'
 import type { Criterion, CriterionKind, FlowDoc, ParamRef, RunParameter } from './types'
 
 type TargetKind = 'input' | 'result' | 'join'
@@ -457,4 +457,61 @@ export function describeCriterion(c: Criterion, flow: FlowDoc, paramLabel: (id: 
     default:
       return `${ref} ${col}`
   }
+}
+
+/* ---------- 変更の記録（タスク2-6） ---------- */
+
+const MAX_CHANGELOG = 200
+
+/** 2つの完了基準の一覧の違いを、人が読める要約にする（値の中身は残さず、何を変えたかだけ） */
+export function diffCriteria(before: Criterion[], after: Criterion[]): string[] {
+  const out: string[] = []
+  const prev = new Map(before.map((c) => [c.criterion_id, c]))
+  const next = new Map(after.map((c) => [c.criterion_id, c]))
+  const removed: string[] = []
+  // 比べるときは、項目の順序の違いを無視する（保存した内容は項目が並べ替えられているため）
+  const same = (x: unknown, y: unknown) => snapshot(x as FlowDoc) === snapshot(y as FlowDoc)
+  for (const c of after) {
+    const b = prev.get(c.criterion_id)
+    // 削除した後に同じIDで別の種類の基準を追加した場合は、変更ではなく「削除と追加」とする
+    if (!b || b.kind !== c.kind) {
+      if (b) removed.push(`「${b.name}」を削除`)
+      out.push(`「${c.name}」を追加`)
+      continue
+    }
+    const parts: string[] = []
+    if (b.name !== c.name) parts.push(`名前を「${b.name}」から変更`)
+    if (b.on_fail !== c.on_fail) parts.push(`満たさないときを${ON_FAIL_SHORT[b.on_fail]}→${ON_FAIL_SHORT[c.on_fail]}に`)
+    if (!same({ ref: b.target.ref, column: b.target.column ?? null }, { ref: c.target.ref, column: c.target.column ?? null })) parts.push('確かめる対象を変更')
+    if (!same(b.params ?? {}, c.params ?? {})) parts.push('条件を変更')
+    if ((b.note ?? '') !== (c.note ?? '')) parts.push('メモを変更')
+    if ((b.confirmation_status ?? 'confirmed') !== (c.confirmation_status ?? 'confirmed')) parts.push(c.confirmation_status === 'confirmed' ? '確認済みにした' : '確認の状態を変更')
+    if (parts.length) out.push(`「${c.name}」：${parts.join('、')}`)
+  }
+  for (const b of before) if (!next.has(b.criterion_id)) removed.push(`「${b.name}」を削除`)
+  return [...out, ...removed]
+}
+
+const ON_FAIL_SHORT: Record<Criterion['on_fail'], string> = { critical: '重大', caution: '注意', record: '記録のみ' }
+
+/**
+ * 保存するときに、完了基準の版数と変更の記録を進める。
+ * - 初めての保存で基準があれば、版1として「設定」を記録する
+ * - 前に保存した内容から基準が変わっていれば、版を1つ上げて、変更の要約を記録する
+ * - 変わっていなければ、そのまま（版を上げない）
+ */
+export function advanceCriteriaVersion(flow: FlowDoc, savedBefore: Criterion[] | null, now: Date = new Date()): FlowDoc {
+  const cc = flow.completion_criteria
+  const at = now.toISOString()
+  if (savedBefore === null) {
+    if (!cc.items.length || cc.changelog.length) return flow
+    return { ...flow, completion_criteria: { ...cc, changelog: [{ version: cc.version, changed_at: at, summary: `完了基準を設定（${cc.items.length}件）` }] } }
+  }
+  const changes = diffCriteria(savedBefore, cc.items)
+  if (!changes.length) return flow
+  const version = cc.version + 1
+  let summary = changes.join(' ／ ')
+  if (summary.length > 500) summary = summary.slice(0, 495) + ' …ほか'
+  const changelog = [...cc.changelog, { version, changed_at: at, summary }].slice(-MAX_CHANGELOG)
+  return { ...flow, completion_criteria: { ...cc, version, changelog } }
 }

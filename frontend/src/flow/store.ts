@@ -23,7 +23,7 @@ import {
   setInputs,
   snapshot,
 } from './ops'
-import { pruneRunParameters } from './criteria'
+import { advanceCriteriaVersion, pruneRunParameters } from './criteria'
 import type { Binding, Criterion, FlowDoc, FlowNode, InputDefinition, NodeType, RunParameter } from './types'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -204,7 +204,9 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     const flow = { ...s.flow, ...meta }
     const neverSaved = s.savedSnapshot === null
     if (!neverSaved && snapshot(flow) === s.savedSnapshot) return s.flow
-    const saved = prepareForSave(flow, new Date(), !neverSaved)
+    // 完了基準が前の保存から変わっていれば、完了基準の版を上げて変更の要約を残す（タスク2-6）
+    const savedBefore = neverSaved ? null : ((JSON.parse(s.savedSnapshot!) as FlowDoc).completion_criteria?.items ?? [])
+    const saved = prepareForSave(advanceCriteriaVersion(flow, savedBefore), new Date(), !neverSaved)
     set({ flow: saved, savedSnapshot: snapshot(saved) })
     return saved
   },

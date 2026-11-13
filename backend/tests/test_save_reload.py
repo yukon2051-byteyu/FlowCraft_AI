@@ -145,3 +145,36 @@ def test_saved_file_contains_no_business_data():
     assert "bindings" not in flow and "file_id" not in text
     # 売上データの値（伝票番号など）は入っていない。入っているのは列名と処理の設定だけ
     assert "D-" not in text and "伝票番号" in text
+
+
+def test_saved_criteria_give_same_verdict_after_restart():
+    """完了基準つきの作業手順を保存 → 起動し直したサーバーで読み込み → 再実行しても、同じ判定・同じ根拠になる（2-6）"""
+    flow = json.loads(saved_file_text())
+    flow["schema_version"] = "1.1"
+    flow["run_parameters"] = [{"param_id": "m", "label": "対象月", "type": "month"}]
+    flow["completion_criteria"] = {
+        "version": 2,
+        "changelog": [
+            {"version": 1, "changed_at": "2026-11-13T00:00:00+09:00", "summary": "完了基準を設定（2件）"},
+            {"version": 2, "changed_at": "2026-11-13T01:00:00+09:00", "summary": "「部署は4つ」：満たさないときを注意→重大に"},
+        ],
+        "items": [
+            {"criterion_id": "c1", "name": "対象月の伝票だけ", "kind": "period", "target": {"ref": "sales", "column": "売上日"}, "params": {"month": {"$param": "m"}}, "on_fail": "critical"},
+            {"criterion_id": "c2", "name": "部署は4つ", "kind": "row_count", "target": {"ref": "by_dept"}, "params": {"min": 4, "max": 4}, "on_fail": "critical"},
+        ],
+    }
+    text = json.dumps(flow, ensure_ascii=False, indent=2)
+    results = []
+    for _ in range(2):
+        with new_server() as c:
+            h = {"X-Session-Id": c.post("/api/session").json()["session_id"]}
+            up = lambda n: c.post("/api/files", headers=h, files={"file": (n, (DATA / n).read_bytes())}).json()["file_id"]  # noqa: E731
+            bindings = [
+                {"input_id": "sales", "file_id": up("売上実績_2026-10.xlsx"), "sheet": "売上"},
+                {"input_id": "products", "file_id": up("商品マスタ.xlsx"), "sheet": "商品"},
+                {"input_id": "depts", "file_id": up("部署マスタ.csv")},
+            ]
+            body = c.post("/api/runs", headers=h, json={"flow": json.loads(text), "bindings": bindings, "run_parameters": {"m": "2026-10"}}).json()
+            results.append((body["verdict"]["verdict"], [(x["criterion_id"], x["status"], x["evidence"]) for x in body["criteria"]], body["fingerprints"]))
+    assert results[0] == results[1]
+    assert results[0][0] == "normal"

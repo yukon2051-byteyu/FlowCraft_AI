@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck, ClipboardList, LayoutTemplate, ListChecks, Plus, Trash2, X } from 'lucide-react'
+import { CircleAlert, CircleCheck, ClipboardList, History, LayoutTemplate, ListChecks, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import {
   applyTemplate,
@@ -6,6 +6,7 @@ import {
   CRITERION_KINDS,
   criterionProblems,
   describeCriterion,
+  diffCriteria,
   isParamRef,
   KIND_ORDER,
   newCriterion,
@@ -17,7 +18,7 @@ import {
 import { OPERATOR_LABEL, operatorsFor } from '../../flow/params'
 import type { FilterOperator } from '../../flow/params'
 import { useFlowStore } from '../../flow/store'
-import type { Criterion, CriterionKind, RunParameter } from '../../flow/types'
+import type { Criterion, CriterionKind, FlowDoc, RunParameter } from '../../flow/types'
 import { Button } from '../ui/Button'
 import { ColumnChecks, ColumnSelect, Field, inputCls } from './StepSettings'
 
@@ -79,6 +80,8 @@ export function CriteriaPanel() {
             簡単な単発の作業なら、決めなくても実行できます。
           </p>
         </div>
+
+        <CriteriaHistory />
 
         <div className="flex flex-wrap gap-2">
           <Button variant="outlineDark" size="sm" onClick={() => setMenu(menu === 'template' ? 'none' : 'template')}>
@@ -183,6 +186,42 @@ export function CriteriaPanel() {
         )}
       </div>
     </div>
+  )
+}
+
+/* ---------- 完了基準の版と変更の記録（タスク2-6） ---------- */
+
+function CriteriaHistory() {
+  const cc = useFlowStore((s) => s.flow.completion_criteria)
+  const savedSnapshot = useFlowStore((s) => s.savedSnapshot)
+  // 前の保存から変えた内容（保存すると、版を上げてこの要約が記録される）
+  const pending = savedSnapshot === null ? [] : diffCriteria((JSON.parse(savedSnapshot) as FlowDoc).completion_criteria?.items ?? [], cc.items)
+  const recent = [...cc.changelog].reverse().slice(0, 3)
+  if (!recent.length && !pending.length) return null
+  return (
+    <section className="rounded-2xl bg-panel px-5 py-3 ring-1 ring-edge" aria-label="完了基準の変更の記録">
+      <p className="flex flex-wrap items-center gap-2 text-[0.9rem] font-bold text-white">
+        <History className="size-4 text-mint" aria-hidden />
+        完了基準の版 {cc.version}
+        {pending.length > 0 && <span className="text-[0.8rem] font-normal text-warning">（保存していない変更があります。保存すると版{cc.version + 1}として記録します）</span>}
+      </p>
+      {pending.length > 0 && (
+        <ul className="mt-1 list-disc pl-5 text-[0.82rem] text-warning" aria-label="保存していない変更">
+          {pending.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      )}
+      {recent.length > 0 && (
+        <ul className="mt-1 space-y-0.5 text-[0.82rem] text-subtle" aria-label="これまでの変更">
+          {recent.map((c) => (
+            <li key={`${c.version}-${c.changed_at}`}>
+              版{c.version}（{new Date(c.changed_at).toLocaleString('ja-JP')}）：{c.summary}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 

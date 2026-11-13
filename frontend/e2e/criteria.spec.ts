@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
-import { buildMonthlySales } from './helpers'
+import { buildMonthlySales, demo } from './helpers'
 
 /*
  * タスク2-4：完了基準の設定画面（何を満たせば完了？）。
@@ -130,4 +130,57 @@ test('基準を削除すると一覧から消え、使われなくなった「�
   await editor(page, '対象月の伝票だけ').getByRole('button', { name: 'この基準を削除' }).click()
   await expect(panelList(page).getByRole('listitem')).toHaveCount(4)
   await expect(page.getByRole('textbox', { name: '実行時に指定する値：対象月' })).toHaveCount(0)
+})
+
+test('完了基準を変えて保存すると版が上がり、変更の記録がファイルに残る。開き直しても同じ判定になる（2-6）', async ({ page, browser }) => {
+  test.setTimeout(180_000)
+  await buildMonthlySales(page, '商品マスタ.xlsx')
+  await openCriteria(page)
+  await page.getByRole('button', { name: '基準を追加' }).click()
+  await page.getByRole('region', { name: '追加する基準を選ぶ' }).getByRole('button', { name: /^件数が範囲内にある/ }).click()
+  const ed = editor(page, '件数が範囲内にある')
+  await ed.getByRole('textbox', { name: '基準の名前' }).fill('部署は4つ')
+  const named = editor(page, '部署は4つ')
+  const target = named.getByRole('combobox', { name: '確かめる対象' })
+  const opts = await target.locator('option').allTextContents()
+  await target.selectOption({ label: opts.find((o) => o.startsWith('ステップ6の結果'))! })
+  await named.getByRole('spinbutton', { name: '最小の件数' }).fill('4')
+  await named.getByRole('spinbutton', { name: '最大の件数' }).fill('4')
+
+  const save = async () => {
+    await page.getByRole('banner').getByRole('button', { name: '作業手順を保存' }).click()
+    const dialog = page.getByRole('dialog', { name: '作業手順を保存' })
+    await dialog.getByRole('textbox', { name: '作業手順の名前' }).fill('月次売上集計')
+    const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
+    await expect(dialog.getByRole('status')).toContainText('保存しました')
+    await dialog.getByRole('button', { name: '閉じる' }).last().click()
+    return { path: (await download.path())!, json: JSON.parse(await readFile((await download.path())!, 'utf-8')) }
+  }
+  const first = await save()
+  expect(first.json.completion_criteria.version).toBe(1)
+  expect(first.json.completion_criteria.changelog.map((c: { summary: string }) => c.summary)).toEqual(['完了基準を設定（1件）'])
+
+  // 重さを変えると（件数の基準の初期値は「注意」）、保存していない変更として示し、保存すると版2
+  await named.getByRole('radio', { name: '重大（止める）' }).check()
+  const history = page.getByRole('region', { name: '完了基準の変更の記録' })
+  await expect(history.getByRole('list', { name: '保存していない変更' })).toContainText('「部署は4つ」：満たさないときを注意→重大に')
+  const second = await save()
+  expect(second.json.completion_criteria.version).toBe(2)
+  expect(second.json.completion_criteria.changelog.at(-1)).toMatchObject({ version: 2, summary: '「部署は4つ」：満たさないときを注意→重大に' })
+  await expect(history).toContainText('完了基準の版 2')
+
+  // 別のブラウザでファイルを開いて再実行 → 記録が残り、同じ判定
+  const other = await browser.newPage()
+  await other.goto('/build')
+  await other.getByRole('banner').getByRole('button', { name: '作業手順を開く' }).click()
+  await other.getByTestId('flow-file-input').setInputFiles(second.path)
+  await other.getByTestId('assign-file-input').setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
+  await expect(other.getByRole('button', { name: 'この割当で作業手順へ進む' })).toBeEnabled({ timeout: 30_000 })
+  await other.getByRole('button', { name: 'この割当で作業手順へ進む' }).click()
+  await other.getByRole('tab', { name: /何を満たせば完了？/ }).click()
+  await expect(other.getByRole('region', { name: '完了基準の変更の記録' })).toContainText('版2')
+  await other.getByRole('button', { name: '作業手順全体を実行する' }).click()
+  await expect(verdictBox(other)).toContainText('総合判定：正常', { timeout: 30_000 })
+  await expect(verdictBox(other)).toContainText('完了基準（1件）をすべて満たしています。')
+  await other.close()
 })

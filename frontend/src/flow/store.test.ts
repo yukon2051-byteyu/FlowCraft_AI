@@ -147,3 +147,26 @@ describe('作る画面の状態管理', () => {
     expect(store().bindings).toEqual({})
   })
 })
+
+describe('保存と完了基準の版（2-6）', () => {
+  it('完了基準を変えて保存すると、作業手順の版とは別に、完了基準の版が上がり要約が残る', () => {
+    store().openFlow(DEMO)
+    const c = { criterion_id: 'c1', name: '部署は4つ', kind: 'row_count' as const, target: { ref: 'by_dept' }, params: { min: 4, max: 4 }, on_fail: 'critical' as const }
+    store().setCriteria([c])
+    const v2 = store().commitSave()
+    expect(v2.flow_version).toBe(2)
+    expect(v2.completion_criteria.version).toBe(2)
+    expect(v2.completion_criteria.changelog.at(-1)?.summary).toBe('「部署は4つ」を追加')
+
+    store().renameFlow('名前だけ変更')
+    const v3 = store().commitSave()
+    expect(v3.flow_version).toBe(3)
+    expect(v3.completion_criteria.version).toBe(2) // 完了基準は変えていない
+
+    store().setCriteria([{ ...c, on_fail: 'caution' }])
+    const v4 = store().commitSave()
+    expect(v4.completion_criteria.version).toBe(3)
+    expect(v4.completion_criteria.changelog.map((x) => x.version)).toEqual([2, 3])
+    expect(v4.completion_criteria.changelog.at(-1)?.summary).toBe('「部署は4つ」：満たさないときを重大→注意に')
+  })
+})

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { applyTemplate, criterionProblems, describeCriterion, KIND_ORDER, newCriterion, pruneRunParameters, refChoices, usedParamIds } from './criteria'
+import { advanceCriteriaVersion, applyTemplate, criterionProblems, describeCriterion, diffCriteria, KIND_ORDER, newCriterion, pruneRunParameters, refChoices, usedParamIds } from './criteria'
 import { normalizeFlow } from './ops'
 import type { Criterion, FlowDoc } from './types'
 
@@ -93,5 +93,37 @@ describe('値の形と、実行時に指定する値', () => {
     expect(criterionProblems({ ...ev('1'), target: { ref: 'by_dept', column: null } }, DEMO)).toEqual(['確かめる列を選んでください'])
     // 件数を確かめるときは列は不要
     expect(criterionProblems({ ...ev('4'), target: { ref: 'by_dept', column: null }, params: { measure: 'count', value: '4' } }, DEMO)).toEqual([])
+  })
+})
+
+describe('完了基準の変更の記録（2-6）', () => {
+  const base = applyTemplate(DEMO, 'sales').items
+  const at = new Date('2026-12-01T00:00:00Z')
+
+  it('追加・削除・変更（重さ・条件・対象・名前）を要約する。値の中身は書かない', () => {
+    const changed = base.map((c, i) => (i === 0 ? { ...c, on_fail: 'caution' as const } : i === 1 ? { ...c, params: { month: '2026-10' } } : c)).slice(0, 4)
+    const added = newCriterion(withItems(changed), 'row_count')
+    expect(diffCriteria(base, [...changed, { ...added, name: '部署は4つ' }])).toEqual([
+      '「必要な列がそろっている」：満たさないときを重大→注意に',
+      '「対象月の伝票だけ」：条件を変更',
+      '「部署は4つ」を追加',
+      `「${base[4].name}」を削除`,
+    ])
+    expect(diffCriteria(base, base)).toEqual([])
+  })
+
+  it('初めての保存で基準があれば版1として記録し、変わったときだけ版を上げる', () => {
+    const first = advanceCriteriaVersion(withItems(base), null, at)
+    expect(first.completion_criteria.version).toBe(1)
+    expect(first.completion_criteria.changelog).toEqual([{ version: 1, changed_at: '2026-12-01T00:00:00.000Z', summary: '完了基準を設定（5件）' }])
+    // 変更なし → そのまま
+    expect(advanceCriteriaVersion(first, base, at)).toBe(first)
+    // 変更あり → 版2と要約
+    const edited = { ...first, completion_criteria: { ...first.completion_criteria, items: base.slice(1) } }
+    const second = advanceCriteriaVersion(edited, base, at)
+    expect(second.completion_criteria.version).toBe(2)
+    expect(second.completion_criteria.changelog.at(-1)).toEqual({ version: 2, changed_at: '2026-12-01T00:00:00.000Z', summary: '「必要な列がそろっている」を削除' })
+    // 基準がない作業手順は記録しない
+    expect(advanceCriteriaVersion(DEMO, null, at).completion_criteria.changelog).toEqual([])
   })
 })
