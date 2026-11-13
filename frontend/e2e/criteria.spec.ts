@@ -173,7 +173,7 @@ test('完了基準を変えて保存すると版が上がり、変更の記録�
 
   // 別のブラウザでファイルを開いて再実行 → 記録が残り、同じ判定
   const other = await browser.newPage()
-  await other.goto('/build')
+  await other.goto('/build?start=file')
   await other.getByRole('banner').getByRole('button', { name: '作業手順を開く' }).click()
   await other.getByTestId('flow-file-input').setInputFiles(second.path)
   await other.getByTestId('assign-file-input').setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])

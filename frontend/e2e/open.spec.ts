@@ -78,7 +78,7 @@ test('ファイルから開き、必須の列がないファイル（11月分：
 
   // 別のブラウザ（保存した一覧がない状態）で、ファイルから開く
   const other = await browser.newPage()
-  await other.goto('/build')
+  await other.goto('/build?start=file')
   await header(other).getByRole('button', { name: '作業手順を開く' }).click()
   await expect(openDialog(other)).toContainText('まだありません')
   await openDialog(other).getByTestId('flow-file-input').setInputFiles(file)
@@ -120,7 +120,7 @@ test('割り当てずに開くと、作業手順は見られるが、実行は�
 })
 
 test('作業手順のファイルでないもの・形の決まりに合わないものは開かない', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await header(page).getByRole('button', { name: '作業手順を開く' }).click()
   const input = openDialog(page).getByTestId('flow-file-input')
 
@@ -155,7 +155,7 @@ test('ブラウザを閉じて開き直しても、保存した一覧から開�
   await page.context().close()
   const reopened = await browser.newContext({ storageState: state })
   const p = await reopened.newPage()
-  await p.goto('/build')
+  await p.goto('/build?start=file')
   await header(p).getByRole('button', { name: '作業手順を開く' }).click()
   await openDialog(p).getByRole('listitem').filter({ hasText: '月次売上集計' }).getByRole('button', { name: '開く' }).click()
   await p.getByRole('button', { name: 'ファイルを割り当てずに作業手順を見る' }).click()
@@ -164,7 +164,7 @@ test('ブラウザを閉じて開き直しても、保存した一覧から開�
 })
 
 test('開始画面の「保存した手順を再利用する」から開ける（ヘッダーの「作業手順を開く」と同じ画面）', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   const card = page.getByRole('complementary', { name: 'ほかの始め方' })
   await expect(card.getByText('保存した手順を再利用する')).toBeVisible()
   await card.getByRole('button', { name: '保存した手順を開く' }).click()
@@ -172,7 +172,7 @@ test('開始画面の「保存した手順を再利用する」から開ける�
 })
 
 test('形の版 1.0 の作業手順ファイルを開いて保存すると、最新の版（1.2）になり、完了基準の欄が加わる（2-1）', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await header(page).getByRole('button', { name: '作業手順を開く' }).click()
   await openDialog(page).getByTestId('flow-file-input').setInputFiles(demo('../flows/monthly_sales.json'))
   await page.getByRole('button', { name: 'ファイルを割り当てずに作業手順を見る' }).click()

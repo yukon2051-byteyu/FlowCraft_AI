@@ -20,7 +20,7 @@ async function addAtEnd(page: Page, name: string) {
 }
 
 test('結合・枝分かれを含む作業手順を組み立て、つながりを壊す操作は理由を示して止める', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
   await expect(page.getByText('3ファイル')).toBeVisible({ timeout: 20_000 }) // 複数ファイルの解析は、並行実行中だと時間がかかる
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()

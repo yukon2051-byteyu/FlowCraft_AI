@@ -26,7 +26,7 @@ export async function confirm(page: Page, n: number) {
 
 /** 売上 ＋ 商品マスタ ＋ 部署マスタ → 部署別に売上を合計 → 出力 */
 export async function buildMonthlySales(page: Page, master: string) {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo(master), demo('部署マスタ.csv')])
   await expect(page.getByText('3ファイル')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()

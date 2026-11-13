@@ -44,6 +44,8 @@ type FlowState = {
   /** 作業手順を開く。ファイルから読んだ内容をそのまま渡してよい（省略された項目を補う） */
   openFlow: (flow: unknown) => void
   renameFlow: (name: string) => void
+  /** 作業の説明・目的（作業起点で入力した内容。作業手順の description に持つ） */
+  setDescription: (text: string) => void
   setInputDefinitions: (defs: InputDefinition[]) => void
   /** 「新しく作る」：入力の定義・割当・読み込みステップで、作業手順の最初の形を作る（既存のステップは置き換える） */
   startFromInputs: (defs: InputDefinition[], bindings: Binding[], loadNodes: Omit<FlowNode, 'node_id'>[]) => void
@@ -114,6 +116,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   renameFlow: (name) => set((s) => ({ flow: { ...s.flow, flow_name: name } })),
+  setDescription: (text) => set((s) => ({ flow: { ...s.flow, description: text } })),
 
   setInputDefinitions: (defs) => set((s) => ({ flow: { ...s.flow, input_definitions: defs } })),
 

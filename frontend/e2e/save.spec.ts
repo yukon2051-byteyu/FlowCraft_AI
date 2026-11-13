@@ -14,7 +14,7 @@ const demo = (name: string) => path.join(here, '..', '..', 'backend', 'app', 'de
 const LIBRARY_KEY = 'flowcraft.savedFlows.v1'
 
 async function startFlow(page: Page) {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx')])
   await expect(page.getByText('1ファイル')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
@@ -113,7 +113,7 @@ test('未保存のままトップへ戻ろうとすると確認が出る。キ�
   })
   await header(page).getByRole('link', { name: 'トップへ戻る' }).click()
   expect(messages[0]).toContain('保存していない変更があります')
-  await expect(page).toHaveURL(/\/build$/)
+  await expect(page).toHaveURL(/\/build\?start=file$/)
 
   // 保存した後は確認なしで移動できる
   await header(page).getByRole('button', { name: '作業手順を保存' }).click()
@@ -131,7 +131,7 @@ test('未保存のままトップへ戻ろうとすると確認が出る。キ�
 })
 
 test('作業手順を作る前は、保存できない', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await expect(header(page).getByRole('button', { name: '作業手順を保存' })).toBeDisabled()
   await expect(header(page).getByText('未保存の変更があります')).toBeHidden()
 })

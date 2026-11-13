@@ -11,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const fixture = (name: string) => path.join(here, 'fixtures', name)
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
 })
 
 test('Excelを読み込むと、列・型・先頭の行が表示される', async ({ page }) => {

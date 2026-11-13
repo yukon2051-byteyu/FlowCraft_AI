@@ -13,7 +13,7 @@ const demo = (name: string) => path.join(here, '..', '..', 'backend', 'app', 'de
 const BANNED = /ノード|フロー|Phase|確定|真偽値|プレビュー|JSON|マッピング|スキーマ|結合キー|未照合|(?<![定0-9０-９])型(?!番)/
 
 test('読み込んだファイルから、使う列と形式を決めて作業手順を作り始める', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
   await expect(page.getByText('3ファイル')).toBeVisible({ timeout: 20_000 }) // 複数ファイルの解析は、並行実行中だと時間がかかる
 
@@ -65,7 +65,7 @@ test('読み込んだファイルから、使う列と形式を決めて作業�
 })
 
 test('入力の名前が重なると、理由を示して進めない', async ({ page }) => {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo('売上実績_2026-11.xlsx')])
   await expect(page.getByText('2ファイル')).toBeVisible({ timeout: 20_000 }) // 複数ファイルの解析は、並行実行中だと時間がかかる
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
@@ -83,7 +83,7 @@ test('形式の確認ができなかったときは、確かめていない内�
       body: JSON.stringify({ code: 'INTERNAL', message: '処理中にエラーが発生しました。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),
     }),
   )
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles(demo('部署マスタ.csv'))
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
 

@@ -42,6 +42,8 @@ export const FEATURE_STATUS = {
   criteria: 'available',
   /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */
   kaizen: 'in_development',
+  /** 簡易チェック（K1：決まった6つの質問。AIを使わない）。AI改善診断（kaizen）とは別の機能 */
+  kaizenCheck: 'in_development',
   /** 無人定期実行（共通Workerが、有効化された案件だけを決まった日時に実行する） */
   schedule: 'in_development',
   /** クラウドで3分後に自動実行を試す（サンプルデータ）。公開・実測ができたら available にし、表示を「今すぐ試せる」にする */

@@ -25,7 +25,7 @@ async function flowFile(criteria: unknown[]): Promise<string> {
 }
 
 async function openAndRun(page: Page, criteria: unknown[]) {
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByRole('banner').getByRole('button', { name: '作業手順を開く' }).click()
   await page.getByTestId('flow-file-input').setInputFiles(await flowFile(criteria))
   await page.getByTestId('assign-file-input').setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])

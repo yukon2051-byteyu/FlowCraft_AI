@@ -27,7 +27,7 @@ async function confirm(page: Page, n: number) {
 
 test('よく使う9種の処理を画面から設定し、作業手順のチェックを通る', async ({ page }) => {
   test.setTimeout(120_000)
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
   await expect(page.getByText('3ファイル')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
@@ -132,7 +132,7 @@ test('よく使う9種の処理を画面から設定し、作業手順のチェ�
 
 test('残りの6種（並べ替え・列を消す・同じ値の列・形式・重複・空欄）を設定し、作業手順のチェックを通る', async ({ page }) => {
   test.setTimeout(120_000)
-  await page.goto('/build')
+  await page.goto('/build?start=file')
   await page.getByTestId('file-input').first().setInputFiles(demo('売上実績_2026-10.xlsx'))
   await expect(page.getByText('1ファイル')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()

@@ -5,6 +5,10 @@ import { Button } from '../components/ui/Button'
 import { AppHeader } from '../components/workspace/AppHeader'
 import { SampleWorkspace } from '../components/workspace/SampleWorkspace'
 import { Stepper } from '../components/workspace/Stepper'
+import { StartChooser } from '../components/workspace/StartChooser'
+import { DescribeWork } from '../components/workspace/DescribeWork'
+import { modeFromParam, START_PARAM, stepViews } from '../flow/journey'
+import type { BuildMethod, Facts, Screen, StartMode } from '../flow/journey'
 import { UploadStart } from '../components/workspace/UploadStart'
 import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
@@ -28,13 +32,15 @@ import { editHint } from '../flow/hints'
 import { selectNeedsLeaveGuard, selectSaveState, useFlowStore } from '../flow/store'
 
 /**
- * 作る画面の中の表示
- *   新しく作る：ファイルの確認 → 使う列と形式を決める → 作業手順 → 結果
- *   保存した作業手順を開く：ファイルの割当 → 作業手順 → 結果
+ * 作る画面の中の表示（Screen は src/flow/journey.ts）
+ *   開始画面：3つの開始方法を選ぶ（?start= で直接開ける：work／file／saved）
+ *   作業起点：作業を伝える → ファイルの確認 → 使う列と形式を決める → 作業手順 → 結果
+ *   Excel起点：ファイルの確認 → 使う列と形式を決める → 作業手順 → 結果
+ *   保存した作業手順を開く：ファイルの割当（列の照合・最終確認）→ 作業手順 → 結果
+ * 開始方法によって変わるのは画面の順番と段階の表示だけで、作業手順・実行・品質検証は共通。
  */
-type Screen = 'data' | 'define' | 'assign' | 'edit' | 'result'
 
-const SKIP_AI = [{ step: 2, reason: 'AIで作業手順を作る機能は開発中のため、今回は自分で作ります' }]
+const NO_FACTS: Facts = { described: false, dataReady: false, procedureReady: false, ran: false, outputDone: false }
 
 /** 選んだファイル・シート・見出し行が同じなら、決めた内容を残す（変わったら最初から決め直す） */
 const sourcesKey = (sources: DefineSource[]) => sources.map((s) => `${s.summary.file_id}:${s.detail.sheet}:${s.detail.header_row}`).join('|')
@@ -49,7 +55,13 @@ export default function WorkspacePage() {
   const sample = params.get('view') === 'sample'
   const [fileCount, setFileCount] = useState(0)
   const [sampleHint, setSampleHint] = useState('')
-  const [screen, setScreen] = useState<Screen>('data')
+  // 開始方法（URL の ?start=。デモは用意した作業手順を使うので「保存した手順」と同じ扱い）
+  const [mode, setMode] = useState<StartMode | null>(() => (params.get('demo') ? 'SAVED_WORKFLOW' : modeFromParam(params.get('start'))))
+  const [method, setMethod] = useState<BuildMethod | null>(null)
+  const [described, setDescribed] = useState(false)
+  const [screen, setScreen] = useState<Screen>(() =>
+    params.get('demo') ? 'data' : mode === 'WORK_FIRST' ? 'describe' : mode === 'FILE_FIRST' ? 'data' : 'start',
+  )
   const [sources, setSources] = useState<DefineSource[] | null>(null)
   // 直近の全体の実行結果と、実行したときの作業手順（実行後に変更したかを判定するため）
   const [lastRun, setLastRun] = useState<{ run: RunSummary; snap: string } | null>(null)
@@ -85,7 +97,8 @@ export default function WorkspacePage() {
   const unsaved = useFlowStore(selectNeedsLeaveGuard)
   const markExported = useFlowStore((s) => s.markExported)
   const [saving, setSaving] = useState(false)
-  const [opening, setOpening] = useState(false)
+  // ?start=saved で開いたときは、すぐに作業手順を開く画面を出す
+  const [opening, setOpening] = useState(() => mode === 'SAVED_WORKFLOW' && !params.get('demo'))
   // 今の作業手順を、新しく作ったか、保存したものを開いたか（戻る先が変わる）
   const [origin, setOrigin] = useState<'new' | 'opened'>('new')
   const openFlow = useFlowStore((s) => s.openFlow)
@@ -140,6 +153,7 @@ export default function WorkspacePage() {
         setLastRun(null)
         setBeforeFix(null)
         setDemo(d)
+        setMode('SAVED_WORKFLOW')
         setScreen('edit')
       })
       .catch((e) => setDemoError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'デモを始められませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }))
@@ -158,6 +172,36 @@ export default function WorkspacePage() {
   }, [sample, unsaved])
   // 作り直すと消えてしまう、追加済みの処理ステップの数
   const addedSteps = nodes.filter((n) => n.node_type !== 'load').length
+
+  // 開始画面のままファイルが読み込まれたら（以前のセッションのファイルが残っていた等）、Excel起点の画面にする
+  useEffect(() => {
+    if (screen === 'start' && fileCount > 0) {
+      setMode('FILE_FIRST')
+      setScreen('data')
+    }
+  }, [screen, fileCount])
+
+  const renameFlow = useFlowStore((s) => s.renameFlow)
+  const setDescription = useFlowStore((s) => s.setDescription)
+  const description = useFlowStore((s) => s.flow.description)
+  const defs = useFlowStore((s) => s.flow.input_definitions)
+  const bindings = useFlowStore((s) => s.bindings)
+  const choose = (m: StartMode) => {
+    setMode(m)
+    setParams({ start: START_PARAM[m] }, { replace: true })
+    if (m === 'WORK_FIRST') setScreen('describe')
+    else if (m === 'FILE_FIRST') setScreen('data')
+    else setOpening(true)
+  }
+  // 段階の完了は、実際に終えたことから決める（未完了の段階を完了として表示しない）
+  const facts: Facts = {
+    described,
+    dataReady: defs.length > 0 && defs.every((d) => bindings[d.input_id]),
+    procedureReady: nodes.length > 0 && nodes.every((n) => n.confirmation_status === 'confirmed'),
+    ran: lastRun !== null,
+    outputDone: lastRun !== null && exported?.runId === lastRun.run.run_id,
+  }
+  const steps = screen === 'start' ? [] : stepViews(mode ?? 'FILE_FIRST', screen, facts, method)
 
   const start = (choices: InputChoice[]) => {
     const built = buildFromChoices(choices)
@@ -183,16 +227,19 @@ export default function WorkspacePage() {
         />
         {sample ? (
           <>
-            <Stepper current={3} hint={sampleHint} />
+            <Stepper steps={stepViews('FILE_FIRST', 'edit', { ...NO_FACTS, dataReady: true })} hint={sampleHint} />
             <SampleWorkspace onClose={() => setParams({})} onHintChange={setSampleHint} />
           </>
         ) : (
           <>
             <Stepper
-              current={screen === 'result' ? 4 : screen === 'edit' ? 3 : 1}
-              skipped={screen === 'data' ? [] : SKIP_AI}
+              steps={steps}
               hint={
-                screen === 'result'
+                screen === 'start'
+                  ? '始め方を選んでください（どの方法でも、同じ処理の仕組みと品質の確認を使います）'
+                  : screen === 'describe'
+                    ? '案件名とやりたい作業を入れて、手順の作り方を選んでください'
+                    : screen === 'result'
                   ? lastRun?.run.status === 'failed'
                     ? '止まった理由を確かめてください。調査用に、確認結果をExcelに出力できます'
                     : lastRun?.run.verdict?.export === 'report_only'
@@ -216,6 +263,24 @@ export default function WorkspacePage() {
               <div className="shrink-0 border-b border-edge px-6 py-3">
                 <ErrorNotice error={demoError} title="デモを始められませんでした" />
               </div>
+            )}
+            {screen === 'start' && <StartChooser onChoose={choose} />}
+            {screen === 'describe' && (
+              <DescribeWork
+                initialName={flowName}
+                initialDescription={description}
+                onBack={() => {
+                  setParams({}, { replace: true })
+                  setScreen('start')
+                }}
+                onNext={(v) => {
+                  renameFlow(v.name)
+                  setDescription(v.description)
+                  setDescribed(true)
+                  setMethod(v.method)
+                  setScreen('data')
+                }}
+              />
             )}
             {/* 戻ったときに選んだ内容が消えないよう、画面を切り替えても部品は残しておく */}
             <div className={screen === 'data' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
@@ -274,6 +339,7 @@ export default function WorkspacePage() {
           onOpened={(flow) => {
             setDemo(null) // 別の作業手順を開いたら、デモの案内は消す
             openFlow(flow)
+            setMode('SAVED_WORKFLOW')
             setOpenedKey((k) => k + 1)
             setOrigin('opened')
             setLastRun(null)

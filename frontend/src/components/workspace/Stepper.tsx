@@ -1,30 +1,25 @@
 import { Check } from 'lucide-react'
+import type { StepView } from '../../flow/journey'
 
 /**
  * 作業の「段階」（設計書 §3）。現在地と次の操作が常に分かるようにする。
  * 作業手順の中の「処理ステップ」と混同しないよう、画面では「段階」と呼ぶ（用語集 T1）。
+ * 表示の順番と完了の状態は src/flow/journey.ts で決める（開始方法によって順番が変わる。段階のIDは共通）。
+ * steps が空（開始画面）のときは、段階を出さずに案内だけ出す。
  */
-// 段階4は、実行と同時に品質検証（完了基準の評価・総合判定）を行うため「実行・品質確認」
-const STEPS = ['データを読み込む', '作業を伝える', '作業手順を確認する', '実行・品質確認', '出力・保存する'] as const
-
-/**
- * current：現在の段階の番号（1始まり）
- * skipped：今回は通らない段階（例：AIの機能が開発中のため「作業を伝える」を省略）
- */
-export function Stepper({ current, hint, skipped = [] }: { current: number; hint: string; skipped?: { step: number; reason: string }[] }) {
+export function Stepper({ steps, hint }: { steps: StepView[]; hint: string }) {
   return (
     <div className="flex h-13 shrink-0 items-center gap-5 border-b border-edge bg-canvas px-5">
       <ol className="flex shrink-0 items-center gap-1" aria-label="作業の段階">
-        {STEPS.map((label, i) => {
+        {steps.map((step, i) => {
           const n = i + 1
-          const skip = skipped.find((s) => s.step === n)
-          const state = skip ? 'skipped' : n < current ? 'done' : n === current ? 'current' : 'todo'
+          const state = step.state
           return (
             <li
-              key={label}
+              key={step.id}
               className="flex items-center gap-1"
               aria-current={state === 'current' ? 'step' : undefined}
-              title={skip ? `段階${n}：${label}（${skip.reason}）` : `段階${n}：${label}`}
+              title={step.reason ? `段階${n}：${step.label}（${step.reason}）` : `段階${n}：${step.label}`}
             >
               <span
                 className={
@@ -50,14 +45,15 @@ export function Stepper({ current, hint, skipped = [] }: { current: number; hint
                 >
                   {state === 'done' ? <Check className="size-3.5" aria-label="完了" /> : n}
                 </span>
-                {label}
-                {skip && (
+                {step.label}
+                {state === 'skipped' && (
                   <span className="ml-1 rounded-full px-1.5 text-[0.72rem] text-subtle no-underline ring-1 ring-edge">
-                    省略<span className="sr-only">：{skip.reason}</span>
+                    {step.id === 'describe' && step.reason?.includes('不要') ? '不要' : '省略'}
+                    <span className="sr-only">：{step.reason}</span>
                   </span>
                 )}
               </span>
-              {n < STEPS.length && <span className={`h-px w-3 xl:w-5 ${n < current ? 'bg-success/60' : 'bg-edge'}`} aria-hidden />}
+              {n < steps.length && <span className={`h-px w-3 xl:w-5 ${state === 'done' ? 'bg-success/60' : 'bg-edge'}`} aria-hidden />}
             </li>
           )
         })}

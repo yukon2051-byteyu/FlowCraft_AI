@@ -31,7 +31,7 @@ async function openInOtherBrowser(page: Page, browser: import('@playwright/test'
   const file = path.join(os.tmpdir(), `flowcraft-e2e-remap-${Date.now()}.json`)
   await writeFile(file, await buildAndSave(page), 'utf-8')
   const other = await browser.newPage()
-  await other.goto('/build')
+  await other.goto('/build?start=file')
   await header(other).getByRole('button', { name: '作業手順を開く' }).click()
   await other.getByRole('dialog', { name: '作業手順を開く' }).getByTestId('flow-file-input').setInputFiles(file)
   await expect(other.getByRole('heading', { name: '「月次売上集計」に、今回のファイルを割り当てる' })).toBeVisible()

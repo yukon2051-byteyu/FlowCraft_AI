@@ -43,7 +43,7 @@ test('保存しなくても、実行して出力して終われる。出力し�
   })
   await header(page).getByRole('link', { name: 'トップへ戻る' }).click()
   expect(asked).toContain('保存していない変更があります')
-  await expect(page).toHaveURL(/\/build$/)
+  await expect(page).toHaveURL(/\/build\?start=file$/)
 
   // 保存せずに出力する
   const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
@@ -101,7 +101,7 @@ test('実行した後に保存でき（作り直し不要）、保存したフ�
   const file = path.join(os.tmpdir(), `flowcraft-oneoff-${Date.now()}.json`)
   await writeFile(file, await readFile((await download.path())!, 'utf-8'), 'utf-8')
   const next = await browser.newPage()
-  await next.goto('/build')
+  await next.goto('/build?start=file')
   await header(next).getByRole('button', { name: '作業手順を開く' }).click()
   await next.getByTestId('flow-file-input').setInputFiles(file)
   await next.getByTestId('assign-file-input').setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
