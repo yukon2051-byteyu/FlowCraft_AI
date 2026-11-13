@@ -50,6 +50,9 @@ class WorkStep(_Strict):
     deliverable: str | None = None  # 成果物（Deliverable.deliverable_id）
     quality_rules: list[Text] = Field(default_factory=list)  # 関連する品質ルール（いまの確認のしかた）
     # 規則で使う事実
+    # 作業の種類：受け取る／確認する／集計する／書き写す（Excelへ）／書き写す（資料へ）／照合する／共有する
+    action: Literal["receive", "inspect", "aggregate", "copy", "transcribe", "reconcile", "share"]
+    must_keep: bool = False  # 業務情報の「必ず残すこと」に当たる工程（廃止・簡素化の対象にしない）
     repeats_per_department: bool = False  # 部署ごとに同じ作業を繰り返している
     transcribes_from: str | None = None  # どの工程の結果を書き写しているか（step_id）
     uses_files: bool = False  # 部署から受け取ったExcelを直接扱う
@@ -83,6 +86,8 @@ class Scenario(_Strict):
                 raise ValueError(f"工程 {s.step_id} の成果物 {s.deliverable} が、成果物の一覧にありません")
             if s.transcribes_from is not None and s.transcribes_from not in ids[: ids.index(s.step_id)]:
                 raise ValueError(f"工程 {s.step_id} の転記元 {s.transcribes_from} は、それより前の工程にしてください")
+        if self.context.must_keep and not any(s.must_keep for s in self.steps):
+            raise ValueError("「必ず残すこと」に当たる工程（must_keep）がありません")
         if sum(s.minutes for s in self.steps) != self.context.minutes_per_run:
             raise ValueError("工程の想定所要時間の合計が、業務の所要時間と一致しません")
         return self

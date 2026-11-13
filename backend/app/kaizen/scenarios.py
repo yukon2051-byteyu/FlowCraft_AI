@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -31,6 +32,23 @@ class FileFacts:
     sheet: str
     columns: list[str]
     rows: int
+    kinds: list[str]  # 列ごとの形式（number／date／text／empty）。空欄でない値から決める。混在は mixed
+
+
+def _kind(values: list[object]) -> str:
+    kinds = set()
+    for v in values:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            continue
+        if isinstance(v, (datetime, date)):
+            kinds.add("date")
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
+            kinds.add("number")
+        else:
+            kinds.add("text")
+    if not kinds:
+        return "empty"
+    return kinds.pop() if len(kinds) == 1 else "mixed"
 
 
 def read_file_facts(scenario: Scenario, data_dir: Path = DATA_DIR) -> list[FileFacts]:
@@ -43,5 +61,6 @@ def read_file_facts(scenario: Scenario, data_dir: Path = DATA_DIR) -> list[FileF
             wb.close()
         header = [str(v) for v in rows[0] if v is not None] if rows else []
         body = [r for r in rows[1:] if any(v is not None for v in r)]
-        out.append(FileFacts(f.department, f.filename, f.sheet, header, len(body)))
+        kinds = [_kind([r[i] if i < len(r) else None for r in body]) for i in range(len(header))]
+        out.append(FileFacts(f.department, f.filename, f.sheet, header, len(body), kinds))
     return out
