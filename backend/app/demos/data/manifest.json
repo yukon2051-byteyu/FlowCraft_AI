@@ -45,6 +45,20 @@
     "部署マスタ.csv": {
       "encoding": "cp932",
       "rows": 4
+    },
+    "デモ_月次売上_期間外あり.xlsx": {
+      "sheet": "売上",
+      "rows": 243,
+      "header": [
+        "売上日",
+        "伝票番号",
+        "部署コード",
+        "商品コード",
+        "数量",
+        "単価",
+        "売上金額",
+        "備考"
+      ]
     }
   },
   "expected": {
@@ -94,5 +108,21 @@
     "out_of_period_rows": [
       47
     ]
+  },
+  "demo_monthly_sales": {
+    "ok_file": "売上実績_2026-10.xlsx",
+    "ng_file": "デモ_月次売上_期間外あり.xlsx",
+    "target_month": "2026-10",
+    "out_of_period_rows": [
+      133,
+      152,
+      203
+    ],
+    "out_of_period_dates": [
+      "2026-11-01",
+      "2026-11-03",
+      "2026-11-04"
+    ],
+    "ng_total_amount": 21255620
   }
 }

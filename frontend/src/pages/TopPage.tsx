@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { isAvailable } from '../content/featureStatus'
 import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
@@ -381,17 +382,21 @@ function Stages() {
  * デモ（docs/demo-design.md）：案件ごとに「正常終了」と「品質異常」を選べる。品質異常の原因は案件ごとに変える。
  * 色の意味：ミント＝正常・成功、コーラル＝異常・リスク（ページ全体で統一）。デモはまだ動かないため「開発中」で押せない。
  */
-type Demo = { title: string; summary: string; inputs: string; ok: string; ng: string }
+type Demo = { id: string; feature: FeatureKey; title: string; summary: string; inputs: string; ok: string; ng: string }
 
 const DEMOS: Demo[] = [
   {
+    id: 'monthly_sales',
+    feature: 'demo',
     title: '月次売上集計デモ',
     summary: '売上に商品・部署の情報を付け、部署別に集計します。',
     inputs: '売上実績・商品マスタ・部署マスタ',
-    ok: '対象月の伝票だけを集計・検証・出力',
-    ng: '対象期間外の伝票の混入を検出 → 出力を停止',
+    ok: '対象月（10月）の伝票だけを集計・検証・出力',
+    ng: '10月分に混ざった11月の伝票を検出 → 出力を停止',
   },
   {
+    id: 'product_match',
+    feature: 'demoProductMatch',
     title: '商品マスタ照合デモ',
     summary: '売上の商品コードを商品マスタと照合し、商品名・カテゴリを付けます。',
     inputs: '売上実績・商品マスタ',
@@ -399,6 +404,8 @@ const DEMOS: Demo[] = [
     ng: '未登録コード・表記揺れを検出 → 原因ごとの直し方',
   },
   {
+    id: 'inventory',
+    feature: 'demoInventory',
     title: '在庫差異検出デモ',
     summary: '入出庫履歴から理論上の在庫を計算し、在庫台帳と合わない商品を一覧にします。',
     inputs: '在庫台帳・入出庫履歴',
@@ -417,42 +424,34 @@ function Demos() {
             title="正常終了も、品質異常の検出も体験できる"
             lead="架空の業務データで、実際の処理と品質の確認を行います。問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。"
           />
-          <DevBadge feature="demo" className="mb-1" />
         </div>
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           {DEMOS.map((d) => (
             <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label={d.title}>
-              <h3 className="text-[1.15rem] font-bold text-white">{d.title}</h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-[1.15rem] font-bold text-white">{d.title}</h3>
+                <DevBadge feature={d.feature} />
+              </div>
               <p className="mt-1.5 text-[0.92rem] leading-relaxed text-subtle">{d.summary}</p>
               <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-white/75">
                 <FileSpreadsheet className="size-4 shrink-0 text-subtle" aria-hidden />
                 {d.inputs}
               </p>
               <div className="mt-4 grid flex-1 grid-cols-2 gap-2.5" role="group" aria-label={`${d.title}の体験の選び方`}>
-                <button
-                  type="button"
-                  disabled={!isAvailable('demo')}
-                  title={isAvailable('demo') ? undefined : 'デモは開発中です'}
-                  className="flex flex-col rounded-xl bg-mint/8 p-3 text-left ring-1 ring-mint/40 transition enabled:hover:bg-mint/15 disabled:cursor-not-allowed"
-                >
+                <DemoChoice to={`/build?demo=${d.id}&pattern=ok`} ready={isAvailable(d.feature)} className="bg-mint/8 ring-mint/40 hover:bg-mint/15">
                   <span className="flex items-center gap-1.5 font-bold text-mint">
                     <CircleCheck className="size-4.5" aria-hidden />
                     正常終了
                   </span>
                   <span className="mt-1 text-[0.82rem] leading-snug text-white/80">{d.ok}</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={!isAvailable('demo')}
-                  title={isAvailable('demo') ? undefined : 'デモは開発中です'}
-                  className="flex flex-col rounded-xl bg-kaizen/8 p-3 text-left ring-1 ring-kaizen/45 transition enabled:hover:bg-kaizen/15 disabled:cursor-not-allowed"
-                >
+                </DemoChoice>
+                <DemoChoice to={`/build?demo=${d.id}&pattern=ng`} ready={isAvailable(d.feature)} className="bg-kaizen/8 ring-kaizen/45 hover:bg-kaizen/15">
                   <span className="flex items-center gap-1.5 font-bold text-kaizen-text">
                     <TriangleAlert className="size-4.5" aria-hidden />
                     品質異常
                   </span>
                   <span className="mt-1 text-[0.82rem] leading-snug text-white/80">{d.ng}</span>
-                </button>
+                </DemoChoice>
               </div>
             </article>
           ))}
@@ -462,6 +461,23 @@ function Demos() {
         </p>
       </div>
     </section>
+  )
+}
+
+/** デモの「正常終了」「品質異常」の選択肢。使えるときはデモの開始へのリンク、開発中は押せない */
+function DemoChoice({ to, ready, className, children }: { to: string; ready: boolean; className: string; children: ReactNode }) {
+  const base = `flex flex-col rounded-xl p-3 text-left ring-1 transition ${className}`
+  if (!ready) {
+    return (
+      <span aria-disabled="true" title="このデモは開発中です" className={`${base} cursor-not-allowed opacity-60 hover:bg-transparent`}>
+        {children}
+      </span>
+    )
+  }
+  return (
+    <Link to={to} className={`${base} focus-visible:outline-2 focus-visible:outline-mint`}>
+      {children}
+    </Link>
   )
 }
 

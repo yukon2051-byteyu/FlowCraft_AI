@@ -1,5 +1,5 @@
 import { Monitor } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Button } from '../components/ui/Button'
 import { AppHeader } from '../components/workspace/AppHeader'
@@ -11,6 +11,10 @@ import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
+import { DemoBanner } from '../components/workspace/DemoBanner'
+import { startDemo } from '../api/demos'
+import type { DemoPattern, DemoStart } from '../api/demos'
+import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { OpenDialog } from '../components/workspace/OpenDialog'
 import { AssignInputs } from '../components/workspace/AssignInputs'
 import { exportRun } from '../api/flows'
@@ -87,6 +91,34 @@ export default function WorkspacePage() {
   // 別の作業手順を開いたら、割当の画面を最初からにする
   const [openedKey, setOpenedKey] = useState(0)
 
+  // デモ（M1）：/build?demo=monthly_sales&pattern=ng で開始する。ファイルと作業手順を読み込み、作業手順の画面へ
+  const [demo, setDemo] = useState<DemoStart | null>(null)
+  const [demoError, setDemoError] = useState<ApiErrorBody | null>(null)
+  const setBinding = useFlowStore((s) => s.setBinding)
+  const setRunValues = useFlowStore((s) => s.setRunValues)
+  const demoKey = `${params.get('demo') ?? ''}:${params.get('pattern') ?? ''}`
+  const startedDemo = useRef('')
+  useEffect(() => {
+    const id = params.get('demo')
+    const pattern = params.get('pattern') as DemoPattern | null
+    if (!id || (pattern !== 'ok' && pattern !== 'ng') || startedDemo.current === demoKey) return
+    startedDemo.current = demoKey
+    setDemoError(null)
+    startDemo(id, pattern)
+      .then((d) => {
+        openFlow(d.flow)
+        d.bindings.forEach((b) => setBinding({ ...b, column_mapping: {} }))
+        setRunValues(d.run_parameters)
+        setOrigin('opened')
+        setOpenedKey((k) => k + 1)
+        setLastRun(null)
+        setDemo(d)
+        setScreen('edit')
+      })
+      .catch((e) => setDemoError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'デモを始められませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoKey])
+
   // 未保存のままブラウザを閉じる・再読み込みする前に、ブラウザの確認を出す
   useEffect(() => {
     if (sample || !unsaved) return
@@ -103,6 +135,7 @@ export default function WorkspacePage() {
   const start = (choices: InputChoice[]) => {
     const built = buildFromChoices(choices)
     startFromInputs(built.definitions, built.bindings, built.loadNodes)
+    setDemo(null)
     setScreen('edit')
   }
 
@@ -151,6 +184,12 @@ export default function WorkspacePage() {
                       : '列名とデータの形式、先頭の行を確認してください（必要なファイルはすべて読み込みましたか？）'
               }
             />
+            {demo && screen !== 'data' && <DemoBanner demo={demo} />}
+            {demoError && (
+              <div className="shrink-0 border-b border-edge px-6 py-3">
+                <ErrorNotice error={demoError} title="デモを始められませんでした" />
+              </div>
+            )}
             {/* 戻ったときに選んだ内容が消えないよう、画面を切り替えても部品は残しておく */}
             <div className={screen === 'data' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
               <UploadStart
@@ -188,7 +227,7 @@ export default function WorkspacePage() {
                 confirmed={confirmed}
                 onConfirmChange={(v) => setConfirmedRun(v ? lastRun.run.run_id : null)}
                 onSave={() => setSaving(true)}
-                saved={saveState === 'none'}
+                saved={saveState === 'none' && !demo} // デモの作業手順は、利用者が保存したものではない
                 exporting={exporting}
                 exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
                 exportError={exportError}
@@ -203,6 +242,7 @@ export default function WorkspacePage() {
           unsaved={unsaved}
           onClose={() => setOpening(false)}
           onOpened={(flow) => {
+            setDemo(null) // 別の作業手順を開いたら、デモの案内は消す
             openFlow(flow)
             setOpenedKey((k) => k + 1)
             setOrigin('opened')

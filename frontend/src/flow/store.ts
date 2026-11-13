@@ -34,6 +34,9 @@ type FlowState = {
   selectedNodeId: string | null
   savedSnapshot: string | null
   exportedSnapshot: string | null
+  /** 実行時に指定する値（例：対象月）。作業手順のファイルには保存しない（実行のたびに変わるため） */
+  runValues: Record<string, string>
+  setRunValues: (values: Record<string, string>) => void
   /** Excelに出力したことを記録する（snap：出力した結果を実行したときの作業手順の処理の中身＝contentSnapshot） */
   markExported: (snap: string) => void
 
@@ -96,15 +99,18 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   selectedNodeId: null,
   savedSnapshot: null,
   exportedSnapshot: null,
+  runValues: {},
 
-  newFlow: (name) => set({ flow: createFlow(name), bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null }),
+  newFlow: (name) => set({ flow: createFlow(name), bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null, runValues: {} }),
+
+  setRunValues: (values) => set({ runValues: values }),
 
   markExported: (snap) => set({ exportedSnapshot: snap }),
 
   // 開いた直後は「保存済み」の状態（変更していないので、未保存の警告を出さない）
   openFlow: (raw) => {
     const flow = normalizeFlow(raw)
-    set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: snapshot(flow), exportedSnapshot: null })
+    set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: snapshot(flow), exportedSnapshot: null, runValues: {} })
   },
 
   renameFlow: (name) => set((s) => ({ flow: { ...s.flow, flow_name: name } })),

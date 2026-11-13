@@ -23,7 +23,10 @@ export const FEATURE_STATUS = {
   /** 品質検証の結果表示 */
   quality: 'available',
   /** デモ */
-  demo: 'in_development',
+  demo: 'available',
+  /** デモの案件（M1-2 でデータを作るまで開発中） */
+  demoProductMatch: 'in_development',
+  demoInventory: 'in_development',
   /** 業務の完了基準の設定・評価 */
   criteria: 'available',
   /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */

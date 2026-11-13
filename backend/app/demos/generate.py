@@ -13,6 +13,10 @@ M1「価値を示す3つのデモ」に使う：
   部署マスタ.csv           Shift_JIS（CP932）。部署コードは先頭0付き
   manifest.json            仕込んだ問題の件数・行番号と、集計の正解値
 
+  デモ（M1・docs/demo-design.md）用：
+  デモ_月次売上_期間外あり.xlsx  10月分に、11月の日付の伝票を3件混ぜたもの（品質異常のデモ。原因は「対象期間外」だけ）
+                                 正常のデモと「直したデータ」は 売上実績_2026-10.xlsx を使う
+
 乱数の種（シード）を固定しているため、何度生成しても同じ内容になる。
 
 使い方（backend フォルダで）：
@@ -216,6 +220,26 @@ def generate(out_dir: Path = DATA_DIR) -> dict[str, Any]:
             t[dict(DEPTS)[s.dept]] += s.amount
         return dict(sorted(t.items()))
 
+    # ---------- デモ：月次売上集計の品質異常（対象期間外の伝票の混入だけ） ----------
+    # 既存のファイルの内容を変えないよう、別の乱数（シード＋1）で作る
+    demo_rng = random.Random(SEED + 1)
+    mixed = [Sale(s.day, s.slip, s.dept, s.product, s.qty, s.price, s.note, s.staff) for s in oct_sales]
+    extra = _sales(demo_rng, 2026, 11, 3, 901)  # 11月の伝票（商品コード・部署コードは正しい）
+    for e in extra:
+        e.day = date(2026, 11, demo_rng.randint(1, 5))  # 月初の伝票が、締めの後に混ざった想定
+    # 10月分の途中の位置に入れる（末尾に固まっていると、目で見て気づきやすく、実際の混入に近くないため）
+    positions = sorted(demo_rng.sample(range(20, len(mixed)), 3))
+    for offset, (pos, e) in enumerate(zip(positions, extra)):
+        mixed.insert(pos + offset, e)
+    demo_ng = "デモ_月次売上_期間外あり.xlsx"
+    _write_sheet(
+        out_dir / demo_ng,
+        "売上",
+        OCT_HEADER,
+        [[datetime(s.day.year, s.day.month, s.day.day), s.slip, s.dept, s.product, s.qty, s.price, s.amount, s.note] for s in mixed],
+    )
+    demo_rows = sorted(mixed.index(e) + 2 for e in extra)  # Excel上の行番号
+
     manifest = {
         "seed": SEED,
         "description": "FlowCraft AI デモ用の架空データ。実在の企業・人物・商品とは関係ありません。",
@@ -225,12 +249,21 @@ def generate(out_dir: Path = DATA_DIR) -> dict[str, Any]:
             "商品マスタ.xlsx": {"sheet": "商品", "rows": len(PRODUCTS)},
             "商品マスタ_重複あり.xlsx": {"sheet": "商品", "rows": len(PRODUCTS) + 1, "duplicate_codes": {"P-1003": 2}},
             "部署マスタ.csv": {"encoding": "cp932", "rows": len(DEPTS)},
+            demo_ng: {"sheet": "売上", "rows": len(mixed), "header": OCT_HEADER},
         },
         "expected": {
             "2026-10": {"total_amount": sum(s.amount for s in oct_sales), "dept_totals": dept_totals(oct_sales)},
             "2026-11": {"total_amount": sum(s.amount for s in nov_sales)},
         },
         "planted_2026_11": planted,
+        "demo_monthly_sales": {
+            "ok_file": "売上実績_2026-10.xlsx",
+            "ng_file": demo_ng,
+            "target_month": "2026-10",
+            "out_of_period_rows": demo_rows,
+            "out_of_period_dates": sorted(e.day.isoformat() for e in extra),
+            "ng_total_amount": sum(s.amount for s in mixed),
+        },
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest

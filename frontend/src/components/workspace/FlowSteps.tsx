@@ -74,7 +74,8 @@ export function FlowSteps({
   const notConfirmed = flow.nodes.filter((n) => n.confirmation_status !== 'confirmed').length
   const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
   const [view, setView] = useState<'steps' | 'criteria'>('steps')
-  const [runValues, setRunValues] = useState<Record<string, string>>({})
+  const runValues = useFlowStore((s) => s.runValues)
+  const setRunValues = useFlowStore((s) => s.setRunValues)
   // 完了基準の設定が終わっていない（未検証にしかならない基準があると、実行の意味が薄れるため止める）
   const criteriaUnset = flow.completion_criteria.items.filter((c) => criterionProblems(c, flow).length > 0).length
   const missingValues = flow.run_parameters.filter((p) => p.required !== false && !(runValues[p.param_id] ?? '').trim())
