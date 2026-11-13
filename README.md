@@ -128,6 +128,7 @@ node scripts/screenshots.mjs screenshots
 - [無人定期実行の設計](docs/scheduled-run-design.md)（設計のみ・未実装）
 - [クラウドの「3分後に自動実行を試す」の設計](docs/cloud-demo-design.md)（設計のみ・未実装）
 - [Windows Worker の設計](docs/windows-worker-design.md)（設計のみ・未実装）
+- [空白データの確認と品質ルールの設計](docs/blank-data-design.md)（設計のみ・未実装）
 
 ## データの取り扱い
 
