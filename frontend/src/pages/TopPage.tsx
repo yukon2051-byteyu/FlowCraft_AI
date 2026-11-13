@@ -67,7 +67,7 @@ function Hero() {
     <section className="relative">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-12 sm:px-8 lg:pt-12 lg:pb-14 xl:grid-cols-[minmax(0,1fr)_640px] xl:gap-10">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-12 sm:px-8 lg:pt-9 lg:pb-[37px] xl:grid-cols-[minmax(0,1fr)_640px] xl:gap-10">
         <div>
           <p className="mb-5 inline-flex items-center gap-2 text-[0.85rem] font-bold tracking-wider text-mint uppercase">
             <Workflow className="size-4" aria-hidden />
@@ -112,7 +112,8 @@ function Hero() {
         </div>
 
         {/* 幅640px以上：見直す→改善する→実行する→確かめる の図／スマートフォン：4段階の簡易版 */}
-        <div className="hidden justify-center sm:flex xl:justify-end">
+        {/* 図（幅668px）は、列（640px）より28px広い。左端をそろえ、右端の余白の側へはみ出させる（見出しと重ならないように） */}
+        <div className="hidden justify-center sm:flex xl:-mr-7 xl:justify-end">
           <HeroVisual />
         </div>
         <div className="sm:hidden">
