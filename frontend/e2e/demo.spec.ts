@@ -19,7 +19,7 @@ test('TOP から品質異常のデモを始めると、期間外の伝票を見�
   test.setTimeout(150_000)
   await page.goto('/')
   const card = page.getByRole('article', { name: '月次売上集計デモ' })
-  await card.getByRole('link', { name: /品質異常/ }).click()
+  await card.getByRole('link', { name: '月次売上集計デモ：異常デモを実行' }).click()
   await expect(page).toHaveURL(/\/build\?demo=monthly_sales&pattern=ng/)
 
   // デモの案内と、読み込まれた作業手順（完了基準つき）・実行時に指定する値
@@ -71,7 +71,7 @@ for (const [title, first, evidence] of [
   test(`${title}：品質異常は、案件ごとの原因で重大になる`, async ({ page }) => {
     test.setTimeout(150_000)
     await page.goto('/')
-    await page.getByRole('article', { name: title }).getByRole('link', { name: /品質異常/ }).click()
+    await page.getByRole('article', { name: title }).getByRole('link', { name: `${title}：異常デモを実行` }).click()
     await expect(banner(page)).toContainText(`デモ：${title}（品質異常）`, { timeout: 20_000 })
     await run(page)
     await expect(verdictBox(page)).toContainText('総合判定：重大')
@@ -110,3 +110,31 @@ test('品質異常の後に「直したデータで再実行する」と、自�
   await run(page)
   await expect(page.getByRole('region', { name: '直す前と後の比較' })).toHaveCount(0)
 })
+
+/* TOP のデモ：3案件 × 正常・異常 の6パターン。キーボード（Enter・Space）で開始し、正しいデモと判定になる */
+for (const [id, title] of [
+  ['monthly_sales', '月次売上集計デモ'],
+  ['product_match', '商品マスタ照合デモ'],
+  ['inventory', '在庫差異検出デモ'],
+] as const) {
+  for (const [pattern, button, label, verdict, key] of [
+    ['ok', '正常デモを実行', '正常終了', '総合判定：正常', 'Enter'],
+    ['ng', '異常デモを実行', '品質異常', '総合判定：重大', 'Space'],
+  ] as const) {
+    test(`TOP：${title}の「${button}」を${key}キーで開始すると、${label}のデモになる`, async ({ page }) => {
+      test.setTimeout(150_000)
+      await page.goto('/')
+      const card = page.getByRole('article', { name: title })
+      await expect(card.getByText('体験するパターンを選択')).toBeVisible()
+      // 押せる要素は枠全体の1つだけ（ボタンの見た目の中に、別の押せる要素を入れ子にしない）
+      const link = card.getByRole('link', { name: `${title}：${button}` })
+      await expect(link.locator('a, button')).toHaveCount(0)
+      await link.focus()
+      await page.keyboard.press(key)
+      await expect(page).toHaveURL(new RegExp(`/build[?]demo=${id}&pattern=${pattern}$`))
+      await expect(banner(page)).toContainText(`デモ：${title}（${label}）`, { timeout: 20_000 })
+      await run(page)
+      await expect(verdictBox(page)).toContainText(verdict)
+    })
+  }
+}

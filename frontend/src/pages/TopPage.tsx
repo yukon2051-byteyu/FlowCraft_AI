@@ -6,6 +6,7 @@ import {
   Check,
   CircleCheck,
   CircleHelp,
+  CirclePlay,
   Clock3,
   FileSpreadsheet,
   FolderOpen,
@@ -468,9 +469,10 @@ function Demos() {
             lead="架空の業務データで、実際の処理と品質の確認を行います。問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。"
           />
         </div>
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        {/* 3つのカードの各段（見出し・説明・ファイル・小見出し・選択肢）の高さを subgrid でそろえる（実行ボタンの位置もそろう） */}
+        <div className="mt-8 grid gap-4 lg:grid-cols-3 lg:gap-y-0">
           {DEMOS.map((d) => (
-            <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label={d.title}>
+            <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge lg:row-span-5 lg:grid lg:grid-rows-subgrid" aria-label={d.title}>
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-[1.15rem] font-bold text-white">{d.title}</h3>
                 <DevBadge feature={d.feature} />
@@ -480,36 +482,54 @@ function Demos() {
                 <FileSpreadsheet className="size-4 shrink-0 text-subtle" aria-hidden />
                 {d.inputs}
               </p>
-              <div className="mt-4 grid flex-1 grid-cols-2 gap-2.5" role="group" aria-label={`${d.title}の体験の選び方`}>
-                <DemoChoice to={`/build?demo=${d.id}&pattern=ok`} ready={isAvailable(d.feature)} className="bg-mint/8 ring-mint/40 hover:bg-mint/15">
+              <p id={`demo-${d.id}-choose`} className="mt-4 text-[0.88rem] font-bold text-white/85">
+                体験するパターンを選択
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2.5" role="group" aria-labelledby={`demo-${d.id}-choose`}>
+                <DemoChoice
+                  to={`/build?demo=${d.id}&pattern=ok`}
+                  ready={isAvailable(d.feature)}
+                  label={`${d.title}：正常デモを実行`}
+                  className="bg-mint/8 ring-mint/40 hover:bg-mint/14 hover:ring-mint/75"
+                >
                   <span className="flex items-center gap-1.5 font-bold text-mint">
                     <CircleCheck className="size-4.5" aria-hidden />
                     正常終了
                   </span>
-                  <span className="mt-1 text-[0.82rem] leading-snug text-white/80">{d.ok}</span>
+                  <span className="mt-1 mb-3 text-[0.82rem] leading-snug text-white/80">{d.ok}</span>
+                  <RunLook className="bg-mint text-[#0B2A22] group-hover:bg-[#5BE3BE]">正常デモを実行</RunLook>
                 </DemoChoice>
-                <DemoChoice to={`/build?demo=${d.id}&pattern=ng`} ready={isAvailable(d.feature)} className="bg-kaizen/8 ring-kaizen/45 hover:bg-kaizen/15">
+                <DemoChoice
+                  to={`/build?demo=${d.id}&pattern=ng`}
+                  ready={isAvailable(d.feature)}
+                  label={`${d.title}：異常デモを実行`}
+                  className="bg-kaizen/8 ring-kaizen/45 hover:bg-kaizen/14 hover:ring-kaizen/80"
+                >
                   <span className="flex items-center gap-1.5 font-bold text-kaizen-text">
                     <TriangleAlert className="size-4.5" aria-hidden />
                     品質異常
                   </span>
-                  <span className="mt-1 text-[0.82rem] leading-snug text-white/80">{d.ng}</span>
+                  <span className="mt-1 mb-3 text-[0.82rem] leading-snug text-white/80">{d.ng}</span>
+                  <RunLook className="bg-[#A93F3B] text-white group-hover:bg-[#BC4A45]">異常デモを実行</RunLook>
                 </DemoChoice>
               </div>
             </article>
           ))}
         </div>
         <p className="mt-4 text-[0.88rem] text-subtle">
-          品質異常のデモでは、問題を直したデータで再実行し、直す前と後の結果を比べることもできる予定です。AI業務改善診断のデモは、機能の完成後に追加します。
+          品質異常のデモでは、問題を直したデータで再実行し、直す前と後の結果を比べることもできます。AI業務改善診断のデモは、機能の完成後に追加します。
         </p>
       </div>
     </section>
   )
 }
 
-/** デモの「正常終了」「品質異常」の選択肢。使えるときはデモの開始へのリンク、開発中は押せない */
-function DemoChoice({ to, ready, className, children }: { to: string; ready: boolean; className: string; children: ReactNode }) {
-  const base = `flex flex-col rounded-xl p-3 text-left ring-1 transition ${className}`
+/**
+ * デモの「正常終了」「品質異常」の選択肢。枠全体が1つのリンク（クリック・Enter・Space で開始）。
+ * 中の「実行」はボタンの見た目の表示だけで、押せる要素を入れ子にしない。開発中は押せない。
+ */
+function DemoChoice({ to, ready, label, className, children }: { to: string; ready: boolean; label: string; className: string; children: ReactNode }) {
+  const base = `group flex flex-col rounded-xl p-3 text-left ring-1 transition ${className}`
   if (!ready) {
     return (
       <span aria-disabled="true" title="このデモは開発中です" className={`${base} cursor-not-allowed opacity-60 hover:bg-transparent`}>
@@ -518,9 +538,30 @@ function DemoChoice({ to, ready, className, children }: { to: string; ready: boo
     )
   }
   return (
-    <Link to={to} className={`${base} focus-visible:outline-2 focus-visible:outline-mint`}>
+    <Link
+      to={to}
+      aria-label={label}
+      // リンクは Enter では開くが Space では開かないため、ボタンと同じく Space でも開始できるようにする
+      onKeyDown={(e) => {
+        if (e.key === ' ') {
+          e.preventDefault()
+          e.currentTarget.click()
+        }
+      }}
+      className={`${base} cursor-pointer hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}
+    >
       {children}
     </Link>
+  )
+}
+
+/** 実行ボタンの見た目（表示だけ。クリックは外側の枠が受ける） */
+function RunLook({ className, children }: { className: string; children: ReactNode }) {
+  return (
+    <span aria-hidden className={`mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[0.88rem] font-bold transition-colors ${className}`}>
+      <CirclePlay className="size-4" />
+      {children}
+    </span>
   )
 }
 
