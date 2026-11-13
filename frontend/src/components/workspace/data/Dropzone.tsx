@@ -49,7 +49,7 @@ export function Dropzone({ onFiles, disabled = false, disabledReason, compact = 
       onDrop={onDrop}
       onDragOver={onDragOver}
       onDragLeave={() => setOver(false)}
-      className={`rounded-xl border-2 border-dashed text-center transition-colors ${frame} ${compact ? 'px-4 py-5' : 'px-6 py-10'}`}
+      className={`rounded-xl border-2 border-dashed text-center transition-colors ${frame} ${compact ? 'px-4 py-5' : 'px-6 py-12'}`}
     >
       <input
         ref={input}

@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('Excelを読み込むと、列・型・先頭の行が表示される', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: 'データを読み込む' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Excel・CSVを読み込む' })).toBeVisible()
   await page.getByTestId('file-input').first().setInputFiles(fixture('sales_sample.xlsx'))
 
   const list = page.getByRole('list', { name: '読み込んだファイル' })
@@ -96,7 +96,7 @@ test('ファイルは確認してから削除される', async ({ page }) => {
 
   await list.getByRole('button', { name: 'dept_sjis.csv を削除' }).click()
   await list.getByRole('button', { name: '削除する' }).click()
-  await expect(page.getByRole('heading', { name: 'データを読み込む' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Excel・CSVを読み込む' })).toBeVisible()
 })
 
 test('旧URL /workspace を開くと、作る画面 /build へ転送される（指定も引き継ぐ）', async ({ page }) => {
@@ -105,13 +105,27 @@ test('旧URL /workspace を開くと、作る画面 /build へ転送される（
   await expect(page.getByText('サンプル表示中')).toBeVisible()
 })
 
-test('始め方は2つ。見直し（AI業務改善診断）は任意で、開発中のあいだは選べない', async ({ page }) => {
-  const routes = page.getByRole('radiogroup', { name: '始め方' })
-  await expect(routes.getByRole('radio', { name: /すぐにExcel作業を自動化する/ })).toHaveAttribute('aria-checked', 'true')
-  const review = routes.getByRole('radio', { name: /作業の見直しから始める/ })
-  await expect(review).toHaveAttribute('aria-disabled', 'true')
-  await expect(review).toContainText('開発中')
-  // 見直しを選ばなくても、そのままファイルを読み込める
+test('最初の画面：読み込む前に始め方を選ばせず、すぐにファイルを選べる。ほかの始め方は右側にまとめる', async ({ page }) => {
+  // 開始方法を選ぶ大きなカード（すぐに自動化する／作業の見直し）は出さない
+  await expect(page.getByRole('radiogroup', { name: '始め方' })).toHaveCount(0)
+  const main = page.getByRole('region', { name: 'Excel・CSVを読み込む' })
+  await expect(main.getByRole('button', { name: 'ファイルを選択' })).toBeVisible()
+  await expect(main.getByRole('list', { name: '対応形式と上限' })).toContainText('1ファイル10MB・合計10万行')
+  await expect(main.getByLabel('読み込み後の流れ')).toContainText('③ 実行・品質確認')
+  await expect(page.getByRole('list', { name: '作業の段階' })).toContainText('実行・品質確認')
+
+  const side = page.getByRole('complementary', { name: 'ほかの始め方' })
+  // 開発中の機能は押せる形にしない
+  const derive = side.locator('[aria-disabled="true"]', { hasText: '手順を複製してカスタマイズ' })
+  await expect(derive).toContainText('開発中')
+  await expect(derive.getByRole('button')).toHaveCount(0)
+  // AI利用・データの取扱い：詳細は開いたときだけ表示する
+  const ai = side.getByRole('region', { name: 'AI利用・データの取扱い' })
+  await expect(ai.getByText('現在はAIに何も送信していません', { exact: false })).toBeHidden()
+  await ai.getByText('詳細を確認する').click()
+  await expect(ai.getByText('現在はAIに何も送信していません', { exact: false })).toBeVisible()
+
+  // そのままファイルを読み込める
   await page.getByTestId('file-input').first().setInputFiles(fixture('sales_sample.xlsx'))
   await expect(page.getByText('1ファイル')).toBeVisible()
 })

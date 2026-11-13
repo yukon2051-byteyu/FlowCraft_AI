@@ -163,11 +163,11 @@ test('ブラウザを閉じて開き直しても、保存した一覧から開�
   await reopened.close()
 })
 
-test('開始画面の「保存した作業手順を使う」から開ける', async ({ page }) => {
+test('開始画面の「保存した手順を再利用する」から開ける（ヘッダーの「作業手順を開く」と同じ画面）', async ({ page }) => {
   await page.goto('/build')
   const card = page.getByRole('complementary', { name: 'ほかの始め方' })
-  await expect(card.getByText('保存した作業手順を使う')).toBeVisible()
-  await card.getByRole('button', { name: '作業手順を開く' }).click()
+  await expect(card.getByText('保存した手順を再利用する')).toBeVisible()
+  await card.getByRole('button', { name: '保存した手順を開く' }).click()
   await expect(openDialog(page)).toBeVisible()
 })
 
