@@ -8,11 +8,19 @@ test('無人定期実行のカードは「開発中」と、5つの確認を示�
   await page.goto('/')
   const card = page.getByRole('article', { name: '決まった日時に無人で実行できる' })
   await expect(card.getByRole('heading', { name: '毎月の作業は、もう開かなくていい。' })).toBeVisible()
-  await expect(card.getByText('開発中', { exact: true })).toBeVisible()
+  await expect(card.getByText('開発中', { exact: true })).toHaveCount(3) // 無人定期実行・クラウドで試す・Windows Worker
   // 3分後の自動実行デモは、完成するまで押せない
   await expect(card.getByRole('button', { name: '3分後に自動実行を試す' })).toBeDisabled()
-  await expect(card.getByRole('listitem')).toHaveText([/設定を保存/, /接続テスト/, /テスト実行/, /品質検証/, /利用者が有効化/])
+  await expect(card.getByRole('list', { name: '無人で実行する前の5つの確認' }).getByRole('listitem')).toHaveText([/設定を保存/, /接続テスト/, /テスト実行/, /品質検証/, /利用者が有効化/])
   await expect(page.getByText('選ばれる6つの理由')).toBeVisible()
+  // 試し方の3つの区分：未実装のものは「開発中」、製品版の機能は「対応予定」と分けて示す
+  const ways = card.getByRole('list', { name: '無人実行の試し方' }).getByRole('listitem')
+  await expect(ways).toHaveCount(3)
+  await expect(ways.nth(0)).toContainText('クラウドで試す')
+  await expect(ways.nth(0)).toContainText('開発中')
+  await expect(ways.nth(1)).toContainText('Windows Workerで試せる')
+  await expect(ways.nth(1)).toContainText('開発中')
+  await expect(ways.nth(2)).toContainText('製品版で対応予定')
 })
 
 test('先頭に戻るボタン：先頭では隠れ、スクロールすると右下に出て、押すと滑らかに先頭へ戻る', async ({ page }) => {

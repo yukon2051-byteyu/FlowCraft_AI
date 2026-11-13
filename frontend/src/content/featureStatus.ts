@@ -30,6 +30,10 @@ export const FEATURE_STATUS = {
   kaizen: 'in_development',
   /** 無人定期実行（共通Workerが、有効化された案件だけを決まった日時に実行する） */
   schedule: 'in_development',
+  /** クラウドで3分後に自動実行を試す（サンプルデータ）。公開・実測ができたら available にし、表示を「今すぐ試せる」にする */
+  scheduleCloud: 'in_development',
+  /** Windows Worker（自分のPCのフォルダで無人実行）。Windows 11 での確認ができたら available にする */
+  scheduleWindows: 'in_development',
 } as const satisfies Record<string, FeatureStatus>
 
 export type FeatureKey = keyof typeof FEATURE_STATUS

@@ -439,7 +439,9 @@ def _unmatched_checks(
         cause_text = "／".join(f"{c['label']}：{c['count']}件（例：{'、'.join(c['examples'][:3])}）" for c in causes) or None
         fix = causes[0]["how_to_fix"] if causes else "未照合のキーと対象の行を確認してください。マスタへの登録漏れの可能性があります。"
         dropped_note = "（内部結合のため、これらの行は結果に含まれません）" if how == "inner" else "（行は削除せず残しています）" if important else ""
-        message = f"{side}（{label}）に照合できなかった行があります：{'、'.join(parts)}{dropped_note}"
+        # 画面に出す文には内部の参照名（sales_selected など）を入れない。左右は「元の表」「付け加える表」と呼ぶ
+        side_name = "元の表" if side == "左" else "付け加える表"
+        message = f"{side_name}に照合できなかった行があります：{'、'.join(parts)}{dropped_note}"
 
         if important:
             if p.unmatched_policy == "error":
@@ -447,5 +449,5 @@ def _unmatched_checks(
             issues.append(warning("UNMATCHED_RECORDS", message, cause=cause_text, how_to_fix=fix, **details))
         else:
             # マスタ側の「使われなかった行」は通常問題ないため、情報として示す
-            issues.append(info("UNUSED_RECORDS", f"{side}（{label}）のうち、使われなかった行が{len(rows) + nulls:,}行あります。", **details))
+            issues.append(info("UNUSED_RECORDS", f"{side_name}のうち、使われなかった行が{len(rows) + nulls:,}行あります。", **details))
     return issues

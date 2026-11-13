@@ -1,5 +1,8 @@
 import {
   ArrowRight,
+  Building2,
+  Cloud,
+  Monitor,
   CalendarClock,
   Check,
   CircleHelp,
@@ -22,6 +25,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { isAvailable } from '../content/featureStatus'
 import type { FeatureKey } from '../content/featureStatus'
 import { SiteFooter } from '../components/layout/SiteFooter'
 import { SiteHeader } from '../components/layout/SiteHeader'
@@ -235,7 +239,7 @@ function ScheduleCard() {
       </div>
       <div>
         <p className="text-[0.85rem] font-bold text-white/90">設定しただけでは動きません。5つの確認を通ってから始めます</p>
-        <ol className="mt-2 grid grid-cols-5 gap-1.5">
+        <ol className="mt-2 grid grid-cols-5 gap-1.5" aria-label="無人で実行する前の5つの確認">
           {SAFE_START.map((s, i) => (
             <li
               key={s}
@@ -247,14 +251,42 @@ function ScheduleCard() {
           ))}
         </ol>
         <p className="mt-2 text-[0.82rem] text-subtle">設定を変えたときは、もう一度確認してから実行します（以前の確認結果は使い回しません）。</p>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <Button variant="outlineDark" size="sm" disabled title="開発中です。完成後、サンプルデータで試せます">
-            <CalendarClock className="size-4" aria-hidden />
-            3分後に自動実行を試す
-          </Button>
-          <span className="text-[0.82rem] text-subtle">完成後、サンプルデータを使い、実際のExcel処理をクラウド上で3分後に自動実行できます（開発中）。</span>
-        </div>
       </div>
+
+      {/* 試し方の3つの区分：今使えるものと、対応予定のものを混同させない（docs/windows-worker-design.md §7） */}
+      <ul className="grid gap-2.5 border-t border-edge pt-4 lg:col-span-2 lg:grid-cols-3" aria-label="無人実行の試し方">
+        <li className="rounded-xl bg-panel-hi p-3.5 ring-1 ring-edge">
+          <p className="flex flex-wrap items-center gap-1.5 text-[0.92rem] font-bold text-white">
+            <Cloud className="size-4 text-mint" aria-hidden />
+            {isAvailable('scheduleCloud') ? '今すぐ試せる' : 'クラウドで試す'}
+            <DevBadge feature="scheduleCloud" />
+          </p>
+          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">クラウド上で、サンプルのExcelを3分後に実際に自動処理します。ブラウザを閉じても実行され、あとから結果を確認できます。</p>
+          <div className="mt-2.5">
+            <Button variant="outlineDark" size="sm" disabled={!isAvailable('scheduleCloud')} title="開発中です。完成後、サンプルデータで試せます">
+              <CalendarClock className="size-4" aria-hidden />
+              3分後に自動実行を試す
+            </Button>
+          </div>
+        </li>
+        <li className="rounded-xl bg-panel-hi p-3.5 ring-1 ring-edge">
+          <p className="flex flex-wrap items-center gap-1.5 text-[0.92rem] font-bold text-white">
+            <Monitor className="size-4 text-mint" aria-hidden />
+            Windows Workerで試せる
+            <DevBadge feature="scheduleWindows" />
+          </p>
+          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">
+            PC内のExcel作業も、指定時刻に自動実行。自分のPCのフォルダのExcel・CSVを処理し、品質検証と結果の保存まで行います。ファイルはPCの外に出ません。
+          </p>
+        </li>
+        <li className="rounded-xl p-3.5 ring-1 ring-edge ring-dashed">
+          <p className="flex flex-wrap items-center gap-1.5 text-[0.92rem] font-bold text-white/85">
+            <Building2 className="size-4 text-subtle" aria-hidden />
+            製品版で対応予定
+          </p>
+          <p className="mt-1 text-[0.85rem] leading-relaxed text-subtle">社内共有フォルダのファイル取得・加工・保存や、企業内サーバーでの無人定期実行への拡張を予定しています。</p>
+        </li>
+      </ul>
     </article>
   )
 }

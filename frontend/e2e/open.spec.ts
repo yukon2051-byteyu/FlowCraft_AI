@@ -145,3 +145,20 @@ test('一覧から削除するときは確認し、削除すると一覧から�
   await openDialog(page).getByRole('button', { name: '「月次売上集計」を一覧から削除' }).click()
   await expect(openDialog(page)).toContainText('まだありません')
 })
+
+test('ブラウザを閉じて開き直しても、保存した一覧から開ける（1-10）', async ({ page, browser }) => {
+  test.setTimeout(150_000)
+  await buildAndSave(page)
+  const before = await stepNames(page)
+  // ブラウザの保存領域（localStorage）を引き継いだ、新しいブラウザを開く（閉じて開き直したのと同じ）
+  const state = await page.context().storageState()
+  await page.context().close()
+  const reopened = await browser.newContext({ storageState: state })
+  const p = await reopened.newPage()
+  await p.goto('/build')
+  await header(p).getByRole('button', { name: '作業手順を開く' }).click()
+  await openDialog(p).getByRole('listitem').filter({ hasText: '月次売上集計' }).getByRole('button', { name: '開く' }).click()
+  await p.getByRole('button', { name: 'ファイルを割り当てずに作業手順を見る' }).click()
+  expect(await stepNames(p)).toEqual(before)
+  await reopened.close()
+})
