@@ -73,4 +73,5 @@ class RunResult:
         """
         if self.status == "failed" or not self.outputs:
             return False
-        return self.verdict is None or self.verdict.verdict != "critical"
+        # 重大、または重大とした基準が確かめられなかった（report_only）ときは出力しない
+        return self.verdict is None or self.verdict.export != "report_only"

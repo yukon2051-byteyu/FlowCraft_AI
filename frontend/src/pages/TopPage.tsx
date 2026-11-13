@@ -715,7 +715,7 @@ const TRUST_FLOW: { icon: LucideIcon; title: string; body: string }[] = [
 const VERDICTS: { icon: LucideIcon; label: string; meaning: string; output: string; cls: string }[] = [
   { icon: CircleCheck, label: '正常', meaning: '設定した基準を満たしている', output: '正式出力を許可', cls: 'text-mint' },
   { icon: TriangleAlert, label: '注意', meaning: '検証した結果、確認が必要な点がある', output: '内容を確認してから出力', cls: 'text-warning' },
-  { icon: Info, label: '未検証', meaning: '必要な検証が完了していない', output: '「正常」とはせず、確認してから出力', cls: 'text-sky-300' },
+  { icon: Info, label: '未検証', meaning: '必要な検証が完了していない', output: '必須（重大）のルールなら停止。それ以外は確認してから出力', cls: 'text-sky-300' },
   { icon: CircleX, label: '重大', meaning: '重大な品質異常を検出', output: '正式出力を停止（データの修正・再実行が必要）', cls: 'text-kaizen-text' },
 ]
 

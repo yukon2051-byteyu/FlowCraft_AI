@@ -92,8 +92,15 @@ def decide(result: RunResult) -> VerdictResult:
         export: ExportMode = "report_only"
     elif unverified:
         verdict = "unverified"
-        headline = f"確かめられなかった完了基準が{len(unverified)}件あります。「正常」とは判定していません。"
-        export = "needs_confirmation"
+        # 重大とした基準（＝必須のルール）が確かめられなかったときは、確認のチェックだけでは出力させない（U-1・2026-11-13）。
+        # 原因を直して再実行する必要がある。注意とした基準だけが未検証なら、確認したうえで出力できる
+        unverified_critical = [c for c in unverified if c.on_fail == "critical"]
+        if unverified_critical:
+            headline = f"重大とした完了基準を{len(unverified_critical)}件確かめられませんでした。原因を直して再実行するまで、処理結果は出力できません。"
+            export = "report_only"
+        else:
+            headline = f"確かめられなかった完了基準が{len(unverified)}件あります。「正常」とは判定していません。"
+            export = "needs_confirmation"
     elif failed_caution or warn_steps:
         verdict = "caution"
         headline = "確認が必要な点があります。内容を確かめてから出力してください。"

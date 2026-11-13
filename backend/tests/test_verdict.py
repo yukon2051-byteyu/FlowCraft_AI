@@ -46,15 +46,17 @@ CASES = [
     ("success", "ok", [crit("failed", "critical")], "critical", "report_only", False),
     ("success", "ok", [crit("failed", "caution")], "caution", "needs_confirmation", False),
     ("success", "ok", [crit("failed", "record")], "normal", "allowed", True),  # 記録のみは判定に使わない
-    # 未検証：正常にしない
-    ("success", "ok", [crit("unverified", "critical")], "unverified", "needs_confirmation", False),
+    # 未検証：正常にしない。重大とした基準（必須のルール）の未検証は、確認しても出力させない（U-1）
+    ("success", "ok", [crit("unverified", "critical")], "unverified", "report_only", False),
     ("success", "ok", [crit("unverified", "caution")], "unverified", "needs_confirmation", False),
     ("success", "ok", [crit("passed"), crit("unverified", "caution")], "unverified", "needs_confirmation", False),
     ("success", "ok", [crit("unverified", "record")], "normal", "allowed", True),  # 記録のみの未検証は判定に使わない
     # 優先順位：重大 ＞ 未検証 ＞ 注意
     ("success", "ok", [crit("failed", "critical"), crit("unverified")], "critical", "report_only", False),
-    ("success", "ok", [crit("unverified"), crit("failed", "caution")], "unverified", "needs_confirmation", False),
-    ("warning", "warning", [crit("unverified")], "unverified", "needs_confirmation", False),
+    ("success", "ok", [crit("unverified"), crit("failed", "caution")], "unverified", "report_only", False),
+    ("success", "ok", [crit("unverified", "caution"), crit("failed", "caution")], "unverified", "needs_confirmation", False),
+    ("warning", "warning", [crit("unverified")], "unverified", "report_only", False),
+    ("warning", "warning", [crit("unverified", "caution")], "unverified", "needs_confirmation", False),
     ("failed", "error", [crit("unverified")], "critical", "report_only", False),  # 止まったら重大
     # 一覧にするだけの基準（recorded）
     ("success", "ok", [CriterionResult("c", "一覧", "list_rows", "record", "recorded", "")], "normal", "allowed", True),
@@ -92,10 +94,13 @@ def test_can_export_follows_verdict():
     r = result(criteria=[crit("failed", "critical")])
     r.verdict = decide(r)
     assert r.can_export is False  # 重大：確定した結果は出さない
-    for crits in ([crit("failed", "caution")], [crit("unverified")], [crit("passed")]):
+    for crits in ([crit("failed", "caution")], [crit("unverified", "caution")], [crit("passed")]):
         r = result(criteria=crits)
         r.verdict = decide(r)
-        assert r.can_export is True  # 注意・未検証は、確認したうえで出力できる（確認は出力のAPIで求める）
+        assert r.can_export is True  # 注意・未検証（注意とした基準）は、確認したうえで出力できる（確認は出力のAPIで求める）
+    r = result(criteria=[crit("unverified", "critical")])
+    r.verdict = decide(r)
+    assert r.can_export is False  # 重大とした基準の未検証：確認しても確定した結果は出さない（U-1）
 
 
 # ===================== API（実行 → 出力） =====================
@@ -169,13 +174,29 @@ def test_caution_requires_confirmation_before_export(client):
     assert res.status_code == 200 and "部署別売上" in sheets(res)
 
 
-def test_unverified_requires_confirmation(client):
+def test_unverified_caution_rule_requires_confirmation(client):
+    period = {"criterion_id": "c_p", "name": "対象月の伝票だけ", "kind": "period", "target": {"ref": "sales", "column": "売上日"}, "params": {"month": {"$param": "m"}}, "on_fail": "caution"}
+    f = flow_with([period])
+    f["run_parameters"] = [{"param_id": "m", "label": "対象月", "type": "month"}]
+    h, body = run(client, f)  # 対象月を入力しない
+    assert body["verdict"]["verdict"] == "unverified" and body["verdict"]["export"] == "needs_confirmation"
+    assert client.get(f"/api/runs/{body['run_id']}/export", headers=h).status_code == 409
+    res = client.get(f"/api/runs/{body['run_id']}/export?confirmed=true", headers=h)
+    assert res.status_code == 200 and "部署別売上" in sheets(res)
+
+
+def test_unverified_critical_rule_stops_official_output_even_if_confirmed(client):
+    """重大とした基準（必須のルール）が確かめられなかった：確認のチェックを入れても、正式な結果は出さない（U-1）"""
     period = {"criterion_id": "c_p", "name": "対象月の伝票だけ", "kind": "period", "target": {"ref": "sales", "column": "売上日"}, "params": {"month": {"$param": "m"}}, "on_fail": "critical"}
     f = flow_with([period])
     f["run_parameters"] = [{"param_id": "m", "label": "対象月", "type": "month"}]
     h, body = run(client, f)  # 対象月を入力しない
-    assert body["verdict"]["verdict"] == "unverified"
-    assert client.get(f"/api/runs/{body['run_id']}/export", headers=h).status_code == 409
+    assert body["verdict"]["verdict"] == "unverified" and body["verdict"]["export"] == "report_only"
+    assert body["can_export"] is False
+    assert body["record"]["official_output"]["stop_reason"].startswith("処理は完了しましたが、重大とした完了基準を確かめられなかったため")
+    res = client.get(f"/api/runs/{body['run_id']}/export?confirmed=true", headers=h)
+    assert res.status_code == 200
+    assert "部署別売上" not in sheets(res) and "%E8%AA%BF%E6%9F%BB%E7%94%A8" in res.headers["content-disposition"]  # 調査用だけ
 
 
 def test_critical_criterion_blocks_result_sheets(client):
