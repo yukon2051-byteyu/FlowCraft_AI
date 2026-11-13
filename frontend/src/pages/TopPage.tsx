@@ -800,7 +800,7 @@ function Trust() {
           </Button>
         </div>
         <p className="mt-3 text-[0.82rem] text-subtle">
-          確認できるのは、自動で行う確認と、設定した基準の範囲です。前回との比較・品質ルールの複製・検出の履歴は開発中です。
+          確認できるのは、自動で行う確認と、設定した基準の範囲です。毎月の実行では、前月に正式出力した結果と自動で比べます（履歴はこのブラウザに保存）。品質ルールの複製は開発中です。
         </p>
         <h3 className="mt-8 text-[0.95rem] font-bold text-white">データの取り扱い・ご利用上の注意</h3>
         <ul className="mt-3 grid gap-x-8 gap-y-2 md:grid-cols-2">

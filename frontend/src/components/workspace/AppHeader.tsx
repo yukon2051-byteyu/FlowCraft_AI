@@ -1,4 +1,4 @@
-import { FileOutput, FolderOpen, Save } from 'lucide-react'
+import { FileOutput, FolderOpen, History, Save } from 'lucide-react'
 import { Link } from 'react-router'
 import { Logo } from '../brand/Logo'
 import { Button } from '../ui/Button'
@@ -20,12 +20,14 @@ type Props = {
   canSave?: boolean
   /** 保存した作業手順を開く */
   onOpen?: () => void
+  /** 実行の履歴（このブラウザ）を開く */
+  onHistory?: () => void
 }
 
 const LEAVE_MESSAGE = '保存していない変更があります。このページを離れると、変更は失われます。離れますか？'
 
 /** ワークスペース用のヘッダー。TOPと同じロゴ・ナビゲーション色で統一する。 */
-export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExport, exporting = false, exportBlocked = null, onSave, canSave = false, onOpen }: Props) {
+export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExport, exporting = false, exportBlocked = null, onSave, canSave = false, onOpen, onHistory }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-edge bg-nav px-5 text-white">
       <Link
@@ -57,6 +59,10 @@ export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExpo
         )}
       </div>
       <div className="ml-auto flex items-center gap-2">
+        <Button variant="ghostDark" size="sm" disabled={!onHistory} onClick={onHistory} title="このブラウザに保存した、実行の記録を見ます">
+          <History className="size-4" aria-hidden />
+          実行の履歴
+        </Button>
         <Button variant="ghostDark" size="sm" disabled={!onOpen} onClick={onOpen} title="保存した作業手順を、ブラウザの一覧またはファイルから開きます">
           <FolderOpen className="size-4" aria-hidden />
           作業手順を開く

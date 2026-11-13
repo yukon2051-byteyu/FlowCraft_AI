@@ -1,6 +1,9 @@
 import { computeDependencies } from '../flow/ops'
 import type { Binding, FlowDoc } from '../flow/types'
 import { apiRequest, downloadFile } from './client'
+import { historyToSend } from '../flow/history'
+import type { RunRecord } from '../flow/history'
+import { listRecords, saveRecord } from './historyStore'
 
 /*
  * 作業手順のチェック（backend/app/api/flows.py の /api/flows/validate）。
@@ -174,13 +177,24 @@ export function compareWithRun(runId: string, baselineRunId: string): Promise<{ 
   })
 }
 
-/** 作業手順全体を実行する（すべてのステップが確認済みであること） */
-export function runFlow(flow: FlowDoc, bindings: Binding[], runParameters: Record<string, string> = {}): Promise<RunSummary> {
+/**
+ * 作業手順全体を実行する（すべてのステップが確認済みであること）。
+ * history：同じ作業手順の過去の記録（このブラウザの履歴。前回比較に使う。サーバーは保存しない）
+ */
+export function runFlow(flow: FlowDoc, bindings: Binding[], runParameters: Record<string, string> = {}, history: unknown[] = []): Promise<RunSummary> {
   return apiRequest<RunSummary>('/api/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: body(flow, bindings, { run_parameters: runParameters }),
+    body: body(flow, bindings, { run_parameters: runParameters, history }),
   })
+}
+
+/** 実行して、結果の記録をこのブラウザの履歴に保存する（前回比較のため、同じ作業手順の過去の記録を送る） */
+export async function runAndRecord(flow: FlowDoc, bindings: Binding[], runParameters: Record<string, string> = {}): Promise<RunSummary> {
+  const history = historyToSend(await listRecords(), flow.flow_id)
+  const run = await runFlow(flow, bindings, runParameters, history)
+  if (run.record) await saveRecord(run.record as unknown as RunRecord)
+  return run
 }
 
 export function fetchRun(runId: string, limit = 50): Promise<RunDetail> {

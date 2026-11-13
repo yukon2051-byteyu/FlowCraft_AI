@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
 import { ApiError } from '../../api/client'
 import type { ApiErrorBody } from '../../api/client'
-import { fieldOf, runFlow, stepIndexOf, validateFlow } from '../../api/flows'
+import { fieldOf, runAndRecord, stepIndexOf, validateFlow } from '../../api/flows'
 import type { RunSummary } from '../../api/flows'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
@@ -65,7 +65,7 @@ export function FlowSteps({
   const bindings = useFlowStore((s) => s.bindings)
   const [runError, setRunError] = useState<ApiErrorBody | null>(null)
   const runMutation = useMutation({
-    mutationFn: () => runFlow(flow, Object.values(bindings), runValues),
+    mutationFn: () => runAndRecord(flow, Object.values(bindings), runValues),
     onMutate: () => setRunError(null),
     onSuccess: (run) => onRan(run, contentSnapshot(flow)),
     onError: (e) => setRunError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '実行できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),

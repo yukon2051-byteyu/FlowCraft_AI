@@ -17,13 +17,15 @@ import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
+import { HistoryDialog } from '../components/workspace/HistoryDialog'
 import { DemoBanner } from '../components/workspace/DemoBanner'
 import { startDemo } from '../api/demos'
 import type { DemoPattern, DemoStart } from '../api/demos'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { OpenDialog } from '../components/workspace/OpenDialog'
 import { AssignInputs } from '../components/workspace/AssignInputs'
-import { exportRun, runFlow } from '../api/flows'
+import { exportRun, runAndRecord } from '../api/flows'
+import { clearRecords, markPerformed, setHistoryScope } from '../api/historyStore'
 import { contentSnapshot } from '../flow/ops'
 import type { RunSummary } from '../api/flows'
 import { ApiError } from '../api/client'
@@ -83,6 +85,8 @@ export default function WorkspacePage() {
     try {
       const name = await exportRun(lastRun.run.run_id, needsConfirm && confirmed)
       setExported({ runId: lastRun.run.run_id, name })
+      // 正式な結果を出力したら、履歴の記録に印を付ける（次回の前回比較で「業務の数値」の相手になる）
+      if (lastRun.run.can_export) await markPerformed(lastRun.run.run_id)
       // 出力した内容を記録する（今回だけの作業なら、これで終われる。離れるときに確認しない）
       markExported(lastRun.snap)
     } catch (e) {
@@ -100,6 +104,7 @@ export default function WorkspacePage() {
   const unsaved = useFlowStore(selectNeedsLeaveGuard)
   const markExported = useFlowStore((s) => s.markExported)
   const [saving, setSaving] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   // ?start=saved で開いたときは、すぐに作業手順を開く画面を出す
   const [opening, setOpening] = useState(() => mode === 'SAVED_WORKFLOW' && !params.get('demo'))
   // 今の作業手順を、新しく作ったか、保存したものを開いたか（戻る先が変わる）
@@ -130,7 +135,7 @@ export default function WorkspacePage() {
       fixed.bindings.forEach((b) => current.setBinding({ ...b, column_mapping: {} }))
       current.setRunValues(fixed.run_parameters)
       const flow = useFlowStore.getState().flow
-      const run = await runFlow(flow, Object.values(useFlowStore.getState().bindings), fixed.run_parameters)
+      const run = await runAndRecord(flow, Object.values(useFlowStore.getState().bindings), fixed.run_parameters)
       setBeforeFix(lastRun.run)
       setDemo({ ...fixed, pattern_label: '直したデータで再実行' })
       setLastRun({ run, snap: contentSnapshot(flow) })
@@ -147,7 +152,10 @@ export default function WorkspacePage() {
     startedDemo.current = demoKey
     setDemoError(null)
     startDemo(id, pattern)
-      .then((d) => {
+      .then(async (d) => {
+        // デモの記録は、通常の履歴と混ぜない（デモを始めるたびに入れ替える。D-5）
+        setHistoryScope('demo')
+        await clearRecords('demo')
         openFlow(d.flow)
         d.bindings.forEach((b) => setBinding({ ...b, column_mapping: {} }))
         setRunValues(d.run_parameters)
@@ -173,6 +181,10 @@ export default function WorkspacePage() {
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [sample, unsaved])
+  // デモでなくなったら、通常の履歴の置き場に戻す（デモの記録は通常の履歴と混ぜない）
+  useEffect(() => {
+    if (!demo) setHistoryScope('normal')
+  }, [demo])
   // 作り直すと消えてしまう、追加済みの処理ステップの数
   const addedSteps = nodes.filter((n) => n.node_type !== 'load').length
 
@@ -227,6 +239,7 @@ export default function WorkspacePage() {
           canSave={!sample && nodes.length > 0}
           onSave={() => setSaving(true)}
           onOpen={sample ? undefined : () => setOpening(true)}
+          onHistory={sample ? undefined : () => setShowHistory(true)}
           canExport={!sample && screen === 'result' && lastRun !== null}
           onExport={doExport}
           exporting={exporting}
@@ -389,6 +402,7 @@ export default function WorkspacePage() {
         )}
       </div>
       {saving && <SaveDialog onClose={() => setSaving(false)} />}
+      {showHistory && <HistoryDialog onClose={() => setShowHistory(false)} />}
       {opening && (
         <OpenDialog
           unsaved={unsaved}
