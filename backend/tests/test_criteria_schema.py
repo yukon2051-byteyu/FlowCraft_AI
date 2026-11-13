@@ -74,13 +74,13 @@ def codes(flow) -> list[str]:
 # ===================== 1.0 からの移行 =====================
 
 
-def test_current_version_is_11():
-    assert SCHEMA_VERSION == "1.1"
+def test_current_version_is_12():
+    assert SCHEMA_VERSION == "1.2"
 
 
-def test_10_file_is_read_as_11_with_empty_criteria():
+def test_10_file_is_read_as_latest_with_empty_criteria():
     flow = parse_flow(FLOW_10)
-    assert flow.schema_version == "1.1"
+    assert flow.schema_version == "1.2"
     assert flow.run_parameters == []
     assert flow.completion_criteria.items == [] and flow.completion_criteria.version == 1
     assert validate_structure(flow) == []
@@ -232,3 +232,43 @@ def test_validate_api_reports_criteria_problems_and_blocks_run(client):
     assert body["schema_errors"] == []  # 1つ1つの項目の形は正しい
     assert body["valid"] is False and body["executable"] is False  # 参照の誤りがあるので、保存も実行もできない
     assert any(i["code"] == "UNKNOWN_CRITERION_TARGET" and "完了基準「必要な列がそろっている」" in i["message"] for i in body["issues"])
+
+
+# ===================== 1.1 → 1.2：品質ルールの識別（品質MVP） =====================
+
+
+def _flow_11_with_criteria():
+    return flow_11()
+
+
+def test_11_file_gets_rule_identity_that_is_the_same_every_time():
+    """1.1 の完了基準には、作業手順の識別と基準の識別から、毎回同じルールの識別を補う（画面の normalizeFlow と同じ規則）"""
+    a = parse_flow(_flow_11_with_criteria())
+    b = parse_flow(_flow_11_with_criteria())
+    item = a.completion_criteria.items[0]
+    assert a.schema_version == "1.2"
+    assert item.rule_id == f"{FLOW_10['flow_id']}:{item.criterion_id}"
+    assert item.rule_version == 1 and item.copied_from is None
+    assert b.completion_criteria.items[0].rule_id == item.rule_id
+
+
+def test_11_file_with_12_items_is_rejected():
+    f = _flow_11_with_criteria()
+    f["completion_criteria"]["items"][0]["rule_version"] = 3
+    with pytest.raises(FlowSchemaError) as e:
+        parse_flow(f)
+    assert "1.2 の項目" in str(e.value.errors)
+
+
+def test_12_requires_rule_id_and_keeps_version_and_copy_source():
+    f = _flow_11_with_criteria()
+    f["schema_version"] = "1.2"
+    item = f["completion_criteria"]["items"][0]
+    with pytest.raises(FlowSchemaError):
+        parse_flow(f)  # 1.2 では rule_id が必須
+    for i, other in enumerate(f["completion_criteria"]["items"]):
+        other["rule_id"] = f"r-{i}"
+    item.update({"rule_id": "r-new", "rule_version": 4, "copied_from": {"rule_id": "r-origin", "rule_version": 2}})
+    got = parse_flow(f).completion_criteria.items[0]
+    assert (got.rule_id, got.rule_version, got.copied_from.rule_id, got.copied_from.rule_version) == ("r-new", 4, "r-origin", 2)
+

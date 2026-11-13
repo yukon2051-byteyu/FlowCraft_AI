@@ -16,16 +16,29 @@ export const ENGINE_VERSION = '0.1.0'
  * 書かなくてもよい決まりのため、画面で扱う前に必ずこの関数を通す（サーバー側の初期値と同じ）。
  * 形の正しさの検証はサーバー側（/api/flows/validate）で行う。
  */
+/** 1.1 以前の完了基準に補うルールの識別（サーバーの legacy_rule_id と同じ） */
+export function legacyRuleId(flowId: string, criterionId: string): string {
+  return `${flowId}:${criterionId}`
+}
+
+/** 新しく作る品質ルールの識別 */
+export function newRuleId(): string {
+  return crypto.randomUUID()
+}
+
 export function normalizeFlow(raw: unknown): FlowDoc {
   const f = (raw ?? {}) as Partial<FlowDoc> & { nodes?: Partial<FlowNode>[] }
-  // 1.0 のファイルは 1.1 として読む（サーバーと同じ）。ただし 1.0 に 1.1 の項目が書かれた不正なファイルは、
-  // 版をそのまま残してサーバーの検証で拒否させる（黙って直さない）
+  // 古い版（1.0・1.1）のファイルは最新の版として読む（サーバーの FlowDefinition._upgrade と同じ）。
+  // ただし古い版に新しい版の項目が書かれた不正なファイルは、版をそのまま残してサーバーの検証で拒否させる（黙って直さない）
   const has11 = 'run_parameters' in f || 'completion_criteria' in f
-  const version = f.schema_version === '1.0' && !has11 ? SCHEMA_VERSION : (f.schema_version ?? SCHEMA_VERSION)
+  const has12 = (f.completion_criteria?.items ?? []).some((c) => 'rule_id' in c || 'rule_version' in c || 'copied_from' in c)
+  const old = f.schema_version === '1.0' ? !has11 && !has12 : f.schema_version === '1.1' ? !has12 : false
+  const version = old ? SCHEMA_VERSION : (f.schema_version ?? SCHEMA_VERSION)
+  const flowId = f.flow_id ?? ''
   return {
     schema_version: version,
     engine_version: f.engine_version ?? ENGINE_VERSION,
-    flow_id: f.flow_id ?? '',
+    flow_id: flowId,
     flow_version: f.flow_version ?? 1,
     flow_name: f.flow_name ?? '',
     description: f.description ?? '',
@@ -53,7 +66,8 @@ export function normalizeFlow(raw: unknown): FlowDoc {
     run_parameters: f.run_parameters ?? [],
     completion_criteria: {
       version: f.completion_criteria?.version ?? 1,
-      items: f.completion_criteria?.items ?? [],
+      // ルールの識別がない（1.1 以前の）基準には、サーバーと同じ規則で補う
+      items: (f.completion_criteria?.items ?? []).map((c) => ({ ...c, rule_id: c.rule_id ?? legacyRuleId(flowId, c.criterion_id), rule_version: c.rule_version ?? 1 })),
       changelog: f.completion_criteria?.changelog ?? [],
     },
   }

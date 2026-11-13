@@ -5,7 +5,7 @@
  */
 
 /** 1.1（2026-11-13）：完了基準と、実行のたびに指定する値を追加。1.0 のファイルは 1.1 として読む */
-export const SCHEMA_VERSION = '1.1'
+export const SCHEMA_VERSION = '1.2'
 
 export type ColumnType = 'string' | 'integer' | 'decimal' | 'date' | 'boolean'
 
@@ -87,6 +87,12 @@ export type CriterionKind =
 /** 完了基準（何を満たせば完了？）。種類ごとの設定（params）の細かい型は、設定画面のタスク（2-4）で追加する */
 export type Criterion = {
   criterion_id: string
+  /** 品質ルールの識別（1.2）。作業手順をまたいでルールを追える。1.1 以前のファイルは「<flow_id>:<criterion_id>」で補う */
+  rule_id: string
+  /** ルールの設定を変えて保存するたびに +1。履歴に「どの版で検証したか」を残す */
+  rule_version: number
+  /** 複製元のルール（複製したときに記録する。複製元を変えても複製先は変わらない） */
+  copied_from?: { rule_id: string; rule_version: number } | null
   name: string
   kind: CriterionKind
   target: { ref: string; column?: string | null }

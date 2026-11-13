@@ -20,8 +20,8 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 
 # 1.1（2026-11-13）：完了基準（completion_criteria）と、実行のたびに指定する値（run_parameters）を追加。
 # 1.0 のファイルはそのまま読み込み、1.1 として扱う（追加項目は空）。docs/completion-criteria.md §3
-SCHEMA_VERSION = "1.1"
-SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1")
+SCHEMA_VERSION = "1.2"
+SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2")
 
 MAX_NODES = 100
 MAX_EXPRESSION_DEPTH = 5
@@ -689,8 +689,24 @@ class ListRowsParams(StrictModel):
     condition: ConditionNode
 
 
+# 品質ルールの識別（1.2・品質MVP）。作業手順をまたいでルールを追える。
+# 1.1 以前のファイルを読むときは「<flow_id>:<criterion_id>」で補う（画面とサーバーで同じ値になる）
+RuleId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_:\-]{1,120}$")]
+
+
+class RuleCopySource(StrictModel):
+    """複製元のルール（複製したときに記録する。複製元を変えても複製先は変わらない）"""
+
+    rule_id: RuleId
+    rule_version: Annotated[int, Field(ge=1)]
+
+
 class _CriterionBase(StrictModel):
     criterion_id: RefName
+    rule_id: RuleId
+    # ルールの設定を変えるたびに +1（完了基準全体の版数とは別）。履歴に「どの版で検証したか」を残す
+    rule_version: Annotated[int, Field(ge=1)] = 1
+    copied_from: RuleCopySource | None = None
     name: Annotated[str, Field(min_length=1, max_length=100)]
     target: CriterionTarget
     on_fail: OnFail
@@ -817,9 +833,14 @@ class ValidationRules(StrictModel):
     amount_tolerance: Annotated[Decimal, Field(ge=0)] = Decimal("0")
 
 
+def legacy_rule_id(flow_id: Any, criterion_id: Any) -> str:
+    """1.1 以前の完了基準に補うルールの識別（画面の normalizeFlow と同じ規則）"""
+    return f"{flow_id}:{criterion_id}"
+
+
 class FlowDefinition(StrictModel):
-    # 読み込んだ 1.0 のファイルは 1.1 として扱う（_upgrade）。保存し直すと 1.1 になる
-    schema_version: Literal["1.1"]
+    # 読み込んだ 1.0・1.1 のファイルは 1.2 として扱う（_upgrade）。保存し直すと 1.2 になる
+    schema_version: Literal["1.2"]
     engine_version: str
     flow_id: UUID
     flow_version: Annotated[int, Field(ge=1)]
@@ -837,12 +858,33 @@ class FlowDefinition(StrictModel):
     @model_validator(mode="before")
     @classmethod
     def _upgrade(cls, data: Any) -> Any:
-        """1.0 のファイルを 1.1 として読む。1.0 に 1.1 の項目が書かれていたら、手で編集された不正なファイルとして拒否する。"""
-        if isinstance(data, dict) and data.get("schema_version") == "1.0":
+        """古い版のファイルを 1.2 として読む。古い版に新しい版の項目が書かれていたら、手で編集された不正なファイルとして拒否する。
+
+        1.0 → 1.1：実行時に指定する値・完了基準が加わった
+        1.1 → 1.2：完了基準の各項目に、品質ルールの識別（rule_id・rule_version・copied_from）が加わった
+        """
+        if not isinstance(data, dict):
+            return data
+        if data.get("schema_version") == "1.0":
             extra = [k for k in ("run_parameters", "completion_criteria") if k in data]
             if extra:
                 raise ValueError(f"形の版 1.0 のファイルには「{'」「'.join(extra)}」を書けません（1.1 の項目です）")
             data = {**data, "schema_version": "1.1"}
+        if data.get("schema_version") == "1.1":
+            criteria = data.get("completion_criteria")
+            items = criteria.get("items") if isinstance(criteria, dict) else None
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, dict):
+                        extra = [k for k in ("rule_id", "rule_version", "copied_from") if k in item]
+                        if extra:
+                            raise ValueError(f"形の版 1.1 のファイルには「{'」「'.join(extra)}」を書けません（1.2 の項目です）")
+                items = [
+                    {**item, "rule_id": legacy_rule_id(data.get("flow_id"), item.get("criterion_id")), "rule_version": 1} if isinstance(item, dict) else item
+                    for item in items
+                ]
+                data = {**data, "completion_criteria": {**criteria, "items": items}}
+            data = {**data, "schema_version": "1.2"}
         return data
 
 

@@ -126,4 +126,17 @@ describe('完了基準の変更の記録（2-6）', () => {
     // 基準がない作業手順は記録しない
     expect(advanceCriteriaVersion(DEMO, null, at).completion_criteria.changelog).toEqual([])
   })
+
+  it('品質ルールの版は、判定に関わる設定を変えたルールだけ上がる（名前・メモだけの変更では上げない。品質MVP）', () => {
+    const saved = advanceCriteriaVersion(withItems(base), null, at)
+    const [a, b, c] = saved.completion_criteria.items
+    expect(new Set(saved.completion_criteria.items.map((x) => x.rule_id)).size).toBe(base.length) // ルールごとに別の識別
+    const edited = withItems([{ ...a, on_fail: 'caution' }, { ...b, name: '名前だけ変更', note: 'メモ' }, c, ...saved.completion_criteria.items.slice(3)])
+    const next = advanceCriteriaVersion(edited, saved.completion_criteria.items, at).completion_criteria.items
+    expect(next.map((x) => [x.rule_id, x.rule_version])).toEqual(saved.completion_criteria.items.map((x, i) => [x.rule_id, i === 0 ? 2 : 1]))
+    // 新しく追加したルールは版1で、新しい識別を持つ
+    const added = newCriterion(saved, 'row_count')
+    expect(added.rule_version).toBe(1)
+    expect(saved.completion_criteria.items.some((x) => x.rule_id === added.rule_id)).toBe(false)
+  })
 })

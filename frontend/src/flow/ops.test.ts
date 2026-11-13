@@ -12,9 +12,9 @@ const LABELS = { sales: '売上実績', products: '商品マスタ', depts: '部
 const ids = (f: { nodes: { node_id: string }[] }) => f.nodes.map((n) => n.node_id)
 
 describe('ファイルから読んだ作業手順の補完', () => {
-  it('1.0 のファイルは 1.1 として読み、完了基準・実行時に指定する値は空にする（2-1）', () => {
+  it('1.0 のファイルは最新の版（1.2）として読み、完了基準・実行時に指定する値は空にする（2-1）', () => {
     expect(RAW.schema_version).toBe('1.0')
-    expect(DEMO.schema_version).toBe('1.1')
+    expect(DEMO.schema_version).toBe('1.2')
     expect(DEMO.run_parameters).toEqual([])
     expect(DEMO.completion_criteria).toEqual({ version: 1, items: [], changelog: [] })
   })
@@ -23,11 +23,15 @@ describe('ファイルから読んだ作業手順の補完', () => {
     expect(normalizeFlow({ ...RAW, completion_criteria: { items: [] } }).schema_version).toBe('1.0')
   })
 
-  it('1.1 のファイルの完了基準は、そのまま残る', () => {
+  it('1.1 のファイルの完了基準は、そのまま残り、品質ルールの識別を毎回同じ規則で補う（品質MVP）', () => {
     const c = { criterion_id: 'c1', name: '部署は4つ', kind: 'row_count' as const, target: { ref: 'by_dept' }, params: { min: 4, max: 4 }, on_fail: 'caution' as const }
     const f = normalizeFlow({ ...RAW, schema_version: '1.1', run_parameters: [{ param_id: 'm', label: '対象月', type: 'month' }], completion_criteria: { version: 3, items: [c], changelog: [] } })
-    expect(f.completion_criteria.items).toEqual([c])
+    expect(f.schema_version).toBe('1.2')
+    expect(f.completion_criteria.items).toEqual([{ ...c, rule_id: `${RAW.flow_id}:c1`, rule_version: 1 }])
     expect(f.completion_criteria.version).toBe(3)
+    // 1.1 なのに 1.2 の項目がある不正なファイルは、版を変えずにサーバーの検証に任せる
+    const bad = normalizeFlow({ ...RAW, schema_version: '1.1', completion_criteria: { version: 1, items: [{ ...c, rule_version: 2 }], changelog: [] } })
+    expect(bad.schema_version).toBe('1.1')
     expect(f.run_parameters[0].label).toBe('対象月')
   })
 
@@ -62,7 +66,7 @@ describe('作業手順の作成', () => {
     const f = createFlow('月次売上集計', new Date('2026-11-12T00:00:00Z'))
     expect(f.nodes).toEqual([])
     expect(f.flow_version).toBe(1)
-    expect(f.schema_version).toBe('1.1') // 新しく作る作業手順は最新の形（2-1）
+    expect(f.schema_version).toBe('1.2') // 新しく作る作業手順は最新の形
     expect(f.flow_id).toMatch(/^[0-9a-f-]{36}$/)
     expect(createFlow('x').flow_id).not.toBe(f.flow_id)
   })

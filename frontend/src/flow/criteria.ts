@@ -12,7 +12,7 @@
 
 import { inferColumns } from './params'
 import type { Col } from './params'
-import { nextId, snapshot } from './ops'
+import { newRuleId, nextId, snapshot } from './ops'
 import type { Criterion, CriterionKind, FlowDoc, ParamRef, RunParameter } from './types'
 
 type TargetKind = 'input' | 'result' | 'join'
@@ -182,6 +182,8 @@ export function newCriterion(flow: FlowDoc, kind: CriterionKind): Criterion {
       'c',
       flow.completion_criteria.items.map((c) => c.criterion_id),
     ),
+    rule_id: newRuleId(),
+    rule_version: 1,
     name: info.label,
     kind,
     target: { ref, column: null },
@@ -233,6 +235,8 @@ export function applyTemplate(flow: FlowDoc, id: TemplateId): { items: Criterion
     const id_ = nextId('c', [...used, ...items.map((c) => c.criterion_id)])
     items.push({
       criterion_id: id_,
+      rule_id: newRuleId(),
+      rule_version: 1,
       name,
       kind,
       target,
@@ -495,6 +499,27 @@ export function diffCriteria(before: Criterion[], after: Criterion[]): string[] 
 const ON_FAIL_SHORT: Record<Criterion['on_fail'], string> = { critical: '重大', caution: '注意', record: '記録のみ' }
 
 /**
+ * 品質ルールごとの版（品質MVP）：判定に関わる設定（確かめる対象・条件・満たさないとき・確認の状態）を変えたルールだけ、保存のときに +1 する。
+ * 名前とメモは判定に関わらないため、版を上げない。新しく追加したルールは版1のまま。
+ */
+export function advanceRuleVersions(before: Criterion[], after: Criterion[]): Criterion[] {
+  const prev = new Map(before.map((c) => [c.rule_id, c]))
+  const same = (x: unknown, y: unknown) => snapshot(x as FlowDoc) === snapshot(y as FlowDoc)
+  const setting = (c: Criterion) => ({
+    kind: c.kind,
+    target: { ref: c.target.ref, column: c.target.column ?? null },
+    params: c.params ?? {},
+    on_fail: c.on_fail,
+    confirmation_status: c.confirmation_status ?? 'confirmed',
+  })
+  return after.map((c) => {
+    const b = prev.get(c.rule_id)
+    if (!b || same(setting(b), setting(c))) return c
+    return { ...c, rule_version: Math.max(c.rule_version, b.rule_version + 1) }
+  })
+}
+
+/**
  * 保存するときに、完了基準の版数と変更の記録を進める。
  * - 初めての保存で基準があれば、版1として「設定」を記録する
  * - 前に保存した内容から基準が変わっていれば、版を1つ上げて、変更の要約を記録する
@@ -513,5 +538,5 @@ export function advanceCriteriaVersion(flow: FlowDoc, savedBefore: Criterion[] |
   let summary = changes.join(' ／ ')
   if (summary.length > 500) summary = summary.slice(0, 495) + ' …ほか'
   const changelog = [...cc.changelog, { version, changed_at: at, summary }].slice(-MAX_CHANGELOG)
-  return { ...flow, completion_criteria: { ...cc, version, changelog } }
+  return { ...flow, completion_criteria: { ...cc, version, changelog, items: advanceRuleVersions(savedBefore, cc.items) } }
 }

@@ -104,10 +104,12 @@ test('手動で基準を追加・設定し、未設定の間は実行できな�
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
   await expect(dialog.getByRole('status')).toContainText('保存しました')
   const saved = JSON.parse(await readFile((await download.path())!, 'utf-8'))
-  expect(saved.schema_version).toBe('1.1')
+  expect(saved.schema_version).toBe('1.2')
   expect(saved.completion_criteria.items).toEqual([
-    expect.objectContaining({ name: '部署は4つ', kind: 'row_count', params: { min: 4, max: 4 }, on_fail: 'caution', origin: 'manual' }),
+    expect.objectContaining({ name: '部署は4つ', kind: 'row_count', params: { min: 4, max: 4 }, on_fail: 'caution', origin: 'manual', rule_version: 1 }),
   ])
+  // 品質ルールの識別（品質MVP）：作業手順をまたいで追えるよう、ルールごとに推測できない識別を持つ
+  expect(saved.completion_criteria.items[0].rule_id).toMatch(/^[0-9a-f-]{36}$/)
   const session = (await (await request.post('/api/session')).json()).session_id
   const check = await (await request.post('/api/flows/validate', { data: { flow: saved }, headers: { 'X-Session-Id': session } })).json()
   expect(check.valid).toBe(true)
