@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignProblems, checkColumns, suggestAssignments } from './assign'
+import { assignProblems, checkColumns, mappedColumns, suggestAssignments } from './assign'
 import type { InputDefinition } from './types'
 
 const SALES: InputDefinition = {
@@ -59,5 +59,12 @@ describe('割当を確定できない理由', () => {
 
   it('任意の列がないだけなら確定できる', () => {
     expect(assignProblems([SALES], { in1: { fileId: 'f1', columns: ['売上日', '売上金額'] } }, names)).toEqual([])
+  })
+})
+
+describe('承認した列の対応付け（Phase 3-2）', () => {
+  it('今回のファイルの列名を、前回の列名に置き換える（対応付けていない列はそのまま）', () => {
+    expect(mappedColumns(['伝票番号', '金額', '担当者'], { 金額: '売上金額' })).toEqual(['伝票番号', '売上金額', '担当者'])
+    expect(mappedColumns(['伝票番号'], {})).toEqual(['伝票番号'])
   })
 })

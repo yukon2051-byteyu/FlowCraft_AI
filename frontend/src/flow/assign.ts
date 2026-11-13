@@ -6,7 +6,7 @@
  *   - 必須の列がファイルにない → 実行前に止める（理由を示す）
  *   - 任意の列がない           → 注意（空欄の列として読み込む。エンジンと同じ扱い）
  *   - 定義にない列がある        → お知らせ（読み込まない）
- * 列名が変わった場合の対応付け（例：「売上金額」→「金額」）は Phase 3 で作る。
+ * 列名が変わった場合は、利用者が承認した対応付け（例：今回の「金額」→ 前回の「売上金額」）を当ててから確かめる（Phase 3-2）。
  */
 
 import { suggestLabel } from './define'
@@ -26,6 +26,11 @@ export function checkColumns(def: InputDefinition, fileColumns: string[]): Colum
     missingOptional: def.columns.filter((c) => !c.required && !have.has(c.name)).map((c) => c.name),
     extra: fileColumns.filter((c) => !defined.has(c)),
   }
+}
+
+/** 承認した対応付けを当てた列名（今回のファイルの列名を、前回の列名に置き換える。実行時の読み込みと同じ） */
+export function mappedColumns(fileColumns: string[], mapping: Record<string, string>): string[] {
+  return fileColumns.map((c) => mapping[c] ?? c)
 }
 
 type FileLike = { file_id: string; filename: string; kind: 'xlsx' | 'csv' }

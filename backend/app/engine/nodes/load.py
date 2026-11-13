@@ -162,6 +162,17 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
                 details={"columns": skipped},
             )
         )
+    # 利用者が承認した列の対応付け（Phase 3-2）は、今回の実行の記録に残す（作業手順の定義は変えない）
+    if binding.column_mapping:
+        pairs = "、".join(f"「{actual}」を「{defined_name}」" for actual, defined_name in binding.column_mapping.items())
+        issues.append(
+            EngineIssue(
+                "COLUMNS_MAPPED",
+                "info",
+                f"列名の対応付け：{pairs}として読み込みました（今回の実行で承認した対応付け）。",
+                details={"mapping": dict(binding.column_mapping)},
+            )
+        )
     issues.append(
         EngineIssue("LOADED", "info", f"「{file.filename}」（{sheet_name}）から{n_rows:,}行を読み込みました。", details={"file": file.filename, "sheet": sheet_name})
     )

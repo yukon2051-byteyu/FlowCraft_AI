@@ -131,6 +131,34 @@ export function previewStep(flow: FlowDoc, bindings: Binding[], nodeId: string, 
   return apiRequest<PreviewResult>('/api/flows/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(flow, bindings, { node_id: nodeId, limit }) })
 }
 
+/*
+ * Phase 3：再実行時の入力の変化の検出（backend/app/files/compare.py）。
+ * 保存した作業手順の列構成と、今回割り当てたファイルを比べる。列名の対応付けは自動では決めず、候補と理由を返す。
+ */
+
+export type RenameCandidate = { column: string; score: number; reasons: string[] }
+
+export type InputCheck = {
+  input_id: string
+  label: string
+  assigned: boolean
+  can_run: boolean
+  has_changes: boolean
+  missing: { name: string; type: string; required: boolean; candidates: RenameCandidate[] }[]
+  added: string[]
+  order_changed: boolean
+  expected_order: string[]
+  actual_order: string[]
+  type_problems: { name: string; type: string; failed: number; examples: { row: number; value: string | null }[] }[]
+  blank_required: { name: string; count: number; rows: number[] }[]
+  mapping_errors: string[]
+  mapping_applied: Record<string, string>
+}
+
+export function checkInputs(flow: FlowDoc, bindings: Binding[]): Promise<InputCheck[]> {
+  return apiRequest<InputCheck[]>('/api/flows/check-inputs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(flow, bindings) })
+}
+
 /** 作業手順全体を実行する（すべてのステップが確認済みであること） */
 export function runFlow(flow: FlowDoc, bindings: Binding[], runParameters: Record<string, string> = {}): Promise<RunSummary> {
   return apiRequest<RunSummary>('/api/runs', {

@@ -7,7 +7,10 @@ import { COLUMN_TYPE_LABEL, fetchSheet, listFiles, typeCheck, uploadFile } from 
 import { assignProblems, checkColumns, suggestAssignments } from '../../flow/assign'
 import type { AssignState } from '../../flow/assign'
 import { useFlowStore } from '../../flow/store'
-import type { InputDefinition } from '../../flow/types'
+import { checkInputs } from '../../api/flows'
+import { mappedColumns } from '../../flow/assign'
+import { ColumnMapping } from './ColumnMapping'
+import type { Binding, InputDefinition } from '../../flow/types'
 import { Button } from '../ui/Button'
 import { ErrorNotice } from '../ui/ErrorNotice'
 
@@ -21,7 +24,8 @@ import { ErrorNotice } from '../ui/ErrorNotice'
  *   使わない列がある → お知らせ（読み込まない）
  */
 
-type Choice = { fileId: string | null; sheet: string | null; headerRow: number }
+/** mapping：利用者が承認した列の対応付け（今回のファイルの列名 → 前回の列名）。ファイル・シート・見出しの行を変えたら消す */
+type Choice = { fileId: string | null; sheet: string | null; headerRow: number; mapping: Record<string, string> }
 
 type Props = {
   onDone: () => void
@@ -40,7 +44,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
   const fileNames = Object.fromEntries(fileList.map((f) => [f.file_id, f.filename]))
 
   const [choices, setChoices] = useState<Record<string, Choice>>(() =>
-    Object.fromEntries(defs.map((d) => [d.input_id, { fileId: null, sheet: null, headerRow: d.header_row ?? 1 }])),
+    Object.fromEntries(defs.map((d) => [d.input_id, { fileId: null, sheet: null, headerRow: d.header_row ?? 1, mapping: {} }])),
   )
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<ApiErrorBody | null>(null)
@@ -52,7 +56,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
     return d.sheet_hint && f.sheets.some((s) => s.name === d.sheet_hint) ? d.sheet_hint : null
   }
   const choose = (d: InputDefinition, fileId: string | null) =>
-    setChoices((c) => ({ ...c, [d.input_id]: { ...c[d.input_id], fileId, sheet: fileId ? sheetFor(d, fileId) : null } }))
+    setChoices((c) => ({ ...c, [d.input_id]: { ...c[d.input_id], fileId, sheet: fileId ? sheetFor(d, fileId) : null, mapping: {} } }))
 
   // ファイル名から候補を選ぶ（まだ選んでいない入力だけ。曖昧なときは選ばない）
   const fileKey = fileList.map((f) => f.file_id).join(',')
@@ -87,8 +91,10 @@ export function AssignInputs({ onDone, onSkip }: Props) {
     queries: defs.map((d, i) => {
       const c = choices[d.input_id]
       const detail = sheets[i].data
-      const present = new Set(detail?.columns.map((x) => x.name) ?? [])
-      const cols = d.columns.filter((x) => present.has(x.name)).map((x) => ({ name: x.name, type: x.type }))
+      // 対応付けた列は、今回のファイルの列名で確かめる（例：前回の「売上金額」の形式で、今回の「金額」を確かめる）
+      const present = new Set(mappedColumns(detail?.columns.map((x) => x.name) ?? [], c.mapping))
+      const actualOf = Object.fromEntries(Object.entries(c.mapping).map(([actual, defined]) => [defined, actual]))
+      const cols = d.columns.filter((x) => present.has(x.name)).map((x) => ({ name: actualOf[x.name] ?? x.name, type: x.type }))
       return {
         queryKey: ['typeCheck', c.fileId, detail?.sheet, c.headerRow, cols],
         queryFn: () => typeCheck(c.fileId!, detail!.sheet, c.headerRow, cols),
@@ -98,14 +104,35 @@ export function AssignInputs({ onDone, onSkip }: Props) {
     }),
   })
 
+  // 前回の列構成と比べる（Phase 3）：列名の変更の候補・列の順番・必須の列の空欄。承認した対応付けを当てて比べる
+  const compares = useQueries({
+    queries: defs.map((d, i) => {
+      const c = choices[d.input_id]
+      const detail = sheets[i].data
+      const binding: Binding = { input_id: d.input_id, file_id: c.fileId ?? '', sheet: detail?.sheet ?? null, header_row: c.headerRow, column_mapping: c.mapping }
+      return {
+        queryKey: ['checkInputs', d.input_id, c.fileId, detail?.sheet, c.headerRow, c.mapping],
+        queryFn: async () => (await checkInputs(flow, [binding])).find((x) => x.input_id === d.input_id) ?? null,
+        enabled: !!c.fileId && !!detail,
+        placeholderData: keepPreviousData,
+      }
+    }),
+  })
+  const setMapping = (inputId: string, mapping: Record<string, string>) => setChoices((x) => ({ ...x, [inputId]: { ...x[inputId], mapping } }))
+
   const state: Record<string, AssignState> = Object.fromEntries(
-    defs.map((d, i) => [d.input_id, { fileId: choices[d.input_id].fileId, columns: sheets[i].data?.columns.map((c) => c.name) ?? null }]),
+    defs.map((d, i) => {
+      const cols = sheets[i].data?.columns.map((c) => c.name)
+      return [d.input_id, { fileId: choices[d.input_id].fileId, columns: cols ? mappedColumns(cols, choices[d.input_id].mapping) : null }]
+    }),
   )
-  const failedByInput = defs.map((d, i) => (choices[d.input_id].fileId && !checks[i].isPlaceholderData ? (checks[i].data ?? []).filter((r) => r.failed > 0) : []))
+  // 形式の確認の結果は、前回の列名で扱う
+  const typeResults = defs.map((d, i) => (checks[i].data ?? []).map((r) => ({ ...r, name: choices[d.input_id].mapping[r.name] ?? r.name })))
+  const failedByInput = defs.map((d, i) => (choices[d.input_id].fileId && !checks[i].isPlaceholderData ? typeResults[i].filter((r) => r.failed > 0) : []))
   const reasons = [
     ...assignProblems(defs, state, fileNames),
     ...defs.flatMap((d, i) => (failedByInput[i].length ? [`「${d.label}」の${failedByInput[i].map((r) => `「${r.name}」`).join('')}に、作業手順で決めた形式にできない値があります`] : [])),
-    ...(defs.some((d, i) => choices[d.input_id].fileId && (sheets[i].isFetching || checks[i].isFetching)) ? ['列と形式を確認しています…'] : []),
+    ...(defs.some((d, i) => choices[d.input_id].fileId && (sheets[i].isFetching || checks[i].isFetching || compares[i].isFetching)) ? ['列と形式を確認しています…'] : []),
     ...(sheets.some((q) => q.isError) || checks.some((q) => q.isError) ? ['確認できなかったファイルがあります。画面の案内に沿って対処してください'] : []),
   ]
   const canDone = reasons.length === 0
@@ -127,7 +154,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
     clearBindings()
     defs.forEach((d, i) => {
       const c = choices[d.input_id]
-      setBinding({ input_id: d.input_id, file_id: c.fileId!, sheet: sheets[i].data?.sheet ?? null, header_row: c.headerRow, column_mapping: {} })
+      setBinding({ input_id: d.input_id, file_id: c.fileId!, sheet: sheets[i].data?.sheet ?? null, header_row: c.headerRow, column_mapping: c.mapping })
     })
     onDone()
   }
@@ -178,7 +205,8 @@ export function AssignInputs({ onDone, onSkip }: Props) {
             const detail = sheets[i].data
             const cols = state[d.input_id].columns
             const check = cols ? checkColumns(d, cols) : null
-            const results = Object.fromEntries((checks[i].data ?? []).map((r) => [r.name, r]))
+            const results = Object.fromEntries(typeResults[i].map((r) => [r.name, r]))
+            const compare = compares[i].data && !compares[i].isPlaceholderData ? compares[i].data : null
             return (
               <section key={d.input_id} className="light-panel rounded-2xl shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)]" aria-label={`入力「${d.label}」の割当`}>
                 <div className="flex flex-wrap items-end gap-x-5 gap-y-3 border-b border-line px-6 pt-5 pb-4">
@@ -212,7 +240,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
                       <span className="text-[0.8rem] font-bold text-muted">シート</span>
                       <select
                         value={detail?.sheet ?? c.sheet ?? ''}
-                        onChange={(e) => setChoices((x) => ({ ...x, [d.input_id]: { ...c, sheet: e.target.value } }))}
+                        onChange={(e) => setChoices((x) => ({ ...x, [d.input_id]: { ...c, sheet: e.target.value, mapping: {} } }))}
                         aria-label={`「${d.label}」のシート`}
                         className="h-10 w-48 rounded-lg bg-card px-2 ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
                       >
@@ -232,7 +260,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
                         min={1}
                         max={50}
                         value={c.headerRow}
-                        onChange={(e) => setChoices((x) => ({ ...x, [d.input_id]: { ...c, headerRow: Math.min(50, Math.max(1, Number(e.target.value) || 1)) } }))}
+                        onChange={(e) => setChoices((x) => ({ ...x, [d.input_id]: { ...c, headerRow: Math.min(50, Math.max(1, Number(e.target.value) || 1)), mapping: {} } }))}
                         aria-label={`「${d.label}」の見出しの行`}
                         className="h-10 w-20 rounded-lg bg-card px-2 ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
                       />
@@ -285,7 +313,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
                       </ul>
                       {check.missingRequired.length > 0 && (
                         <p className="mt-2 text-[0.88rem] text-error-ink">
-                          必須の列がないため、このファイルでは実行できません。正しいファイル・シート・見出しの行かを確かめてください。列名が変わった場合の対応付けは、今後のバージョンで使えるようになります（開発中）。
+                          必須の列がないため、このままでは実行できません。列名が変わった場合は、下の確認で今回のファイルの列を選んでください。違うファイル・シート・見出しの行を選んでいないかも確かめてください。
                         </p>
                       )}
                       {check.extra.length > 0 && (
@@ -294,6 +322,7 @@ export function AssignInputs({ onDone, onSkip }: Props) {
                           作業手順で使わない列（読み込みません）：{check.extra.join('、')}
                         </p>
                       )}
+                      {compare && <ColumnMapping label={d.label} check={compare} mapping={c.mapping} onChange={(m) => setMapping(d.input_id, m)} />}
                     </>
                   )}
                 </div>

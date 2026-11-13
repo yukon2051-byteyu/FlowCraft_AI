@@ -120,6 +120,8 @@ def test_new_month_data_runs_and_reports_planted_problems(first_run):
     assert f"キーが空欄の{len(planted['blank_product_code_rows'])}行" in unmatched["message"]
     sales_load = {i["code"]: i for i in summary["nodes"][0]["issues"]}
     assert "担当者" in sales_load["COLUMNS_NOT_LOADED"]["message"]  # 増えた列は読み込まない
+    # 承認した列の対応付けは、今回の実行の記録に残る（Phase 3-2）
+    assert sales_load["COLUMNS_MAPPED"]["message"] == "列名の対応付け：「金額」を「売上金額」として読み込みました（今回の実行で承認した対応付け）。"
     # 画面に出す文に、内部の参照名を入れない
     assert "sales_selected" not in unmatched["message"] and "左" not in unmatched["message"]
     # 10月分とは違う結果になる（指紋が変わる）
