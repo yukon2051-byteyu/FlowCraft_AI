@@ -23,12 +23,19 @@ const W = HERO_VISUAL_W
 const H = 484
 const MINT = '#38D9AD'
 
-// 各カードの位置（左の2枚と下の帯は下寄せ、右の2枚は上から。図全体の重心を中央に寄せる）
-const REVIEW = { x: 0, y: 84, w: 224, h: 270 } // ①見直す
-const IMPROVE = { x: 244, y: 76, w: 170, h: 286 } // ②改善する
-const RUN = { x: 436, y: 0, w: 232, h: 190 } // ③実行する
-const CHECK = { x: 436, y: 228, w: 232, h: 216 } // ④確かめる（下端を、保存・再実行の帯の下端にそろえる）
-const LOOP = { x: 0, y: 404, w: IMPROVE.x + IMPROVE.w, h: 40 } // 保存・再実行の帯
+/*
+ * 配置の基準：TOP は、図の上端（③の上端）を、左の「FLOWCRAFT AI — EXCEL業務改善」の上端にそろえるための値。
+ * ヒーローは図と左の文章を上下中央にそろえているため、図（高さ H）と左の文章の高さの差の半分だけ、図の中身を下げる
+ * （実測：1366・1920px とも 25px）。カードも接続線も、すべてこの値を基準に置く（場当たり的にずらさない）。
+ * 下げた分、④と保存の帯の下の余白が減り、図の重心が下がる。
+ */
+const TOP = 25
+// 各カードの位置（左の2枚と下の帯は下寄せ、右の2枚は上から）
+const REVIEW = { x: 0, y: TOP + 84, w: 224, h: 270 } // ①見直す
+const IMPROVE = { x: 244, y: TOP + 76, w: 170, h: 286 } // ②改善する
+const RUN = { x: 436, y: TOP, w: 232, h: 190 } // ③実行する
+const CHECK = { x: 436, y: TOP + 240, w: 232, h: 204 } // ④確かめる（下端を、保存・再実行の帯の下端にそろえる）
+const LOOP = { x: 0, y: TOP + 404, w: IMPROVE.x + IMPROVE.w, h: 40 } // 保存・再実行の帯
 
 export function HeroVisual() {
   const reviewMid = REVIEW.y + REVIEW.h / 2
