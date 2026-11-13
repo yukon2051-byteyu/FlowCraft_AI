@@ -12,7 +12,7 @@ import csv
 import io
 import re
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
@@ -27,6 +27,12 @@ class RawSheet:
     name: str
     hidden: bool
     grid: list[list[Any]]  # 表の末尾の空行は取り除き済み（Excelは各行末尾の空セルも除去済み）
+    # 結合セルの範囲（0始まりの 行・列：開始行, 開始列, 終了行, 終了列）。Excel（calamine）のときだけ
+    merged: list[tuple[int, int, int, int]] = field(default_factory=list)
+    # 空の文字列を返す数式のセル（0始まりの 行, 列）。値としては普通の空欄と同じに見えるため、区別のために持つ
+    formula_blanks: set[tuple[int, int]] = field(default_factory=set)
+    # 数式の空欄を調べられたか（CSV・読めなかったときは False＝判別できない）
+    formulas_checked: bool = False
 
 
 def _trim_row(row: list[Any]) -> list[Any]:
@@ -40,7 +46,7 @@ def _is_blank(v: Any) -> bool:
     return v is None or (isinstance(v, str) and v == "")
 
 
-def _finish(name: str, hidden: bool, rows: list[list[Any]], filename: str, max_columns: int, max_rows: int) -> RawSheet:
+def _finish(name: str, hidden: bool, rows: list[list[Any]], filename: str, max_columns: int, max_rows: int, **extra: Any) -> RawSheet:
     while rows and not _trim_row(rows[-1]):
         rows.pop()
     widest = max((len(_trim_row(r)) for r in rows), default=0)
@@ -53,7 +59,7 @@ def _finish(name: str, hidden: bool, rows: list[list[Any]], filename: str, max_c
         )
     if len(rows) - 1 > max_rows:
         raise _too_many_rows(filename, max_rows)
-    return RawSheet(name=name, hidden=hidden, grid=rows)
+    return RawSheet(name=name, hidden=hidden, grid=rows, **extra)
 
 
 def _too_many_rows(filename: str, max_rows: int):
@@ -117,6 +123,56 @@ def _normalize_calamine(v: Any) -> Any:
     return v
 
 
+# --- 空の文字列を返す数式のセル（Phase Q）：値を持たない数式（<f>…</f> だけ、または空の <v>）を XML から探す ---
+_SHEET_TAG = re.compile(rb'<(?:\w+:)?sheet\b[^>]*?\bname="([^"]*)"[^>]*?\br:id="([^"]*)"')
+_REL_TAG = re.compile(rb'<(?:\w+:)?Relationship\b[^>]*?\bId="([^"]*)"[^>]*?\bTarget="([^"]*)"')
+_REL_TAG2 = re.compile(rb'<(?:\w+:)?Relationship\b[^>]*?\bTarget="([^"]*)"[^>]*?\bId="([^"]*)"')
+_FORMULA_BLANK = re.compile(
+    rb'<(?:\w+:)?c\b[^>]*?\br="([A-Z]+)(\d+)"[^>]*>\s*<(?:\w+:)?f\b[^>]*?(?:/>|>[^<]*</(?:\w+:)?f>)\s*(?:<(?:\w+:)?v\s*/>|<(?:\w+:)?v>\s*</(?:\w+:)?v>)?\s*</(?:\w+:)?c>',
+    re.S,
+)
+
+
+def _col_index(letters: bytes) -> int:
+    n = 0
+    for ch in letters:
+        n = n * 26 + (ch - 64)
+    return n - 1
+
+
+def _xml_unescape(b: bytes) -> str:
+    return b.decode("utf-8").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
+
+
+def formula_blank_cells(data: bytes) -> dict[str, set[tuple[int, int]]] | None:
+    """シート名 → 空の文字列を返す数式のセル（0始まり）。調べられなければ None（判別できない）"""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            names = set(zf.namelist())
+            wb = zf.read("xl/workbook.xml")
+            rels = zf.read("xl/_rels/workbook.xml.rels")
+            targets = {m.group(1): m.group(2) for m in _REL_TAG.finditer(rels)}
+            targets.update({m.group(2): m.group(1) for m in _REL_TAG2.finditer(rels)})
+            out: dict[str, set[tuple[int, int]]] = {}
+            for m in _SHEET_TAG.finditer(wb):
+                target = targets.get(m.group(2))
+                if target is None:
+                    continue
+                path = target.decode().lstrip("/")
+                path = path if path.startswith("xl/") else "xl/" + path
+                if path not in names:
+                    continue
+                xml = zf.read(path)
+                cells: set[tuple[int, int]] = set()
+                if b"<f" in xml or b":f" in xml:
+                    for c in _FORMULA_BLANK.finditer(xml):
+                        cells.add((int(c.group(2)) - 1, _col_index(c.group(1))))
+                out[_xml_unescape(m.group(1))] = cells
+            return out
+    except (KeyError, zipfile.BadZipFile, UnicodeDecodeError):
+        return None
+
+
 def _read_xlsx_calamine(data: bytes, filename: str, max_columns: int, max_rows: int) -> list[RawSheet]:
     import python_calamine as pc
 
@@ -126,6 +182,7 @@ def _read_xlsx_calamine(data: bytes, filename: str, max_columns: int, max_rows: 
     except Exception:
         raise _corrupted(filename) from None
 
+    formulas = formula_blank_cells(data)
     sheets: list[RawSheet] = []
     try:
         for meta in metas:
@@ -145,7 +202,22 @@ def _read_xlsx_calamine(data: bytes, filename: str, max_columns: int, max_rows: 
                     break
                 if len(rows) - empty_run - 1 > max_rows:
                     raise _too_many_rows(filename, max_rows)
-            sheets.append(_finish(meta.name, meta.visible != pc.SheetVisibleEnum.Visible, rows, filename, max_columns, max_rows))
+            sheet = wb.get_sheet_by_name(meta.name)
+            merged = [(a[0], a[1], b[0], b[1]) for a, b in (getattr(sheet, "merged_cell_ranges", None) or [])]
+            blanks = formulas.get(meta.name) if formulas is not None else None
+            sheets.append(
+                _finish(
+                    meta.name,
+                    meta.visible != pc.SheetVisibleEnum.Visible,
+                    rows,
+                    filename,
+                    max_columns,
+                    max_rows,
+                    merged=merged,
+                    formula_blanks=blanks or set(),
+                    formulas_checked=blanks is not None,
+                )
+            )
     finally:
         wb.close()
     return sheets
@@ -160,6 +232,7 @@ def _read_xlsx_openpyxl(data: bytes, filename: str, max_columns: int, max_rows: 
     except Exception:
         raise _corrupted(filename) from None
 
+    formulas = formula_blank_cells(data)
     sheets: list[RawSheet] = []
     try:
         for ws in wb.worksheets:
@@ -173,7 +246,10 @@ def _read_xlsx_openpyxl(data: bytes, filename: str, max_columns: int, max_rows: 
                     break  # 書式だけが設定された大量の空行
                 if len(rows) - empty_run - 1 > max_rows:
                     raise _too_many_rows(filename, max_rows)
-            sheets.append(_finish(ws.title, ws.sheet_state != "visible", rows, filename, max_columns, max_rows))
+            blanks = formulas.get(ws.title) if formulas is not None else None
+            sheets.append(
+                _finish(ws.title, ws.sheet_state != "visible", rows, filename, max_columns, max_rows, formula_blanks=blanks or set(), formulas_checked=blanks is not None)
+            )
     finally:
         wb.close()
     return sheets
@@ -194,4 +270,5 @@ def read_csv(text: str, filename: str, max_columns: int, max_rows: int) -> RawSh
             cause=f"{e}",
             how_to_fix="引用符（\"）の閉じ忘れなどがないか確認するか、Excelで開いてCSV形式で保存し直してください。",
         ) from None
-    return _finish("CSV", False, rows, filename, max_columns, max_rows)
+    # CSV には数式・結合セルがない（数式の空欄は「判別済み：なし」）
+    return _finish("CSV", False, rows, filename, max_columns, max_rows, formulas_checked=True)

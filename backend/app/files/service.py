@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from pydantic import BaseModel
 
 from app.config import Settings
 from app.files.detect import FileKind, decode_csv, detect_kind, file_error, safe_filename
+from app.files.blanks import detect_blanks
 from app.files.parse import RawSheet, read_csv, read_xlsx
 from app.files.profile import ColumnType, FileWarning, Table, build_table, preview_rows, profile_columns, suggest_header_row
 from app.sessions.store import Session
@@ -72,6 +73,33 @@ class PreviewOut(BaseModel):
     total: int  # 全行数（全件に基づく）
 
 
+class ColumnBlanksOut(BaseModel):
+    name: str
+    blank: int
+    whitespace_only: int
+    formula_blank: int
+    merged: int
+    rows: list[int]
+
+
+class TotalRowOut(BaseModel):
+    row: int
+    reasons: list[str]
+
+
+class BlanksOut(BaseModel):
+    """空白データの検出（Phase Q-2。app/files/blanks.py）。判定はしない"""
+
+    data_rows: int
+    middle_blank_rows: list[int]
+    columns: list[ColumnBlanksOut]
+    merged_ranges: list[str]
+    formula_blank_cells: list[str]
+    total_row_candidates: list[TotalRowOut]
+    formulas_checked: bool
+    whitespace_cells: list[str]
+
+
 class SheetDetail(BaseModel):
     sheet: str
     header_row: int
@@ -80,6 +108,7 @@ class SheetDetail(BaseModel):
     columns: list[ColumnOut]
     preview: PreviewOut
     warnings: list[WarningOut]
+    blanks: BlanksOut | None = None
 
 
 class SheetSummary(BaseModel):
@@ -146,6 +175,7 @@ def sheet_detail(f: UploadedFile, sheet: str | None, header_row: int | None) -> 
         columns=[ColumnOut(**vars(p)) for p in profile_columns(table)],
         preview=PreviewOut(columns=table.columns, rows=rows, shown=len(rows), total=len(table.rows)),
         warnings=[WarningOut(code=w.code, message=w.message) for w in table.warnings],
+        blanks=BlanksOut(**asdict(detect_blanks(raw, header_row, table.columns))),
     )
 
 
