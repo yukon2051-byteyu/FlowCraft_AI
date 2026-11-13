@@ -74,7 +74,14 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
           return local[i]?.length ? [] : [`${label(i)}：${e.message}`]
         })
         const fromLocal = local.flatMap((ps, i) => (result.schema_errors.some((e) => stepIndexOf(e.location) === i) ? ps.map((p) => `${label(i)}：${p}`) : []))
-        setProblems([...new Set([...fromLocal, ...fromServer])])
+        // 項目どうしのつながりの誤り（例：完了基準が存在しないステップを指している）
+        const structural = result.issues
+          .filter((x) => x.severity === 'error')
+          .map((x) => {
+            const i = flow.nodes.findIndex((n) => n.node_id === x.node_id)
+            return i >= 0 ? `${label(i)}：${x.message}` : x.message
+          })
+        setProblems([...new Set([...fromLocal, ...fromServer, ...structural])])
         return
       }
       // 3〜4. 保存

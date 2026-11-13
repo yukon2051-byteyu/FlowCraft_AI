@@ -16,10 +16,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "1.0"
-SUPPORTED_SCHEMA_VERSIONS = ("1.0",)
+# 1.1（2026-11-13）：完了基準（completion_criteria）と、実行のたびに指定する値（run_parameters）を追加。
+# 1.0 のファイルはそのまま読み込み、1.1 として扱う（追加項目は空）。docs/completion-criteria.md §3
+SCHEMA_VERSION = "1.1"
+SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1")
 
 MAX_NODES = 100
 MAX_EXPRESSION_DEPTH = 5
@@ -553,6 +555,252 @@ NODE_TYPES: tuple[str, ...] = (
 
 
 # ---------------------------------------------------------------------------
+# 実行のたびに指定する値（1.1）
+# ---------------------------------------------------------------------------
+
+RunParameterType = Literal["month", "date", "integer", "decimal", "string"]
+
+
+class RunParameter(StrictModel):
+    """例：対象月。毎月変わる期待値を、作業手順を書き換えずに使うため。"""
+
+    param_id: RefName
+    label: Label
+    type: RunParameterType
+    required: bool = True
+
+
+class ParamRef(StrictModel):
+    """完了基準の値の代わりに書く「実行時に指定する値」の参照。JSON では {"$param": "target_month"}。"""
+
+    param: RefName = Field(alias="$param")
+
+
+# 値そのもの（文字列で保持）、または実行時に指定する値
+ValueOrParam = Annotated[
+    Union[ParamRef, Annotated[str, BeforeValidator(_to_canonical_str)]],
+    Field(union_mode="left_to_right"),
+]
+
+
+def _decimal_text(v: str) -> str:
+    try:
+        d = Decimal(v)
+    except (InvalidOperation, ValueError):
+        raise ValueError("数値で指定してください") from None
+    if not d.is_finite() or d < 0:
+        raise ValueError("0以上の数値で指定してください")
+    return v
+
+
+Tolerance = Annotated[str, BeforeValidator(_to_canonical_str), AfterValidator(_decimal_text)]
+
+# ---------------------------------------------------------------------------
+# 完了基準（1.1）：「何を満たせば完了？」。処理ステップ（nodes）とは別の欄に持つ
+# 種類（kind）は決まった一覧から選ぶ。自由な式は書かせない（プログラムで確実に判定するため）
+# ---------------------------------------------------------------------------
+
+# 満たさないとき：critical（重大）／caution（注意）／record（記録のみ。判定に使わない）
+OnFail = Literal["critical", "caution", "record"]
+CriterionOrigin = Literal["template", "manual", "ai"]
+Count = Annotated[int, Field(ge=0, le=100_000_000)]
+
+
+class CriterionTarget(StrictModel):
+    """確かめる対象：どの入力・どのステップの結果（参照名）と、どの列か"""
+
+    ref: RefName
+    column: ColumnName | None = None
+
+
+class RequiredColumnsParams(StrictModel):
+    # 空なら「入力の定義で必ずある列」とした列すべて
+    columns: Annotated[list[ColumnName], Field(max_length=500)] = Field(default_factory=list)
+
+
+class EmptyParams(StrictModel):
+    pass
+
+
+class NoBlankParams(StrictModel):
+    max_count: Count = 0
+
+
+class UniqueParams(StrictModel):
+    columns: Annotated[list[ColumnName], Field(min_length=1, max_length=10)]
+
+
+class ValueRangeParams(StrictModel):
+    min: ValueOrParam | None = None
+    max: ValueOrParam | None = None
+
+    @model_validator(mode="after")
+    def _one_bound(self) -> ValueRangeParams:
+        if self.min is None and self.max is None:
+            raise ValueError("最小・最大のどちらかを指定してください")
+        return self
+
+
+class PeriodParams(StrictModel):
+    # 対象の月（例 "2026-10"、または実行時に指定する値）か、開始日・終了日
+    month: ValueOrParam | None = None
+    start: ValueOrParam | None = None
+    end: ValueOrParam | None = None
+
+    @model_validator(mode="after")
+    def _either(self) -> PeriodParams:
+        if self.month is not None and (self.start is not None or self.end is not None):
+            raise ValueError("対象の月と、開始日・終了日は、どちらか一方だけを指定してください")
+        if self.month is None and self.start is None and self.end is None:
+            raise ValueError("対象の月、または開始日・終了日を指定してください")
+        return self
+
+
+class TotalMatchParams(StrictModel):
+    compare_ref: RefName
+    compare_column: ColumnName
+    tolerance: Tolerance = "0"
+
+
+class RowCountParams(StrictModel):
+    min: Count | None = None
+    max: Count | None = None
+
+    @model_validator(mode="after")
+    def _range(self) -> RowCountParams:
+        if self.min is None and self.max is None:
+            raise ValueError("最小・最大のどちらかを指定してください")
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ValueError("最小が最大より大きくなっています")
+        return self
+
+
+class AllMatchedParams(StrictModel):
+    max_count: Count = 0
+
+
+class ExpectedValueParams(StrictModel):
+    measure: Literal["sum", "count"]
+    value: ValueOrParam
+    tolerance: Tolerance = "0"
+
+
+class ListRowsParams(StrictModel):
+    condition: ConditionNode
+
+
+class _CriterionBase(StrictModel):
+    criterion_id: RefName
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+    target: CriterionTarget
+    on_fail: OnFail
+    origin: CriterionOrigin = "manual"
+    # AIの提案（ai_proposed）は、利用者が確認するまで評価に使わない（未検証として扱う）
+    confirmation_status: ConfirmationStatus = "confirmed"
+    note: Annotated[str, Field(max_length=500)] = ""
+
+
+class RequiredColumnsCriterion(_CriterionBase):
+    kind: Literal["required_columns"]
+    params: RequiredColumnsParams = Field(default_factory=RequiredColumnsParams)
+
+
+class DataTypeCriterion(_CriterionBase):
+    kind: Literal["data_type"]
+    params: EmptyParams = Field(default_factory=EmptyParams)
+
+
+class NoBlankCriterion(_CriterionBase):
+    kind: Literal["no_blank"]
+    params: NoBlankParams = Field(default_factory=NoBlankParams)
+
+
+class UniqueCriterion(_CriterionBase):
+    kind: Literal["unique"]
+    params: UniqueParams
+
+
+class ValueRangeCriterion(_CriterionBase):
+    kind: Literal["value_range"]
+    params: ValueRangeParams
+
+
+class PeriodCriterion(_CriterionBase):
+    kind: Literal["period"]
+    params: PeriodParams
+
+
+class TotalMatchCriterion(_CriterionBase):
+    kind: Literal["total_match"]
+    params: TotalMatchParams
+
+
+class RowCountCriterion(_CriterionBase):
+    kind: Literal["row_count"]
+    params: RowCountParams
+
+
+class AllMatchedCriterion(_CriterionBase):
+    kind: Literal["all_matched"]
+    params: AllMatchedParams = Field(default_factory=AllMatchedParams)
+
+
+class ExpectedValueCriterion(_CriterionBase):
+    kind: Literal["expected_value"]
+    params: ExpectedValueParams
+
+
+class ListRowsCriterion(_CriterionBase):
+    kind: Literal["list_rows"]
+    params: ListRowsParams
+
+    @model_validator(mode="after")
+    def _record_only(self) -> ListRowsCriterion:
+        # 一覧にするだけの基準は、判定に使わない
+        if self.on_fail != "record":
+            raise ValueError("「条件に合う行を一覧にする」は判定に使わないため、満たさないときの扱いは「記録のみ」にしてください")
+        return self
+
+
+Criterion = Annotated[
+    Union[
+        RequiredColumnsCriterion,
+        DataTypeCriterion,
+        NoBlankCriterion,
+        UniqueCriterion,
+        ValueRangeCriterion,
+        PeriodCriterion,
+        TotalMatchCriterion,
+        RowCountCriterion,
+        AllMatchedCriterion,
+        ExpectedValueCriterion,
+        ListRowsCriterion,
+    ],
+    Field(discriminator="kind"),
+]
+
+# 対象の列が必要な基準
+CRITERIA_NEEDING_COLUMN = ("data_type", "no_blank", "value_range", "period", "total_match")
+# 入力（読み込む前のファイル）を対象にする基準
+CRITERIA_ON_INPUT = ("required_columns", "data_type")
+
+
+class CriteriaChange(StrictModel):
+    """変更の記録。値の中身ではなく、変更の要約だけを残す。"""
+
+    version: Annotated[int, Field(ge=1)]
+    changed_at: datetime
+    summary: Annotated[str, Field(min_length=1, max_length=500)]
+
+
+class CompletionCriteria(StrictModel):
+    # 完了基準を変えるたびに +1（作業手順の版数とは別）
+    version: Annotated[int, Field(ge=1)] = 1
+    items: Annotated[list[Criterion], Field(max_length=50)] = Field(default_factory=list)
+    changelog: Annotated[list[CriteriaChange], Field(max_length=200)] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # フロー全体
 # ---------------------------------------------------------------------------
 
@@ -570,7 +818,8 @@ class ValidationRules(StrictModel):
 
 
 class FlowDefinition(StrictModel):
-    schema_version: Literal["1.0"]
+    # 読み込んだ 1.0 のファイルは 1.1 として扱う（_upgrade）。保存し直すと 1.1 になる
+    schema_version: Literal["1.1"]
     engine_version: str
     flow_id: UUID
     flow_version: Annotated[int, Field(ge=1)]
@@ -582,6 +831,19 @@ class FlowDefinition(StrictModel):
     nodes: Annotated[list[Node], Field(max_length=MAX_NODES)] = Field(default_factory=list)
     dependencies: list[Dependency] = Field(default_factory=list)
     validation_rules: ValidationRules = Field(default_factory=ValidationRules)
+    run_parameters: Annotated[list[RunParameter], Field(max_length=20)] = Field(default_factory=list)
+    completion_criteria: CompletionCriteria = Field(default_factory=CompletionCriteria)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade(cls, data: Any) -> Any:
+        """1.0 のファイルを 1.1 として読む。1.0 に 1.1 の項目が書かれていたら、手で編集された不正なファイルとして拒否する。"""
+        if isinstance(data, dict) and data.get("schema_version") == "1.0":
+            extra = [k for k in ("run_parameters", "completion_criteria") if k in data]
+            if extra:
+                raise ValueError(f"形の版 1.0 のファイルには「{'」「'.join(extra)}」を書けません（1.1 の項目です）")
+            data = {**data, "schema_version": "1.1"}
+        return data
 
 
 # 自己参照している（入れ子になる）モデルの型情報を確定させる

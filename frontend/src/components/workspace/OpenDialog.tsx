@@ -53,10 +53,14 @@ export function OpenDialog({ unsaved, onOpened, onClose }: Props) {
       if (!result.valid) {
         setProblems([
           `「${source}」は、作業手順の形の決まりに合わないため開けません。`,
-          ...result.schema_errors.slice(0, 8).map((e) => {
-            const i = stepIndexOf(e.location)
-            return i === null ? `${e.location}：${e.message}` : `ステップ${i + 1}：${e.message}`
-          }),
+          ...[
+            ...result.schema_errors.map((e) => {
+              const i = stepIndexOf(e.location)
+              return i === null ? `${e.location}：${e.message}` : `ステップ${i + 1}：${e.message}`
+            }),
+            // 項目どうしのつながりの誤り（例：完了基準が存在しないステップを指している）
+            ...result.issues.filter((x) => x.severity === 'error').map((x) => x.message),
+          ].slice(0, 8),
         ])
         return
       }

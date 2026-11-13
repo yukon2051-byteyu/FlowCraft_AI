@@ -18,8 +18,12 @@ export const ENGINE_VERSION = '0.1.0'
  */
 export function normalizeFlow(raw: unknown): FlowDoc {
   const f = (raw ?? {}) as Partial<FlowDoc> & { nodes?: Partial<FlowNode>[] }
+  // 1.0 のファイルは 1.1 として読む（サーバーと同じ）。ただし 1.0 に 1.1 の項目が書かれた不正なファイルは、
+  // 版をそのまま残してサーバーの検証で拒否させる（黙って直さない）
+  const has11 = 'run_parameters' in f || 'completion_criteria' in f
+  const version = f.schema_version === '1.0' && !has11 ? SCHEMA_VERSION : (f.schema_version ?? SCHEMA_VERSION)
   return {
-    schema_version: f.schema_version ?? SCHEMA_VERSION,
+    schema_version: version,
     engine_version: f.engine_version ?? ENGINE_VERSION,
     flow_id: f.flow_id ?? '',
     flow_version: f.flow_version ?? 1,
@@ -46,6 +50,12 @@ export function normalizeFlow(raw: unknown): FlowDoc {
     })),
     dependencies: f.dependencies ?? [],
     ...(f.validation_rules ? { validation_rules: f.validation_rules } : {}),
+    run_parameters: f.run_parameters ?? [],
+    completion_criteria: {
+      version: f.completion_criteria?.version ?? 1,
+      items: f.completion_criteria?.items ?? [],
+      changelog: f.completion_criteria?.changelog ?? [],
+    },
   }
 }
 
@@ -64,6 +74,8 @@ export function createFlow(name: string, now: Date = new Date()): FlowDoc {
     input_definitions: [],
     nodes: [],
     dependencies: [],
+    run_parameters: [],
+    completion_criteria: { version: 1, items: [], changelog: [] },
   }
 }
 
@@ -255,6 +267,9 @@ export function contentSnapshot(flow: FlowDoc): string {
     input_definitions: flow.input_definitions,
     nodes: flow.nodes,
     validation_rules: flow.validation_rules ?? null,
+    // 完了基準と実行時に指定する値も、判定（結果）に影響するので含める
+    run_parameters: flow.run_parameters,
+    completion_criteria: flow.completion_criteria.items,
   } as unknown as FlowDoc)
 }
 

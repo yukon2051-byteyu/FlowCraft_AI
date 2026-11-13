@@ -1,6 +1,6 @@
 # 完了基準の設計（completion-criteria.md）
 
-- 版：v0.1（2026-11-12）案：**利用者の確認後に確定**
+- 版：v0.2（2026-11-13）：§3 のデータの形を実装（タスク2-1。[flow-schema.md](flow-schema.md) §7）。評価・総合判定（§5・§6）は 2-2・2-3 で実装
 - 根拠：製品価値の追加・設計方針改訂指示書（単発業務への対応／業務の完了基準の管理）
 - 関連：[product-review.md](product-review.md) §14、[implementation-plan.md](implementation-plan.md) v3.0、[flow-schema.md](flow-schema.md)
 

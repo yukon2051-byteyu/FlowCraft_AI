@@ -6,24 +6,36 @@
 - compute_dependencies：参照関係から dependencies を自動計算する（人が手で書かない）
 - check_move          ：ノードの並べ替えが参照関係を壊さないか判定する（画面の上下移動用）
 - execution_blockers  ：実行できない理由（構造エラー・未確定ノード）を返す
+- criteria_issues     ：完了基準・実行時に指定する値の参照関係を検証する（1.1。validate_structure から呼ぶ）
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from pydantic import ValidationError
 
 from app.flow.schema import (
+    CRITERIA_NEEDING_COLUMN,
+    CRITERIA_ON_INPUT,
     NODE_TYPES,
     SUPPORTED_SCHEMA_VERSIONS,
     Dependency,
+    ExpectedValueCriterion,
     FlowDefinition,
+    JoinNode,
     LoadNode,
     Node,
     OutputNode,
+    ParamRef,
+    PeriodCriterion,
+    TotalMatchCriterion,
+    ValueRangeCriterion,
 )
 
 Severity = Literal["error", "warning"]
@@ -244,6 +256,8 @@ def validate_structure(flow: FlowDefinition) -> list[Issue]:
                     )
                 )
 
+    issues += criteria_issues(flow)
+
     # 保存されている dependencies が参照関係と一致しているか（手で書き換えられていないか）
     if flow.dependencies and not any(i.severity == "error" for i in issues):
         if _normalize(flow.dependencies) != _normalize(compute_dependencies(flow)):
@@ -254,6 +268,99 @@ def validate_structure(flow: FlowDefinition) -> list[Issue]:
                     "ステップどうしのつながりの記録が、実際の内容と一致しません。ファイルが手作業で編集された可能性があります。",
                 )
             )
+    return issues
+
+
+_MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _is_date(v: str) -> bool:
+    if not _DATE.match(v):
+        return False
+    try:
+        date.fromisoformat(v)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_number(v: str) -> bool:
+    try:
+        return Decimal(v).is_finite()
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def criteria_issues(flow: FlowDefinition) -> list[Issue]:
+    """完了基準と、実行時に指定する値の参照関係を検証する（データの中身は見ない）。
+
+    - 基準の参照名・実行時に指定する値の参照名が重ならない
+    - 確かめる対象（入力・ステップの結果）が作業手順の中にある
+    - 種類ごとの決まり（入力が対象の基準・結合の結果が対象の基準・列が必要な基準）
+    - 値の形（対象の月は「2026-10」、日付は「2026-10-01」、数値）と、実行時に指定する値の種類
+    """
+    issues: list[Issue] = []
+    params = {p.param_id: p for p in flow.run_parameters}
+    ids = [p.param_id for p in flow.run_parameters]
+    for dup in sorted({i for i in ids if ids.count(i) > 1}):
+        issues.append(Issue("DUPLICATE_PARAM_ID", "error", f"実行時に指定する値のID「{dup}」が重複しています。"))
+
+    items = flow.completion_criteria.items
+    cids = [c.criterion_id for c in items]
+    for dup in sorted({i for i in cids if cids.count(i) > 1}):
+        issues.append(Issue("DUPLICATE_CRITERION_ID", "error", f"完了基準のID「{dup}」が重複しています。"))
+
+    inputs = {d.input_id for d in flow.input_definitions}
+    outputs = {n.output_reference for n in flow.nodes if n.output_reference}
+    joins = {n.output_reference for n in flow.nodes if isinstance(n, JoinNode) and n.output_reference}
+    known = inputs | outputs
+
+    def err(code: str, c: Any, text: str) -> None:
+        issues.append(Issue(code, "error", f"完了基準「{c.name}」：{text}"))
+
+    def check_value(c: Any, v: Any, what: str, allowed: tuple[str, ...], literal_ok: Any) -> None:
+        if v is None:
+            return
+        if isinstance(v, ParamRef):
+            p = params.get(v.param)
+            if p is None:
+                err("UNKNOWN_RUN_PARAMETER", c, f"{what}に使う「実行時に指定する値」（{v.param}）が定義されていません。")
+            elif p.type not in allowed:
+                err("RUN_PARAMETER_TYPE", c, f"{what}に、種類が「{p.type}」の値（{p.label}）は使えません。")
+        elif not literal_ok(v):
+            err("INVALID_CRITERION_VALUE", c, f"{what}の値「{v}」の形が正しくありません。")
+
+    for c in items:
+        ref = c.target.ref
+        if ref not in known:
+            err("UNKNOWN_CRITERION_TARGET", c, f"確かめる対象（{ref}）が作業手順の中にありません。")
+        elif c.kind in CRITERIA_ON_INPUT and ref not in inputs:
+            err("CRITERION_TARGET_NOT_INPUT", c, "この種類の基準は、読み込むファイル（入力）を対象にしてください。")
+        elif c.kind == "all_matched" and ref not in joins:
+            err("CRITERION_TARGET_NOT_JOIN", c, "この種類の基準は、「別の表から情報を付け加える」ステップの結果を対象にしてください。")
+
+        needs_column = c.kind in CRITERIA_NEEDING_COLUMN or (isinstance(c, ExpectedValueCriterion) and c.params.measure == "sum")
+        if needs_column and not c.target.column:
+            err("CRITERION_COLUMN_REQUIRED", c, "確かめる列を指定してください。")
+
+        if isinstance(c, TotalMatchCriterion) and c.params.compare_ref not in known:
+            err("UNKNOWN_CRITERION_TARGET", c, f"比べる相手（{c.params.compare_ref}）が作業手順の中にありません。")
+        if isinstance(c, PeriodCriterion):
+            check_value(c, c.params.month, "対象の月", ("month",), lambda v: bool(_MONTH.match(v)))
+            check_value(c, c.params.start, "開始日", ("date",), _is_date)
+            check_value(c, c.params.end, "終了日", ("date",), _is_date)
+        if isinstance(c, ValueRangeCriterion):
+            # 範囲は数値または日付（列の形式は実行時に確かめる）
+            for what, v in (("最小", c.params.min), ("最大", c.params.max)):
+                check_value(c, v, what, ("integer", "decimal", "date"), lambda x: _is_number(x) or _is_date(x))
+        if isinstance(c, ExpectedValueCriterion):
+            check_value(c, c.params.value, "確認用の値", ("integer", "decimal"), _is_number)
+
+    cc = flow.completion_criteria
+    for ch in cc.changelog:
+        if ch.version > cc.version:
+            issues.append(Issue("INVALID_CRITERIA_CHANGELOG", "error", f"完了基準の変更の記録（版{ch.version}）が、今の版（{cc.version}）より新しくなっています。"))
     return issues
 
 

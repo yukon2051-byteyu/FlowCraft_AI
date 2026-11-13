@@ -1,6 +1,6 @@
 # フローJSON 詳細仕様（flow-schema.md）
 
-- スキーマバージョン：**1.0**
+- スキーマバージョン：**1.1**（2026-11-13。1.0 のファイルはそのまま読み込み、1.1 として扱う → §7）
 - 正本：[backend/app/flow/schema.py](../backend/app/flow/schema.py)（Pydanticモデル）。本書と食い違う場合はコードが正
 - 構造検証：[backend/app/flow/validate.py](../backend/app/flow/validate.py)
 - 見本：[backend/tests/fixtures/flows/monthly_sales.json](../backend/tests/fixtures/flows/monthly_sales.json)（デモA相当）
@@ -139,6 +139,39 @@
 **実行可否**（`execution_blockers`）：上記エラー＋ノードが空（`EMPTY_FLOW`）＋未確定ノード（`NODE_NOT_CONFIRMED`）＋未回答の確認（`OPEN_QUESTIONS`）。
 
 **並べ替え**（`check_move`）：移動後に新たな参照エラーが生じる場合、出力ノードを動かす場合、出力ノードより下へ動かす場合は不可とし、理由を返す（R5）。
+
+## 7. 1.1 で追加した項目（タスク2-1）
+
+設計：[completion-criteria.md](completion-criteria.md) §3・§4
+
+| 項目 | 内容 |
+|---|---|
+| `run_parameters[]` | 実行のたびに指定する値。`param_id`（英数字）・`label`・`type`（month／date／integer／decimal／string）・`required`（初期値 true）。最大20 |
+| `completion_criteria.version` | 完了基準の版数（作業手順の版数とは別）。初期値 1 |
+| `completion_criteria.items[]` | 完了基準。最大50。共通：`criterion_id`・`name`・`kind`・`target{ref, column}`・`params`・`on_fail`（critical／caution／record）・`origin`（template／manual／ai）・`confirmation_status`・`note` |
+| `completion_criteria.changelog[]` | 変更の記録（`version`・`changed_at`・`summary`）。値の中身は残さず、要約だけ |
+
+**種類（kind）ごとの params**
+
+| kind | params | 対象（target） |
+|---|---|---|
+| required_columns | `columns`（空なら入力の定義で必須の列すべて） | 入力 |
+| data_type | なし | 入力・列 |
+| no_blank | `max_count`（初期値 0） | 結果・列 |
+| unique | `columns`（1〜10） | 結果 |
+| value_range | `min`・`max`（どちらか必須。数値・日付・実行時に指定する値） | 結果・列 |
+| period | `month`（"2026-10"）または `start`・`end`（"2026-10-01"）。実行時に指定する値も可 | 結果・日付の列 |
+| total_match | `compare_ref`・`compare_column`・`tolerance`（0以上） | 結果・列 |
+| row_count | `min`・`max`（どちらか必須、min ≦ max） | 結果 |
+| all_matched | `max_count`（初期値 0） | 「別の表から情報を付け加える」ステップの結果 |
+| expected_value | `measure`（sum／count）・`value`・`tolerance`。sum は列が必要 | 結果 |
+| list_rows | `condition`（条件で残すと同じ形）。**on_fail は record のみ** | 結果 |
+
+値の代わりに `{"$param": "target_month"}` と書くと、実行時に指定する値を使う。
+
+**1.0 → 1.1**：1.0 のファイルは読み込むときに 1.1 として扱う（`run_parameters` は空、`completion_criteria` は版1・基準なし）。1.0 なのに 1.1 の項目が書かれたファイルは、手で編集された不正なファイルとして拒否する。
+
+**参照の検証（validate.py `criteria_issues`）**：基準・実行時に指定する値の ID の重複、対象（`target.ref`・`compare_ref`）が作業手順の中にあるか、種類ごとの対象の決まり、列が必要な基準の列、`$param` が定義されているか・種類が合うか、値の形（月・日付・数値）、変更の記録の版数。
 
 ## 6. 本書の範囲外（後続タスクで実装）
 
