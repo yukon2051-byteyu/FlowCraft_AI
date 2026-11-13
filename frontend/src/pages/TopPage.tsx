@@ -730,10 +730,10 @@ function Trust() {
           <DevBadge feature="quality" className="mb-1" />
         </div>
 
-        <ol className="mt-[28px] grid grid-cols-3 gap-4" aria-label="決めた基準で検証してから出力するまで">
+        <ol className="mt-[26px] grid grid-cols-3 gap-4" aria-label="決めた基準で検証してから出力するまで">
           {TRUST_FLOW.map((t, i) => (
-            <li key={t.title} className="flex items-center gap-4 rounded-2xl bg-panel px-5 py-9 ring-1 ring-edge">
-              <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
+            <li key={t.title} className="flex items-center gap-[18px] rounded-2xl bg-panel px-[22px] py-[20px] ring-1 ring-edge">
+              <span className={`grid size-[56px] shrink-0 place-items-center rounded-2xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
                 <t.icon className="size-7" aria-hidden />
               </span>
               <span className="min-w-0">
@@ -741,13 +741,13 @@ function Trust() {
                   <span className="text-[0.85rem] text-subtle/70 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                   {t.title}
                 </span>
-                <span className="mt-2 block text-[0.9rem] leading-relaxed whitespace-pre-line text-subtle">{t.body}</span>
+                <span className="mt-[8px] block text-[0.9rem] leading-relaxed whitespace-pre-line text-subtle">{t.body}</span>
               </span>
             </li>
           ))}
         </ol>
 
-        <div className="mt-[24px] flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
+        <div className="mt-[22px] flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
           <p className="flex items-center gap-1.5 text-[0.9rem] font-bold text-white">
             <TriangleAlert className="size-4 text-kaizen" aria-hidden />
             検出できる異常の例
@@ -761,34 +761,39 @@ function Trust() {
           </ul>
         </div>
 
-        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。本体は横一列の5列の Grid：
-              異常の検出 ｜ 矢印 ｜ 正式出力を停止 ｜ 矢印 ｜ デモのボタン
-            ・余った横幅は2つの矢印の列で等分し、矢印は列の中央に置く → 4つの間隔がそろい、矢印は前後の要素のちょうど中間になる
-            ・行には「ボタン本体」だけを置き、補足説明はボタンの下に絶対配置する → 補足説明がボタンの上下中央の計算に入らず、
-              矢印・正式出力停止・ボタンの中心線が Grid の中央揃えだけで一致する（margin・translateY による位置合わせはしない）
-            ボタン専用の下段は作らない。固定の高さは付けない。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
-        <div className="mt-[24px] rounded-2xl bg-panel-hi p-[24px] ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
+        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。タイトルは左揃え、その下の5要素は1つのグループとしてカードの中央に置く：
+              異常の検出 → 正式出力を停止 → デモのボタン（矢印は32pxの箱の中央）
+            ・Flex（justify-content: center・align-items: center）。各要素は内容の幅のまま並べ、間隔は gap で統一（20px）
+              → グループは実際の幅を基準に中央に置かれ、左右の余白が等しくなる（全幅に引き伸ばさない）
+            ・ボタンの補足説明はボタンの下に絶対配置する → 補足説明がボタンの上下中央の計算に入らず、
+              矢印・正式出力停止・ボタンの中心線が揃う（margin・translateY による位置合わせはしない）
+            固定の高さは付けない。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
+        <div className="mt-[22px] rounded-2xl bg-panel-hi px-[26px] pt-[22px] pb-[32px] ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
           <p className="flex flex-wrap items-center gap-2">
             <span className="text-[1.05rem] font-bold text-white">実行結果のイメージ</span>
             <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[0.8rem] text-subtle ring-1 ring-white/15">架空データの例（照合漏れを重大として設定した場合）</span>
           </p>
-          <div className="mt-[16px] grid grid-cols-[auto_minmax(3.5rem,1fr)_auto_minmax(3.5rem,1fr)_auto] items-center pt-[4px] pb-[10px]">
-            <div className="flex items-center gap-[18px]" data-flow="detect">
-              <span className="grid size-20 shrink-0 place-items-center rounded-2xl bg-kaizen/15 text-kaizen ring-1 ring-kaizen/40">
-                <TriangleAlert className="size-10" aria-hidden />
+          <div className="mt-[16px] flex items-center justify-center gap-[20px]" data-flow="group">
+            <div className="flex shrink-0 items-center gap-[18px]" data-flow="detect">
+              <span className="grid size-[64px] shrink-0 place-items-center rounded-2xl bg-kaizen/15 text-kaizen ring-1 ring-kaizen/40">
+                <TriangleAlert className="size-8" aria-hidden />
               </span>
               <span className="min-w-0">
                 <span className="block text-[1.2rem] font-bold text-white">重大な品質異常を検出</span>
                 <span className="mt-[7px] block text-white/80">商品マスタ照合漏れ：15件</span>
               </span>
             </div>
-            <ArrowRight className="size-7 justify-self-center text-white/60" aria-hidden data-flow="arrow1" />
-            <p className="flex items-center justify-center gap-2.5 rounded-xl bg-kaizen/15 px-7 py-4 text-[1.3rem] font-bold whitespace-nowrap text-kaizen-text ring-1 ring-kaizen/55" data-flow="stop">
+            <span className="flex w-[32px] shrink-0 justify-center" data-flow="arrow1">
+              <ArrowRight className="size-7 text-white/60" aria-hidden />
+            </span>
+            <p className="flex items-center justify-center gap-2.5 rounded-xl bg-kaizen/15 px-6 py-3.5 text-[1.3rem] font-bold whitespace-nowrap text-kaizen-text ring-1 ring-kaizen/55" data-flow="stop">
               <Ban className="size-6" aria-hidden />
               正式出力を停止
             </p>
-            <ArrowRight className="size-7 justify-self-center text-white/60" aria-hidden data-flow="arrow2" />
-            <div className="relative" data-flow="demo">
+            <span className="flex w-[32px] shrink-0 justify-center" data-flow="arrow2">
+              <ArrowRight className="size-7 text-white/60" aria-hidden />
+            </span>
+            <div className="relative shrink-0" data-flow="demo">
               <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary">
                 <CirclePlay className="size-5" aria-hidden />
                 品質異常のデモを体験する

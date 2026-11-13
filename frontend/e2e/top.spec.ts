@@ -83,7 +83,7 @@ test('キーボードでも使える。動きを減らす設定では、すぐ�
   expect(y).toBeLessThan(160)
 })
 
-test('品質の確認：実行結果のイメージは横一列。4つの間隔がそろい、矢印とボタンの中心が一致。ボタンでデモへ', async ({ page }) => {
+test('品質の確認：実行結果のイメージは中央揃えの横一列。4つの間隔がそろい、矢印とボタンの中心が一致。ボタンでデモへ', async ({ page }) => {
   for (const [w, h] of [
     [1366, 768],
     [1920, 1080],
@@ -100,12 +100,16 @@ test('品質の確認：実行結果のイメージは横一列。4つの間隔�
         gaps: [a1.left - det.right, stop.left - a1.right, a2.left - stop.right, btn.left - a2.right],
         centers: [cy(a1), cy(stop), cy(a2), cy(btn), cy(det)],
         card: r('#trust [aria-label="実行結果のイメージ"]').height,
+        // 5要素のグループの左右の余白（カードの内側の端から）。中央揃えなら等しい
+        sides: [det.left - r('#trust [data-flow="group"]').left, r('#trust [data-flow="group"]').right - r('#trust [data-flow="demo"]').right],
         cards: [...document.querySelectorAll('#trust ol li')].map((e) => e.getBoundingClientRect().height),
       }
     })
     expect(Math.max(...m.gaps) - Math.min(...m.gaps), `${w}px：間隔の差`).toBeLessThanOrEqual(2)
     expect(Math.max(...m.centers) - Math.min(...m.centers), `${w}px：中心の差`).toBeLessThanOrEqual(2)
-    expect(m.card).toBeLessThanOrEqual(180)
+    expect(m.card).toBeLessThanOrEqual(175)
+    expect(Math.abs(m.sides[0] - m.sides[1]), `${w}px：左右の余白の差`).toBeLessThanOrEqual(2)
+    expect(m.sides[0], `${w}px：全幅に広げていない`).toBeGreaterThan(50)
     expect(new Set(m.cards.map(Math.round)).size).toBe(1)
   }
   await page.locator('#trust').getByRole('link', { name: '品質異常のデモを体験する' }).click()
