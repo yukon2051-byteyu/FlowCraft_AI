@@ -8,7 +8,9 @@ test('無人定期実行のカードは「開発中」と、5つの確認を示�
   await page.goto('/')
   const card = page.getByRole('article', { name: '決まった日時に無人で実行できる' })
   await expect(card.getByRole('heading', { name: '毎月の作業は、もう開かなくていい。' })).toBeVisible()
-  await expect(card.getByText('開発中')).toBeVisible()
+  await expect(card.getByText('開発中', { exact: true })).toBeVisible()
+  // 3分後の自動実行デモは、完成するまで押せない
+  await expect(card.getByRole('button', { name: '3分後に自動実行を試す' })).toBeDisabled()
   await expect(card.getByRole('listitem')).toHaveText([/設定を保存/, /接続テスト/, /テスト実行/, /品質検証/, /利用者が有効化/])
   await expect(page.getByText('選ばれる6つの理由')).toBeVisible()
 })

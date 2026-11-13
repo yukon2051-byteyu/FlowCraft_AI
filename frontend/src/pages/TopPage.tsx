@@ -247,6 +247,13 @@ function ScheduleCard() {
           ))}
         </ol>
         <p className="mt-2 text-[0.82rem] text-subtle">設定を変えたときは、もう一度確認してから実行します（以前の確認結果は使い回しません）。</p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button variant="outlineDark" size="sm" disabled title="開発中です。完成後、サンプルデータで試せます">
+            <CalendarClock className="size-4" aria-hidden />
+            3分後に自動実行を試す
+          </Button>
+          <span className="text-[0.82rem] text-subtle">完成後、サンプルデータを使い、実際のExcel処理をクラウド上で3分後に自動実行できます（開発中）。</span>
+        </div>
       </div>
     </article>
   )
