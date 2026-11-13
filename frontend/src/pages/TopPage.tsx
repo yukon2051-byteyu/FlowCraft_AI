@@ -730,9 +730,9 @@ function Trust() {
           <DevBadge feature="quality" className="mb-1" />
         </div>
 
-        <ol className="mt-7 grid gap-4 grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
+        <ol className="mt-[28px] grid grid-cols-3 gap-4" aria-label="決めた基準で検証してから出力するまで">
           {TRUST_FLOW.map((t, i) => (
-            <li key={t.title} className="flex items-center gap-4 rounded-2xl bg-panel px-5 py-10 ring-1 ring-edge">
+            <li key={t.title} className="flex items-center gap-4 rounded-2xl bg-panel px-5 py-9 ring-1 ring-edge">
               <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
                 <t.icon className="size-7" aria-hidden />
               </span>
@@ -747,7 +747,7 @@ function Trust() {
           ))}
         </ol>
 
-        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
+        <div className="mt-[24px] flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
           <p className="flex items-center gap-1.5 text-[0.9rem] font-bold text-white">
             <TriangleAlert className="size-4 text-kaizen" aria-hidden />
             検出できる異常の例
@@ -761,45 +761,47 @@ function Trust() {
           </ul>
         </div>
 
-        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。本体は横一列：
-              異常の検出 → 正式出力の停止 → デモで体験（ボタンと小さな補足）
-            ボタン専用の下段は作らない（縦に間延びするため。2026-11-14 再修正）。高さは内容に任せる（固定の高さは付けない）。
-            照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
-        <div className="mt-6 rounded-2xl bg-panel-hi p-6 ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
+        {/* 実行結果のイメージ（架空のデータ）。セクションの主役。本体は横一列の5列の Grid：
+              異常の検出 ｜ 矢印 ｜ 正式出力を停止 ｜ 矢印 ｜ デモのボタン
+            ・余った横幅は2つの矢印の列で等分し、矢印は列の中央に置く → 4つの間隔がそろい、矢印は前後の要素のちょうど中間になる
+            ・行には「ボタン本体」だけを置き、補足説明はボタンの下に絶対配置する → 補足説明がボタンの上下中央の計算に入らず、
+              矢印・正式出力停止・ボタンの中心線が Grid の中央揃えだけで一致する（margin・translateY による位置合わせはしない）
+            ボタン専用の下段は作らない。固定の高さは付けない。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
+        <div className="mt-[24px] rounded-2xl bg-panel-hi p-[24px] ring-1 ring-mint/25" role="region" aria-label="実行結果のイメージ">
           <p className="flex flex-wrap items-center gap-2">
             <span className="text-[1.05rem] font-bold text-white">実行結果のイメージ</span>
             <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[0.8rem] text-subtle ring-1 ring-white/15">架空データの例（照合漏れを重大として設定した場合）</span>
           </p>
-          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-7 py-2.5">
-            <div className="flex items-center gap-5">
+          <div className="mt-[16px] grid grid-cols-[auto_minmax(3.5rem,1fr)_auto_minmax(3.5rem,1fr)_auto] items-center pt-[4px] pb-[10px]">
+            <div className="flex items-center gap-[18px]" data-flow="detect">
               <span className="grid size-20 shrink-0 place-items-center rounded-2xl bg-kaizen/15 text-kaizen ring-1 ring-kaizen/40">
                 <TriangleAlert className="size-10" aria-hidden />
               </span>
-              <span className="min-w-0 border-l border-edge pl-5">
+              <span className="min-w-0">
                 <span className="block text-[1.2rem] font-bold text-white">重大な品質異常を検出</span>
-                <span className="mt-1 block text-white/80">商品マスタ照合漏れ：15件</span>
+                <span className="mt-[7px] block text-white/80">商品マスタ照合漏れ：15件</span>
               </span>
             </div>
-            <ArrowRight className="size-7 text-white/60" aria-hidden />
-            <p className="flex items-center justify-center gap-2.5 rounded-xl bg-kaizen/15 px-7 py-4 text-[1.3rem] font-bold whitespace-nowrap text-kaizen-text ring-1 ring-kaizen/55">
+            <ArrowRight className="size-7 justify-self-center text-white/60" aria-hidden data-flow="arrow1" />
+            <p className="flex items-center justify-center gap-2.5 rounded-xl bg-kaizen/15 px-7 py-4 text-[1.3rem] font-bold whitespace-nowrap text-kaizen-text ring-1 ring-kaizen/55" data-flow="stop">
               <Ban className="size-6" aria-hidden />
               正式出力を停止
             </p>
-            <ArrowRight className="size-7 text-white/60" aria-hidden />
-            <div className="flex flex-col items-center gap-1.5">
+            <ArrowRight className="size-7 justify-self-center text-white/60" aria-hidden data-flow="arrow2" />
+            <div className="relative" data-flow="demo">
               <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary">
                 <CirclePlay className="size-5" aria-hidden />
                 品質異常のデモを体験する
                 <ArrowRight className="size-5" aria-hidden />
               </Button>
-              <span className="flex items-center gap-1 text-[0.8rem] text-subtle">
+              <span className="absolute inset-x-0 top-full mt-[8px] flex items-center justify-center gap-1 text-[12.5px] whitespace-nowrap text-subtle">
                 <Info className="size-3.5" aria-hidden />
                 異常の詳細・判定根拠も確認できます
               </span>
             </div>
           </div>
         </div>
-        <p className="mt-4 text-[0.82rem] text-subtle">
+        <p className="mt-[16px] text-[0.82rem] text-subtle">
           確認できるのは、自動で行う確認と、設定した基準の範囲です。毎月の実行では、前月に正式出力した結果と自動で比べます（履歴はこのブラウザに保存）。品質ルールの複製は開発中です。
         </p>
         <h3 className="mt-8 text-[0.95rem] font-bold text-white">データの取り扱い・ご利用上の注意</h3>

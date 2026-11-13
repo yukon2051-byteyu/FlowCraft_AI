@@ -82,3 +82,32 @@ test('キーボードでも使える。動きを減らす設定では、すぐ�
   expect(y).toBeGreaterThan(64)
   expect(y).toBeLessThan(160)
 })
+
+test('品質の確認：実行結果のイメージは横一列。4つの間隔がそろい、矢印とボタンの中心が一致。ボタンでデモへ', async ({ page }) => {
+  for (const [w, h] of [
+    [1366, 768],
+    [1920, 1080],
+  ]) {
+    await page.setViewportSize({ width: w, height: h })
+    await page.goto('/')
+    const m = await page.evaluate(() => {
+      const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect()
+      const q = (k: string) => r(`#trust [data-flow="${k}"]`)
+      const det = q('detect'), a1 = q('arrow1'), stop = q('stop'), a2 = q('arrow2')
+      const btn = r('#trust [data-flow="demo"] a')
+      const cy = (b: DOMRect) => b.top + b.height / 2
+      return {
+        gaps: [a1.left - det.right, stop.left - a1.right, a2.left - stop.right, btn.left - a2.right],
+        centers: [cy(a1), cy(stop), cy(a2), cy(btn), cy(det)],
+        card: r('#trust [aria-label="実行結果のイメージ"]').height,
+        cards: [...document.querySelectorAll('#trust ol li')].map((e) => e.getBoundingClientRect().height),
+      }
+    })
+    expect(Math.max(...m.gaps) - Math.min(...m.gaps), `${w}px：間隔の差`).toBeLessThanOrEqual(2)
+    expect(Math.max(...m.centers) - Math.min(...m.centers), `${w}px：中心の差`).toBeLessThanOrEqual(2)
+    expect(m.card).toBeLessThanOrEqual(180)
+    expect(new Set(m.cards.map(Math.round)).size).toBe(1)
+  }
+  await page.locator('#trust').getByRole('link', { name: '品質異常のデモを体験する' }).click()
+  await expect(page).toHaveURL(/[/]build[?]demo=monthly_sales&pattern=ng/)
+})
