@@ -142,7 +142,13 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   const disposition = res.headers.get('Content-Disposition') ?? ''
   const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
   const name = encoded ? decodeURIComponent(encoded) : fallbackName
-  const url = URL.createObjectURL(await res.blob())
+  saveBlob(name, await res.blob())
+  return name
+}
+
+/** 画面の中で作った内容を、ブラウザのダウンロードとしてファイルに保存する */
+export function saveBlob(name: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = name
@@ -150,5 +156,4 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
-  return name
 }

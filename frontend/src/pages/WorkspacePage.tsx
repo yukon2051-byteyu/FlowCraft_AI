@@ -1,5 +1,5 @@
 import { Monitor } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Button } from '../components/ui/Button'
 import { AppHeader } from '../components/workspace/AppHeader'
@@ -10,6 +10,7 @@ import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { RunResults } from '../components/workspace/run/RunResults'
+import { SaveDialog } from '../components/workspace/SaveDialog'
 import { exportRun } from '../api/flows'
 import type { RunSummary } from '../api/flows'
 import { ApiError } from '../api/client'
@@ -17,7 +18,7 @@ import type { ApiErrorBody } from '../api/client'
 import { buildFromChoices } from '../flow/define'
 import type { InputChoice } from '../flow/define'
 import { editHint } from '../flow/hints'
-import { useFlowStore } from '../flow/store'
+import { selectIsDirty, useFlowStore } from '../flow/store'
 
 /** 作る画面の中の表示：ファイルの確認 → 使う列と形式を決める → 作業手順 */
 type Screen = 'data' | 'define' | 'edit' | 'result'
@@ -60,6 +61,21 @@ export default function WorkspacePage() {
   }
   const startFromInputs = useFlowStore((s) => s.startFromInputs)
   const nodes = useFlowStore((s) => s.flow.nodes)
+  const flowName = useFlowStore((s) => s.flow.flow_name)
+  // 処理ステップがある作業手順で、保存していない変更があるか（まだ何も作っていないときは対象外）
+  const unsaved = useFlowStore((s) => s.flow.nodes.length > 0 && selectIsDirty(s))
+  const [saving, setSaving] = useState(false)
+
+  // 未保存のままブラウザを閉じる・再読み込みする前に、ブラウザの確認を出す
+  useEffect(() => {
+    if (sample || !unsaved) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [sample, unsaved])
   // 作り直すと消えてしまう、追加済みの処理ステップの数
   const addedSteps = nodes.filter((n) => n.node_type !== 'load').length
 
@@ -73,8 +89,10 @@ export default function WorkspacePage() {
     <>
       <div className="hidden h-screen min-h-[640px] flex-col bg-canvas lg:flex">
         <AppHeader
-          flowName={sample ? '月次売上集計' : '無題の作業手順'}
-          unsaved={sample}
+          flowName={sample ? '月次売上集計' : flowName}
+          unsaved={!sample && unsaved}
+          canSave={!sample && nodes.length > 0}
+          onSave={() => setSaving(true)}
           canExport={!sample && screen === 'result' && lastRun !== null}
           onExport={doExport}
           exporting={exporting}
@@ -142,6 +160,7 @@ export default function WorkspacePage() {
           </>
         )}
       </div>
+      {saving && <SaveDialog onClose={() => setSaving(false)} />}
       <PcOnlyNotice />
     </>
   )

@@ -27,10 +27,18 @@ export function validateFlow(flow: FlowDoc): Promise<ValidateResult> {
   })
 }
 
-/** 形の誤りの場所（例 "nodes.3.join.parameters.keys"）から、ステップの番号（0始まり）を取り出す */
+/**
+ * 形の誤りの場所から、ステップの番号（0始まり）を取り出す。
+ * サーバーは "nodes[3].parameters.keys" の形で返す（app/flow/validate.py の _location）。古い形 "nodes.3.…" も受け付ける。
+ */
 export function stepIndexOf(location: string): number | null {
-  const m = /^nodes\.(\d+)/.exec(location)
-  return m ? Number(m[1]) : null
+  const m = /^nodes(?:\[(\d+)\]|\.(\d+))/.exec(location)
+  return m ? Number(m[1] ?? m[2]) : null
+}
+
+/** 形の誤りの場所から、ステップの中の項目の部分だけを取り出す（例 "nodes[3].parameters.keys" → "parameters.keys"） */
+export function fieldOf(location: string): string {
+  return location.replace(/^nodes(?:\[\d+\]|\.\d+)\.?/, '')
 }
 
 /* ---------- テスト実行（/api/flows/preview）と全体の実行（/api/runs） ---------- */

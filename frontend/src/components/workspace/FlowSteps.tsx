@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { COLUMN_TYPE_LABEL } from '../../api/files'
 import { ApiError } from '../../api/client'
 import type { ApiErrorBody } from '../../api/client'
-import { runFlow, stepIndexOf, validateFlow } from '../../api/flows'
+import { fieldOf, runFlow, stepIndexOf, validateFlow } from '../../api/flows'
 import type { RunSummary } from '../../api/flows'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
@@ -436,7 +436,7 @@ function useServerCheck(flow: FlowDoc): ServerCheck {
   for (const e of q.data?.schema_errors ?? []) {
     const i = stepIndexOf(e.location)
     if (i === null) general.push(e.message)
-    else (byIndex[i] ??= []).push(`作業手順のチェック：${e.message}（${e.location.split('.').slice(2).join('.') || '設定'}）`)
+    else (byIndex[i] ??= []).push(`作業手順のチェック：${e.message}（${fieldOf(e.location) || '設定'}）`)
   }
   for (const issue of q.data?.issues ?? []) {
     if (issue.severity !== 'error') continue

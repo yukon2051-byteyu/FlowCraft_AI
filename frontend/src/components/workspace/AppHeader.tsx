@@ -10,13 +10,25 @@ type Props = {
   /** Excelに出力する（結果の画面で使える） */
   onExport?: () => void
   exporting?: boolean
+  /** 作業手順を保存する（処理ステップがあるときに使える） */
+  onSave?: () => void
+  canSave?: boolean
 }
 
+const LEAVE_MESSAGE = '保存していない変更があります。このページを離れると、変更は失われます。離れますか？'
+
 /** ワークスペース用のヘッダー。TOPと同じロゴ・ナビゲーション色で統一する。 */
-export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = false }: Props) {
+export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = false, onSave, canSave = false }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-edge bg-nav px-5 text-white">
-      <Link to="/" aria-label="トップへ戻る" className="rounded-md focus-visible:outline-2 focus-visible:outline-mint">
+      <Link
+        to="/"
+        aria-label="トップへ戻る"
+        // 未保存の変更があるときは、離れる前に確認する（ブラウザを閉じる・再読み込みは WorkspacePage の beforeunload で確認）
+        onClick={(e) => {
+          if (unsaved && !window.confirm(LEAVE_MESSAGE)) e.preventDefault()
+        }}
+        className="rounded-md focus-visible:outline-2 focus-visible:outline-mint">
         <Logo />
       </Link>
       <span className="h-6 w-px bg-edge" aria-hidden />
@@ -34,7 +46,13 @@ export function AppHeader({ flowName, unsaved, canExport, onExport, exporting = 
           <FolderOpen className="size-4" aria-hidden />
           作業手順を開く
         </Button>
-        <Button variant="outlineDark" size="sm" disabled title="作業手順を保存する機能は開発中です">
+        <Button
+          variant="outlineDark"
+          size="sm"
+          disabled={!canSave}
+          onClick={onSave}
+          title={canSave ? '作業手順を、このブラウザの一覧とファイルに保存します' : '使う列を決めて作業手順を作ると、保存できます'}
+        >
           <Save className="size-4" aria-hidden />
           作業手順を保存
         </Button>

@@ -116,12 +116,13 @@ describe('削除', () => {
 })
 
 describe('保存の準備・未保存の判定', () => {
-  it('保存のたびに版数が上がり、つながりの記録が計算される', () => {
+  it('保存のたびに版数が上がり、つながりの記録が計算される（初めての保存では上げない）', () => {
     const saved = prepareForSave(DEMO, new Date('2026-12-01T00:00:00Z'))
     expect(saved.flow_version).toBe(DEMO.flow_version + 1)
     expect(saved.updated_at).toBe('2026-12-01T00:00:00.000Z')
     expect(saved.dependencies).toEqual(computeDependencies(DEMO.nodes))
     expect(DEMO.flow_version).toBe(1) // 元は変えない
+    expect(prepareForSave(DEMO, new Date(), false).flow_version).toBe(DEMO.flow_version)
   })
 
   it('比較用の文字列は、項目の順序が違っても同じになる', () => {

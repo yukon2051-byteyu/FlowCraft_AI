@@ -55,8 +55,12 @@ type FlowState = {
   selectNode: (nodeId: string | null) => void
   setBinding: (binding: Binding) => void
   clearBindings: () => void
-  /** 保存用の内容を作り（版数を上げる）、保存済みとして記録する。戻り値をファイルなどに書き出す */
-  commitSave: () => FlowDoc
+  /**
+   * 保存用の内容を作り、保存済みとして記録する。戻り値をファイルなどに書き出す。
+   * 版数：初めての保存は版1のまま。2回目以降は、変更があるときだけ1つ上げる（変更がなければ同じ版をもう一度保存する）
+   * meta：保存の画面で入力した名前・説明
+   */
+  commitSave: (meta?: { flow_name?: string; description?: string }) => FlowDoc
 }
 
 /** 未保存の変更があるか */
@@ -161,8 +165,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
   clearBindings: () => set({ bindings: {} }),
 
-  commitSave: () => {
-    const saved = prepareForSave(get().flow)
+  commitSave: (meta) => {
+    const s = get()
+    const flow = { ...s.flow, ...meta }
+    const neverSaved = s.savedSnapshot === null
+    if (!neverSaved && snapshot(flow) === s.savedSnapshot) return s.flow
+    const saved = prepareForSave(flow, new Date(), !neverSaved)
     set({ flow: saved, savedSnapshot: snapshot(saved) })
     return saved
   },

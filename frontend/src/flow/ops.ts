@@ -226,11 +226,14 @@ export function setInputs(nodes: FlowNode[], nodeId: string, refs: string[]): { 
   }
 }
 
-/** 保存用に整える：ステップどうしのつながりの記録を計算し直し、版数と更新日時を進める。 */
-export function prepareForSave(flow: FlowDoc, now: Date = new Date()): FlowDoc {
+/**
+ * 保存用に整える：ステップどうしのつながりの記録を計算し直し、更新日時を進める。
+ * bump が true なら版数を1つ上げる（初めての保存では上げず、版1のまま保存する）。
+ */
+export function prepareForSave(flow: FlowDoc, now: Date = new Date(), bump = true): FlowDoc {
   return {
     ...flow,
-    flow_version: flow.flow_version + 1,
+    flow_version: bump ? flow.flow_version + 1 : flow.flow_version,
     updated_at: now.toISOString(),
     dependencies: computeDependencies(flow.nodes),
   }

@@ -38,6 +38,22 @@ describe('作る画面の状態管理', () => {
     expect(selectIsDirty(store())).toBe(false)
   })
 
+  it('版数：初めての保存は版1のまま。変更してから保存すると上がり、変更なしでは上がらない', () => {
+    store().addStep('filter', null)
+    const first = store().commitSave({ flow_name: '月次の集計', description: '前月分' })
+    expect(first.flow_version).toBe(1)
+    expect(first.flow_name).toBe('月次の集計')
+    expect(first.description).toBe('前月分')
+    expect(selectIsDirty(store())).toBe(false)
+
+    expect(store().commitSave().flow_version).toBe(1) // 変更なし
+    expect(store().commitSave({ flow_name: '月次の集計' }).flow_version).toBe(1) // 同じ名前は変更ではない
+
+    store().renameNode('n1', '条件で残す（東日本）')
+    expect(store().commitSave().flow_version).toBe(2)
+    expect(store().commitSave({ flow_name: '月次の集計（改）' }).flow_version).toBe(3) // 名前だけの変更でも版は上がる
+  })
+
   it('変更を元に戻すと未保存の印も消える', () => {
     store().openFlow(DEMO)
     store().renameFlow('一時的な名前')
