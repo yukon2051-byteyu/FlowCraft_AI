@@ -2,7 +2,8 @@ import {
   Building2,
   ArrowDownRight,
   ArrowRight,
-  CircleX,
+  Ban,
+  Info,
   Cloud,
   Monitor,
   CalendarClock,
@@ -710,9 +711,10 @@ const ANOMALIES = ['集計結果の不一致', '商品コードの照合漏れ',
 
 /** 決めた基準で検証してから出力するまで（TOP では3点だけを伝える。判定の詳しい区分は実行結果の画面の「判定基準について」） */
 const TRUST_FLOW: { icon: LucideIcon; title: string; body: string }[] = [
-  { icon: ScanSearch, title: '検証する', body: '決めたルールで、件数・金額・重複などを確認。' },
-  { icon: ListChecks, title: '根拠を残す', body: '異常の内容・該当データ・判定理由を記録。' },
-  { icon: ShieldCheck, title: '誤出力を防ぐ', body: '重大な異常を検出した場合、正式出力を停止。' },
+  // 説明は意味の切れ目で2行に分ける（1〜2文字だけが次の行に落ちないように）
+  { icon: ScanSearch, title: '検証する', body: '決めたルールで、件数・金額・\n重複などを確認。' },
+  { icon: ListChecks, title: '根拠を残す', body: '異常の内容・該当データ・\n判定理由を記録。' },
+  { icon: ShieldCheck, title: '誤出力を防ぐ', body: '重大な異常を検出した場合、\n正式出力を停止。' },
 ]
 
 const CAUTIONS: { icon: LucideIcon; text: string }[] = [
@@ -731,24 +733,24 @@ function Trust() {
           <DevBadge feature="quality" className="mb-1" />
         </div>
 
-        <ol className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
+        <ol className="mt-6 grid gap-4 sm:grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
           {TRUST_FLOW.map((t, i) => (
-            <li key={t.title} className="flex items-start gap-3 rounded-2xl bg-panel p-4 ring-1 ring-edge">
-              <span className={`grid size-10 shrink-0 place-items-center rounded-xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
-                <t.icon className="size-5" aria-hidden />
+            <li key={t.title} className="flex items-center gap-4 rounded-2xl bg-panel px-5 py-8 ring-1 ring-edge">
+              <span className={`grid size-14 shrink-0 place-items-center rounded-2xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
+                <t.icon className="size-7" aria-hidden />
               </span>
               <span className="min-w-0">
-                <span className="flex items-baseline gap-2 font-bold text-white">
-                  <span className="text-[0.78rem] text-subtle/70 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                <span className="flex items-baseline gap-2 text-[1.08rem] font-bold text-white">
+                  <span className="text-[0.85rem] text-subtle/70 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                   {t.title}
                 </span>
-                <span className="mt-1 block text-[0.88rem] leading-relaxed text-subtle">{t.body}</span>
+                <span className="mt-2 block text-[0.9rem] leading-relaxed whitespace-pre-line text-subtle">{t.body}</span>
               </span>
             </li>
           ))}
         </ol>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
+        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
           <p className="flex items-center gap-1.5 text-[0.9rem] font-bold text-white">
             <TriangleAlert className="size-4 text-kaizen" aria-hidden />
             検出できる異常の例
@@ -762,26 +764,39 @@ function Trust() {
           </ul>
         </div>
 
-        {/* 実行結果のイメージ（架空のデータ）。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
-        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl bg-panel px-5 py-4 ring-1 ring-edge" role="region" aria-label="実行結果のイメージ">
-          <div className="min-w-0 flex-1">
-            <p className="flex flex-wrap items-center gap-2 text-[0.82rem] text-subtle">
-              <span className="font-bold text-white/85">実行結果のイメージ</span>
-              <span className="rounded-full bg-white/8 px-2 py-0.5 ring-1 ring-white/15">架空のデータ・照合漏れを重大として設定した場合</span>
-            </p>
-            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="flex items-center gap-1.5 font-bold text-kaizen-text">
-                <CircleX className="size-5 shrink-0" aria-hidden />
-                重大な品質異常を検出
+        {/* 実行結果のイメージ（架空のデータ）。セクションの主役：異常の検出 → 正式出力の停止 → 詳細の確認先、の流れを横に並べる。
+            照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
+        <div className="mt-6 rounded-2xl bg-panel-hi px-6 py-11 ring-1 ring-mint/25 sm:px-9" role="region" aria-label="実行結果のイメージ">
+          <p className="flex flex-wrap items-center gap-2">
+            <span className="text-[1.05rem] font-bold text-white">実行結果のイメージ</span>
+            <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[0.8rem] text-subtle ring-1 ring-white/15">架空データの例（照合漏れを重大として設定した場合）</span>
+          </p>
+          <div className="mt-8 grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,0.9fr)]">
+            <div className="flex items-center gap-5">
+              <span className="grid size-20 shrink-0 place-items-center rounded-2xl bg-kaizen/15 text-kaizen ring-1 ring-kaizen/40">
+                <TriangleAlert className="size-10" aria-hidden />
               </span>
-              <span className="text-white">商品マスタ照合漏れ：15件</span>
-              <span className="rounded-lg bg-kaizen/15 px-2.5 py-0.5 font-bold text-kaizen-text ring-1 ring-kaizen/45">判定：正式出力を停止</span>
+              <span className="min-w-0 border-l border-edge pl-5">
+                <span className="block text-[1.2rem] font-bold text-white">重大な品質異常を検出</span>
+                <span className="mt-1 block text-white/80">商品マスタ照合漏れ：15件</span>
+              </span>
+            </div>
+            <ArrowRight className="hidden size-7 text-white/60 lg:block" aria-hidden />
+            <p className="flex items-center justify-center gap-2.5 rounded-xl bg-kaizen/15 px-7 py-4 text-[1.3rem] font-bold whitespace-nowrap text-kaizen-text ring-1 ring-kaizen/55">
+              <Ban className="size-6" aria-hidden />
+              正式出力を停止
             </p>
-            <p className="mt-1 text-[0.82rem] text-subtle">詳しい根拠や該当データは、実行結果の画面で確認できます。</p>
+            <p className="flex items-start gap-2 text-[0.9rem] leading-relaxed text-subtle lg:border-l lg:border-edge lg:pl-6">
+              <Info className="mt-0.5 size-4.5 shrink-0" aria-hidden />
+              詳しい根拠や該当データは、実行結果の画面で確認できます。
+            </p>
           </div>
-          <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary">
-            <CirclePlay className="size-4.5" aria-hidden />
+        </div>
+        <div className="mt-8 flex justify-end">
+          <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary" size="lg">
+            <CirclePlay className="size-5" aria-hidden />
             品質異常のデモを体験する
+            <ArrowRight className="size-5" aria-hidden />
           </Button>
         </div>
         <p className="mt-3 text-[0.82rem] text-subtle">
