@@ -104,3 +104,5 @@ class RunRecord(BaseModel):
     rules: list[RuleRecord]
     official_output: OfficialOutputRecord
     metrics: list[MetricRecord] = Field(default_factory=list)
+    # 分析（app/analysis/engine.py の AnalysisReport。集計済みの値だけ）
+    analysis: dict[str, Any] | None = None

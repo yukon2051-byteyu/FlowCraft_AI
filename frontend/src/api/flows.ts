@@ -95,6 +95,10 @@ export type RunSummary = {
   verdict: Verdict | null
   /** 実行の記録（品質の履歴1件。backend/app/quality/record.py）。品質MVP QM-3 でブラウザに保存する */
   record?: Record<string, unknown> | null
+  /** 前回との比較（backend/app/quality/compare.py） */
+  comparison?: Record<string, unknown> | null
+  /** 分析（backend/app/analysis/engine.py。AIを使わない計算）。画面は Phase B で作る */
+  analysis?: Record<string, unknown> | null
 }
 
 /**

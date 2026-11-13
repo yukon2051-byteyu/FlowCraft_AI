@@ -29,7 +29,8 @@ from app.engine.table import Table
 from app.errors import AppError
 from app.export.excel import build_workbook
 from app.files.compare import compare_input
-from app.quality.compare import compare_with_history, parse_history
+from app.analysis.engine import AnalysisReport, analyze
+from app.quality.compare import compare_with_history, parse_history, period_label, select_baseline
 from app.quality.output import decide_output
 from app.quality.record import build_record
 from app.files.profile import build_table
@@ -186,6 +187,8 @@ class RunSummary(BaseModel):
     record: dict[str, Any] | None = None
     # 前回との比較（app/quality/compare.py）
     comparison: dict[str, Any] | None = None
+    # 分析（app/analysis/engine.py）
+    analysis: dict[str, Any] | None = None
 
 
 class RunDetail(RunSummary):
@@ -430,7 +433,17 @@ def execute(
         session.runs.pop(next(iter(session.runs)))
     record = build_record(flow, ex, run_id=run_id, executed_at=executed_at, flow_hash=fhash, bindings=bindings, files=session.files, run_values=req.run_parameters)
     comparison = compare_with_history(record, history)
-    return RunSummary(**_summary(run_id, ex, fhash, executed_at, req.run_parameters), record=record.model_dump(mode="json"), comparison=comparison.model_dump(mode="json"))
+    # 分析（AIを使わない計算）。注目すべき変化は、業務の数値の前回（QM-2 の選び方）と比べる
+    base, _ = select_baseline(record.flow_id, record.period, history, "business", exclude_run_id=run_id)
+    previous = AnalysisReport.model_validate(base.analysis) if base is not None and base.analysis else None
+    analysis = analyze(flow, ex, previous=previous, previous_label=period_label(base.period) if base is not None and base.period else None)
+    record.analysis = analysis.model_dump(mode="json")
+    return RunSummary(
+        **_summary(run_id, ex, fhash, executed_at, req.run_parameters),
+        record=record.model_dump(mode="json"),
+        comparison=comparison.model_dump(mode="json"),
+        analysis=record.analysis,
+    )
 
 
 @router.get("/runs/{run_id}", response_model=RunDetail)
