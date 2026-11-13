@@ -141,3 +141,35 @@ def test_time_series_when_grouped_by_date():
     keys = [i.key for i in series.items]
     assert keys == sorted(keys) and keys[0].startswith("2026-10-")
     assert not any("時系列" in n for n in a.notes)
+
+
+# ===================== Excel の「確認結果」（Phase B-2） =====================
+
+
+def _check_sheet_text(client, h, run_id):
+    import io
+
+    import openpyxl
+
+    res = client.get(f"/api/runs/{run_id}/export", headers=h, params={"confirmed": "true"})
+    assert res.status_code == 200
+    ws = openpyxl.load_workbook(io.BytesIO(res.content), read_only=True)["確認結果"]
+    return [[c for c in row if c is not None] for row in ws.iter_rows(values_only=True)]
+
+
+def test_excel_check_sheet_has_key_figures_comparison_and_check_items(client):
+    h = {"X-Session-Id": client.post("/api/session").json()["session_id"]}
+    s = client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": "ng"}).json()
+    body = client.post("/api/runs", headers=h, json={"flow": s["flow"], "bindings": s["bindings"], "run_parameters": s["run_parameters"]}).json()
+    rows = _check_sheet_text(client, h, body["run_id"])
+    flat = [str(x) for r in rows for x in r]
+    sections = [x for x in flat if x[:3] in ("1. ", "2. ", "3. ", "4. ", "5. ", "6. ", "7. ")]
+    # 見出しは番号順で、主要数値・前回との比較・完了基準・確認すべきこと・ステップの要約の順
+    titles = [x.split(" ", 1)[1].split("（")[0] for x in sections]
+    assert titles == ["確認すべき問題", "今回の主要数値", "前回との比較", "完了基準の詳細", "確認すべきこと", "処理ステップの要約"]
+    # 部署別の内訳：部署名の次のセルに、値が数値（文字ではなく）として入る（Excel で桁区切りの書式になる）
+    dept = next(r for r in rows if "EC事業部" in r)
+    value = dept[dept.index("EC事業部") + 1]
+    assert isinstance(value, int) and value > 1_000_000
+    assert any("比較できる前月（2026年9月）の正式な出力の記録がありません" in x for x in flat)
+    assert any(x.startswith("・「対象月の伝票だけ」：") for x in flat)

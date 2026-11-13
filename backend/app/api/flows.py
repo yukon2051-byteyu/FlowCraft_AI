@@ -438,6 +438,9 @@ def execute(
     previous = AnalysisReport.model_validate(base.analysis) if base is not None and base.analysis else None
     analysis = analyze(flow, ex, previous=previous, previous_label=period_label(base.period) if base is not None and base.period else None)
     record.analysis = analysis.model_dump(mode="json")
+    # Excel の「確認結果」にも、同じ分析と前回との比較を書く（セッションの中だけ。保存はしない）
+    session.runs[run_id]["analysis"] = analysis
+    session.runs[run_id]["comparison"] = comparison
     return RunSummary(
         **_summary(run_id, ex, fhash, executed_at, req.run_parameters),
         record=record.model_dump(mode="json"),
@@ -486,7 +489,7 @@ def export_run(run_id: str, confirmed: bool = False, session: Session = Depends(
         )
     flow: FlowDefinition = stored["flow"]
     executed_at: datetime = stored["executed_at"]
-    data = build_workbook(flow, ex, executed_at, stored["flow_hash"], stored.get("run_values"))
+    data = build_workbook(flow, ex, executed_at, stored["flow_hash"], stored.get("run_values"), stored.get("analysis"), stored.get("comparison"))
     kind = "結果" if decision.official else "確認結果（調査用）"
     stamp = executed_at.astimezone().strftime("%Y%m%d-%H%M")
     name = f"{flow.flow_name}_{kind}_{stamp}.xlsx".translate(_FILENAME_FORBIDDEN)

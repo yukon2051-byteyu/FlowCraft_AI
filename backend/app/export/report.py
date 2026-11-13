@@ -91,6 +91,18 @@ def problem_count(c: Any) -> int | None:
     return _count(c.evidence.get(key, ""))
 
 
+def to_number(text: str) -> int | float | str:
+    """分析の値（"6,112,900" など）を、Excel で数値として扱える形にする（桁区切りの書式は Excel 側で付ける）"""
+    t = text.replace(",", "")
+    try:
+        return int(t)
+    except ValueError:
+        try:
+            return float(t)
+        except ValueError:
+            return text
+
+
 def format_duration(ms: int) -> str:
     """処理時間。1秒未満も 0 秒に丸めない（ミリ秒の精度で示す）"""
     if ms < 1:

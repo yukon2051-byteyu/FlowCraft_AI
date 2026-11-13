@@ -192,8 +192,16 @@ class _Sheet:
         self.r += 1
 
 
-def build_workbook(flow: FlowDefinition, ex: Execution, executed_at: datetime, flow_hash: str, run_values: dict[str, str] | None = None) -> bytes:
-    """実行結果から .xlsx のバイト列を作る。"""
+def build_workbook(
+    flow: FlowDefinition,
+    ex: Execution,
+    executed_at: datetime,
+    flow_hash: str,
+    run_values: dict[str, str] | None = None,
+    analysis: Any = None,
+    comparison: Any = None,
+) -> bytes:
+    """実行結果から .xlsx のバイト列を作る。analysis：分析（app/analysis）、comparison：前回との比較（app/quality/compare）"""
     result = ex.result
     buf = io.BytesIO()
     book = _Book(buf)
@@ -206,7 +214,7 @@ def build_workbook(flow: FlowDefinition, ex: Execution, executed_at: datetime, f
     if include_results:
         for out in result.outputs:
             _write_table(book, out.sheet_name, ex.tables[out.reference])
-    _write_checks(book, result_name, flow, result, executed_at, include_results, [o.sheet_name for o in result.outputs] if include_results else [])
+    _write_checks(book, result_name, flow, result, executed_at, include_results, [o.sheet_name for o in result.outputs] if include_results else [], analysis, comparison)
     _write_record(book, record_name, flow, ex, executed_at, flow_hash, run_values or {})
     # 開いたときに「確認結果」を最初に見せる
     book.wb.worksheets()[len(user_sheets)].activate()
@@ -256,7 +264,9 @@ def _write_table(book: _Book, name: str, table: Table) -> None:
 CHECK_WIDTHS = [12.0, 34.0, 26.0, 9.0, 52.0]
 
 
-def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResult, executed_at: datetime, exported: bool, sheets: list[str]) -> None:
+def _write_checks(
+    book: _Book, name: str, flow: FlowDefinition, result: RunResult, executed_at: datetime, exported: bool, sheets: list[str], analysis: Any = None, comparison: Any = None
+) -> None:
     s = _Sheet(book, name, CHECK_WIDTHS)
     ws = s.ws
     _setup_print(ws)
@@ -287,9 +297,11 @@ def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResul
         s.row([(0, 0, "主要な理由" if i == 0 else "", label), (1, last, f"・{reason}", value)])
     s.gap(14)
 
+    no = iter(range(1, 20))  # 見出しの番号（出す項目に応じて振る）
+
     # ---- 第2階層：確認すべき問題（重要な順） ----
     items = report.items_of(result)
-    s.row([(0, last, "1. 確認すべき問題（重要な順）", section)], height=24)
+    s.row([(0, last, f"{next(no)}. 確認すべき問題（重要な順）", section)], height=24)
     if not items:
         s.row([(0, last, "確認すべき問題はありません（業務の完了基準は設定されていません。標準の確認でも問題は見つかりませんでした）。", note)])
     else:
@@ -305,9 +317,40 @@ def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResul
         s.row([(0, last, "「自動の確認」は、設定しなくても処理の中で必ず行う確認（標準の確認）です。詳しいログは「処理の記録」シートにあります。", note)], height=20)
     s.gap(14)
 
+    # ---- 今回の主要数値・前回との比較・注目すべき変化（分析エンジン。AIは使っていない） ----
+    if analysis is not None and result.status != "failed":
+        num_r = book.fmt(num_format="#,##0", align="right", border=1, border_color=LINE)
+        s.row([(0, last, f"{next(no)}. 今回の主要数値（集計結果から計算しています。AIは使っていません）", section)], height=24)
+        for t in analysis.tables[:4]:
+            s.row([(0, 0, "出力する表", label), (1, 2, t.sheet_name, value), (3, last, f"{t.rows:,}行", value_bold)])
+        for b in analysis.breakdowns[:3]:
+            s.row([(0, 0, "内訳", label), (1, last, f"「{b.dimension}」別の「{b.measure}」　合計 {b.total}（{b.groups}区分。上位5件と構成比）", value_bold)])
+            for it in b.items[:5]:
+                s.row([(0, 0, "", label), (1, 2, it.key, value), (3, 3, report.to_number(it.value), num_r), (4, last, it.share or "", value)])
+        for n in analysis.notes:
+            if not n.startswith("比較できる過去の実行結果がありません"):
+                s.row([(0, last, n, note)])
+        s.gap(14)
+
+        s.row([(0, last, f"{next(no)}. 前回との比較", section)], height=24)
+        compared = [r for r in (comparison.rows if comparison else []) if r.status == "compared"]
+        if not compared:
+            reason = comparison.business_reason if comparison and comparison.business_reason else "比較できる過去の実行結果がありません。"
+            s.row([(0, last, f"{reason}今回のデータの分析は確認できます。", note)], height=20)
+        else:
+            s.row([(0, 1, "項目", book.header), (2, 2, "前回", book.header), (3, 3, "今回", book.header), (4, 4, "変化", book.header)], height=22)
+            for r in compared:
+                s.row([(0, 1, r.label, value), (2, 2, r.previous, value), (3, 3, r.current, value_bold), (4, 4, f"{r.diff}{f'（{r.rate}）' if r.rate else ''}", value)])
+        if analysis.notable_changes:
+            s.row([(0, last, f"注目すべき変化（{analysis.compared_with} と比べて。品質の判定とは別です）", value_bold)], height=20)
+            for ch in analysis.notable_changes[:5]:
+                target = "全体" if ch.key == "（全体）" else f"「{ch.key}」"
+                s.row([(0, last, f"・{target}の「{ch.measure}」：{ch.previous} → {ch.current}（{ch.rate}）", value)])
+        s.gap(14)
+
     # ---- 第3階層：完了基準の詳細 ----
     if result.criteria:
-        s.row([(0, last, "2. 完了基準の詳細（判定はプログラムで計算しています。AIは使っていません）", section)], height=24)
+        s.row([(0, last, f"{next(no)}. 完了基準の詳細（判定はプログラムで計算しています。AIは使っていません）", section)], height=24)
         for c in sorted(result.criteria, key=lambda c: report.LEVEL_RANK[report.criterion_level(c)]):
             level = report.criterion_level(c)
             ls = LEVEL_STYLE[level]
@@ -326,8 +369,15 @@ def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResul
             s.gap(10)
         s.gap(6)
 
+    # ---- 確認すべきこと（判定の理由と注目すべき変化から、決まった文で作る。原因は断定しない） ----
+    if analysis is not None and analysis.check_items:
+        s.row([(0, last, f"{next(no)}. 確認すべきこと", section)], height=24)
+        for c in analysis.check_items:
+            s.row([(0, last, f"・{c}", value)])
+        s.gap(14)
+
     # ---- 処理ステップの要約 ----
-    s.row([(0, last, f"{3 if result.criteria else 2}. 処理ステップの要約", section)], height=24)
+    s.row([(0, last, f"{next(no)}. 処理ステップの要約", section)], height=24)
     if result.flow_issues:
         for i, issue in enumerate(result.flow_issues):
             s.row([(0, 0, "実行前の問題" if i == 0 else "", label), (1, last, f"{issue.message}　{issue.how_to_fix or ''}", value)])
