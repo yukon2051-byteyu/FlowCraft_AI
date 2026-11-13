@@ -47,6 +47,8 @@ def run_flow(
     require_confirmed: bool = True,
     stop_after: str | None = None,
     run_values: dict[str, str] | None = None,
+    history: list | None = None,
+    source: str = "manual",
 ) -> Execution:
     """フローを実行する。
 
@@ -154,7 +156,7 @@ def run_flow(
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
     if require_confirmed and stop_after is None:
-        result.criteria = evaluate_criteria(flow, result, tables, run_values)
+        result.criteria = evaluate_criteria(flow, result, tables, run_values, history=history, source=source)
         result.verdict = decide(result)
         result.duration_ms = int((time.perf_counter() - started) * 1000)
     return Execution(result, tables)

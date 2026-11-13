@@ -39,6 +39,7 @@ from app.engine.result import NodeFailure, RunResult
 from app.engine.table import Table
 from app.flow.schema import (
     AllMatchedCriterion,
+    ChangeFromPreviousCriterion,
     DataTypeCriterion,
     ExpectedValueCriterion,
     FlowDefinition,
@@ -75,6 +76,8 @@ class CriterionResult:
     # 該当した行などの例（最大5件）
     examples: list[dict[str, Any]] = field(default_factory=list)
     how_to_fix: str | None = None
+    # 前回からの変化（12種類目）で比べた今回の数値（記録の指標に使う。画面には出さない）
+    metric_value: str | None = None
 
 
 class _Unverified(Exception):
@@ -140,8 +143,14 @@ def _parse_decimal(v: str) -> Decimal | None:
 
 
 class _Context:
-    def __init__(self, flow: FlowDefinition, result: RunResult, tables: dict[str, Table], values: dict[str, str]):
+    def __init__(
+        self, flow: FlowDefinition, result: RunResult, tables: dict[str, Table], values: dict[str, str], history: list[Any] | None = None, source: str = "manual"
+    ):
         self.flow = flow
+        # 前回比較に使う過去の記録（app.quality.models.RunRecord）と、今回の実行の種類
+        self.history = history or []
+        self.source = source
+        self.metric_values: dict[str, str] = {}
         self.result = result
         self.tables = tables
         self.values = {k: (v or "").strip() for k, v in values.items()}
@@ -453,6 +462,46 @@ def _eval_list_rows(c: ListRowsCriterion, ctx: _Context) -> Outcome:
     return ("recorded", f"条件に合う行は{len(rows):,}件です（判定には使いません）。", {"該当件数": f"{len(rows):,}"}, ex, None)
 
 
+def _eval_change_from_previous(c: ChangeFromPreviousCriterion, ctx: _Context) -> Outcome:
+    """前回からの変化（品質MVP・12種類目）。閾値がなければ数値を示すだけ（記録）。比べる相手がなければ対象外"""
+    from app.quality.compare import change_metric_fingerprint, change_metric_id, change_of, period_label, period_of, rate_text, select_baseline, signed
+
+    table = ctx.table(c.target.ref)
+    if c.params.measure == "sum":
+        column = ctx.column(table, c.target.column)
+        cur = _sum(table, column)
+        what = f"「{column}」の合計"
+    else:
+        cur = Decimal(table.row_count)
+        what = "件数"
+    ctx.metric_values[c.criterion_id] = str(cur)
+    ev = {"今回": _fmt(cur)}
+    period = period_of(ctx.flow, ctx.values)
+    base, reason = select_baseline(str(ctx.flow.flow_id), period, ctx.history, "business", source=ctx.source)  # type: ignore[arg-type]
+    if base is None:
+        fix = "実行時に指定する値に「月」を追加すると、前月と比べられます。" if period is None else None
+        return ("not_applicable", reason or "前回の記録がありません。", ev, [], fix)
+    prev_m = next((m for m in base.metrics if m.metric_id == change_metric_id(c)), None)
+    if prev_m is None:
+        return ("not_applicable", "前回の記録に、この数値がありません。", ev, [], None)
+    if prev_m.fingerprint != change_metric_fingerprint(ctx.flow, c):
+        return ("not_applicable", "前回から集計条件が変更されたため、比較できません。", ev, [], None)
+    prev = Decimal(prev_m.value)
+    diff, rate = change_of(prev, cur)
+    label = period_label(base.period) if base.period else "前回"
+    rate_s = rate_text(rate) or "—（前回が0のため計算しません）"
+    ev = {f"前回（{label}）": _fmt(prev), "今回": _fmt(cur), "増減": signed(diff), "増減率": rate_s}
+    change = f"{what}が前回（{label}）の{_fmt(prev)}から{_fmt(cur)}になりました（{signed(diff)}、{rate_s}）。"
+    p = c.params
+    if not p.judging:
+        return ("recorded", change + "判定には使いません。", ev, [], None)
+    decreased = rate is not None and p.max_decrease_pct is not None and rate <= -p.max_decrease_pct
+    increased = p.max_increase_pct is not None and ((rate is not None and rate >= p.max_increase_pct) or (rate is None and cur > prev))
+    if decreased or increased:
+        return ("failed", change + "設定した範囲を超える変化を検出しました。", ev, [], "変化の理由（対象期間・入力ファイルの取り違え・実際の業務の変化）を確かめてください。")
+    return ("passed", change + "設定した範囲の中です。", ev, [], None)
+
+
 _EVALUATORS: dict[str, Callable[[Any, _Context], Outcome]] = {
     "required_columns": _eval_required_columns,
     "data_type": _eval_data_type,
@@ -465,12 +514,24 @@ _EVALUATORS: dict[str, Callable[[Any, _Context], Outcome]] = {
     "all_matched": _eval_all_matched,
     "expected_value": _eval_expected_value,
     "list_rows": _eval_list_rows,
+    "change_from_previous": _eval_change_from_previous,
 }
 
 
-def evaluate_criteria(flow: FlowDefinition, result: RunResult, tables: dict[str, Table], values: dict[str, str] | None = None) -> list[CriterionResult]:
-    """完了基準をすべて評価する。1つの基準の評価で問題が起きても、ほかの基準の評価は続ける。"""
-    ctx = _Context(flow, result, tables, values or {})
+def evaluate_criteria(
+    flow: FlowDefinition,
+    result: RunResult,
+    tables: dict[str, Table],
+    values: dict[str, str] | None = None,
+    *,
+    history: list[Any] | None = None,
+    source: str = "manual",
+) -> list[CriterionResult]:
+    """完了基準をすべて評価する。1つの基準の評価で問題が起きても、ほかの基準の評価は続ける。
+
+    history：前回比較（12種類目）に使う、同じ作業手順の過去の記録（app.quality.models.RunRecord）
+    """
+    ctx = _Context(flow, result, tables, values or {}, history, source)
     out: list[CriterionResult] = []
     for c in flow.completion_criteria.items:
         base = {"criterion_id": c.criterion_id, "name": c.name, "kind": c.kind, "on_fail": c.on_fail}
@@ -483,5 +544,7 @@ def evaluate_criteria(flow: FlowDefinition, result: RunResult, tables: dict[str,
         except _Unverified as u:
             out.append(CriterionResult(**base, status="unverified", summary=u.reason, how_to_fix=u.how_to_fix))
             continue
-        out.append(CriterionResult(**base, status=status, summary=summary, evidence=evidence, examples=examples, how_to_fix=fix))
+        out.append(
+            CriterionResult(**base, status=status, summary=summary, evidence=evidence, examples=examples, how_to_fix=fix, metric_value=ctx.metric_values.get(c.criterion_id))
+        )
     return out

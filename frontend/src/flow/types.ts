@@ -83,6 +83,8 @@ export type CriterionKind =
   | 'all_matched'
   | 'expected_value'
   | 'list_rows'
+  /** 前回からの変化（品質MVP・12種類目）。閾値がなければ数値を示すだけ */
+  | 'change_from_previous'
 
 /** 完了基準（何を満たせば完了？）。種類ごとの設定（params）の細かい型は、設定画面のタスク（2-4）で追加する */
 export type Criterion = {

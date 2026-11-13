@@ -689,6 +689,27 @@ class ListRowsParams(StrictModel):
     condition: ConditionNode
 
 
+Percent = Annotated[Decimal, Field(gt=0, le=100000)]
+
+
+class ChangeFromPreviousParams(StrictModel):
+    """前回からの変化（品質MVP・12種類目）。
+
+    比べる数値：rows＝対象の表の件数／sum＝対象の列の合計。
+    閾値を1つも指定しなければ、前回との比較を示すだけで判定しない（記録）。閾値を指定したときだけ判定する
+    （超えたら「変化を検出」。重さは on_fail。初期値は「注意」。大きな増減を自動で重大にしない）。
+    """
+
+    measure: Literal["rows", "sum"] = "rows"
+    # 前回より何%以上減ったら／増えたら、変化を検出するか（%）
+    max_decrease_pct: Percent | None = None
+    max_increase_pct: Percent | None = None
+
+    @property
+    def judging(self) -> bool:
+        return self.max_decrease_pct is not None or self.max_increase_pct is not None
+
+
 # 品質ルールの識別（1.2・品質MVP）。作業手順をまたいでルールを追える。
 # 1.1 以前のファイルを読むときは「<flow_id>:<criterion_id>」で補う（画面とサーバーで同じ値になる）
 RuleId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_:\-]{1,120}$")]
@@ -778,6 +799,11 @@ class ListRowsCriterion(_CriterionBase):
         return self
 
 
+class ChangeFromPreviousCriterion(_CriterionBase):
+    kind: Literal["change_from_previous"]
+    params: ChangeFromPreviousParams = Field(default_factory=ChangeFromPreviousParams)
+
+
 Criterion = Annotated[
     Union[
         RequiredColumnsCriterion,
@@ -791,6 +817,7 @@ Criterion = Annotated[
         AllMatchedCriterion,
         ExpectedValueCriterion,
         ListRowsCriterion,
+        ChangeFromPreviousCriterion,
     ],
     Field(discriminator="kind"),
 ]

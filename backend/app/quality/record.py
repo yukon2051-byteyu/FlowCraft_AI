@@ -12,18 +12,16 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any, Literal
-
-from pydantic import BaseModel, Field
+from typing import Any
 
 from app.engine.nodes.load import Binding
 from app.engine.runner import Execution
 from app.flow.schema import FlowDefinition, LoadNode
+from app.quality.compare import change_metric_fingerprint, change_metric_id, input_fingerprint, period_of, ref_fingerprint, rule_fingerprint
+from app.quality.models import CopySource, InputRecord, MetricRecord, OfficialOutputRecord, OutputRecord, RuleRecord, RunRecord, RunSource
 from app.quality.output import OutputDecision, decide_output
 
-RECORD_VERSION = 1
-
-RunSource = Literal["manual", "worker", "demo"]
+__all__ = ["RunRecord", "build_record", "anomaly_count", "period_of", "build_metrics"]
 
 # 完了基準の種類ごとに「異常の件数」を表す根拠の項目（前回比較の「品質異常の件数」に使う）。
 # 件数で表せない種類（合計の一致・件数・確認用の値）は持たない
@@ -40,100 +38,12 @@ ANOMALY_EVIDENCE: dict[str, str] = {
 _LEADING_INT = re.compile(r"^\s*([0-9][0-9,]*)")
 
 
-class InputRecord(BaseModel):
-    input_id: str
-    label: str
-    filename: str | None
-    sheet: str | None
-    sha256: str | None
-    rows: int | None
-    column_mapping: dict[str, str] = Field(default_factory=dict)
-
-
-class OutputRecord(BaseModel):
-    reference: str
-    sheet_name: str
-    rows: int | None
-    fingerprint: str | None
-
-
-class CopySource(BaseModel):
-    rule_id: str
-    rule_version: int
-
-
-class RuleRecord(BaseModel):
-    """適用した品質ルール1つと、その判定"""
-
-    criterion_id: str
-    rule_id: str
-    rule_version: int
-    copied_from: CopySource | None
-    name: str
-    kind: str
-    on_fail: str
-    # 実行した時点のルールの設定の写し（作業手順の完了基準の1項目そのもの）
-    snapshot: dict[str, Any]
-    status: str
-    summary: str
-    evidence: dict[str, str]
-    examples: list[dict[str, Any]]
-    # 異常の件数（件数で表せない種類は None）
-    anomaly_count: int | None
-
-
-class OfficialOutputRecord(BaseModel):
-    mode: Literal["allowed", "needs_confirmation", "report_only"]
-    # 正式な結果を出力したか（画面では出力した後、Worker では正式なファイルを確定した後に True にする）
-    performed: bool = False
-    performed_at: datetime | None = None
-    stop_reason: str | None = None
-
-
-class RunRecord(BaseModel):
-    record_version: int = RECORD_VERSION
-    run_id: str
-    source: RunSource
-    executed_at: datetime
-    duration_ms: int
-
-    flow_id: str
-    flow_name: str
-    flow_version: int
-    flow_hash: str
-    criteria_version: int
-
-    # 対象期間（実行時に指定する「月」の値。例 "2026-10"）。分からなければ None（前回比較はしない）
-    period: str | None
-    run_parameters: dict[str, str]
-
-    inputs: list[InputRecord]
-    outputs: list[OutputRecord]
-    # 処理の状態（品質の判定とは別）：completed＝最後まで処理した／failed＝途中で止まった
-    processing_status: Literal["completed", "failed"]
-    steps: int
-
-    verdict: str | None
-    verdict_headline: str | None
-    verdict_reasons: list[str]
-    rules: list[RuleRecord]
-    official_output: OfficialOutputRecord
-
-
 def anomaly_count(kind: str, evidence: dict[str, str]) -> int | None:
     key = ANOMALY_EVIDENCE.get(kind)
     if key is None or key not in evidence:
         return None
     m = _LEADING_INT.match(evidence[key])
     return int(m.group(1).replace(",", "")) if m else None
-
-
-def period_of(flow: FlowDefinition, run_values: dict[str, str]) -> str | None:
-    """対象期間：実行時に指定する値のうち、最初の「月」の値"""
-    for p in flow.run_parameters:
-        if p.type == "month" and run_values.get(p.param_id):
-            return run_values[p.param_id]
-    return None
 
 
 def build_record(
@@ -198,7 +108,7 @@ def build_record(
                 name=c.name,
                 kind=c.kind,
                 on_fail=c.on_fail,
-                snapshot=d.model_dump(mode="json"),
+                snapshot=d.model_dump(mode="json", by_alias=True),
                 status=c.status,
                 summary=c.summary,
                 evidence=dict(c.evidence),
@@ -208,6 +118,7 @@ def build_record(
         )
 
     v = r.verdict
+    metrics = build_metrics(flow, inputs, outputs, rules, {c.criterion_id: c.metric_value for c in r.criteria})
     return RunRecord(
         run_id=run_id,
         source=source,
@@ -229,4 +140,38 @@ def build_record(
         verdict_reasons=list(v.reasons) if v else [],
         rules=rules,
         official_output=OfficialOutputRecord(mode=decision.mode, stop_reason=decision.stop_reason),
+        metrics=metrics,
     )
+
+
+def build_metrics(
+    flow: FlowDefinition, inputs: list[InputRecord], outputs: list[OutputRecord], rules: list[RuleRecord], change_values: dict[str, str | None]
+) -> list[MetricRecord]:
+    """前回と比べる数値（指標）。指標ごとに、定義の指紋を付ける（違えば比べない）"""
+    out: list[MetricRecord] = []
+    # 業務の数値：入力件数・出力件数・「前回からの変化」で選んだ数値（件数・合計）
+    for i in inputs:
+        if i.rows is not None:
+            out.append(MetricRecord(metric_id=f"input_rows:{i.input_id}", label=f"入力件数（{i.label}）", category="business", value=str(i.rows), fingerprint=input_fingerprint(flow, i.input_id)))
+    for o in outputs:
+        if o.rows is not None:
+            out.append(MetricRecord(metric_id=f"output_rows:{o.reference}", label=f"出力件数（{o.sheet_name}）", category="business", value=str(o.rows), fingerprint=ref_fingerprint(flow, o.reference)))
+    defs = {c.criterion_id: c for c in flow.completion_criteria.items}
+    for cid, value in change_values.items():
+        c = defs.get(cid)
+        if value is None or c is None or c.kind != "change_from_previous":
+            continue
+        what = f"「{c.target.column}」の合計" if c.params.measure == "sum" else "件数"
+        out.append(MetricRecord(metric_id=change_metric_id(c), label=f"{c.name}（{what}）", category="business", value=value, fingerprint=change_metric_fingerprint(flow, c)))
+    # 品質異常の件数：ルールごとの異常件数と、満たしていない基準の数（全体・重大）
+    judged = [r for r in rules if r.status in ("passed", "failed") and r.on_fail != "record"]
+    for r in rules:
+        if r.anomaly_count is not None and r.status in ("passed", "failed", "recorded"):
+            out.append(MetricRecord(metric_id=f"anomaly:{r.rule_id}", label=f"{r.name}（異常の件数）", category="quality", value=str(r.anomaly_count), fingerprint=rule_fingerprint(flow, defs[r.criterion_id])))
+    all_fp = "|".join(sorted(rule_fingerprint(flow, defs[r.criterion_id]) for r in rules if r.on_fail != "record"))
+    failed = [r for r in judged if r.status == "failed"]
+    out.append(MetricRecord(metric_id="quality:failed_rules", label="満たしていない完了基準の数", category="quality", value=str(len(failed)), fingerprint=all_fp or "none"))
+    out.append(
+        MetricRecord(metric_id="quality:critical_rules", label="うち重大な基準の数", category="quality", value=str(sum(1 for r in failed if r.on_fail == "critical")), fingerprint=all_fp or "none")
+    )
+    return out

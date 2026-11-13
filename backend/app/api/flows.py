@@ -29,6 +29,7 @@ from app.engine.table import Table
 from app.errors import AppError
 from app.export.excel import build_workbook
 from app.files.compare import compare_input
+from app.quality.compare import compare_with_history, parse_history
 from app.quality.output import decide_output
 from app.quality.record import build_record
 from app.files.profile import build_table
@@ -66,6 +67,8 @@ class ExecuteRequest(BaseModel):
     bindings: list[BindingIn] = Field(default_factory=list)
     # 実行時に指定する値（例 {"target_month": "2026-10"}）。完了基準の評価に使う
     run_parameters: Annotated[dict[Annotated[str, Field(max_length=64)], Annotated[str, Field(max_length=200)]], Field(max_length=20)] = Field(default_factory=dict)
+    # 前回比較に使う、同じ作業手順の過去の記録（品質MVP。画面はブラウザに保存した記録から選んで送る。サーバーは保存しない）
+    history: Annotated[list[dict[str, Any]], Field(max_length=24)] = Field(default_factory=list)
 
 
 class PreviewRequest(ExecuteRequest):
@@ -181,6 +184,8 @@ class RunSummary(BaseModel):
     verdict: VerdictOut | None = None
     # 実行の記録（品質の履歴1件。app/quality/record.py）。画面はこれをブラウザに保存する。サーバーは保存しない
     record: dict[str, Any] | None = None
+    # 前回との比較（app/quality/compare.py）
+    comparison: dict[str, Any] | None = None
 
 
 class RunDetail(RunSummary):
@@ -414,7 +419,8 @@ def execute(
     """本番の実行。未確定のノード・構造エラーがあれば実行せず、理由を返す（status=failed）。"""
     flow = _parse_or_422(req.flow)
     bindings = _bindings(flow, req.bindings)
-    ex = run_flow(flow, bindings, session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters)
+    history = parse_history(req.history)
+    ex = run_flow(flow, bindings, session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters, history=history)
     run_id = "r_" + secrets.token_urlsafe(9)
     executed_at = datetime.now(timezone.utc)
     fhash = flow_hash(flow)
@@ -423,7 +429,8 @@ def execute(
     while len(session.runs) > MAX_STORED_RUNS:  # 古い実行結果から捨てる（メモリ保護）
         session.runs.pop(next(iter(session.runs)))
     record = build_record(flow, ex, run_id=run_id, executed_at=executed_at, flow_hash=fhash, bindings=bindings, files=session.files, run_values=req.run_parameters)
-    return RunSummary(**_summary(run_id, ex, fhash, executed_at, req.run_parameters), record=record.model_dump(mode="json"))
+    comparison = compare_with_history(record, history)
+    return RunSummary(**_summary(run_id, ex, fhash, executed_at, req.run_parameters), record=record.model_dump(mode="json"), comparison=comparison.model_dump(mode="json"))
 
 
 @router.get("/runs/{run_id}", response_model=RunDetail)

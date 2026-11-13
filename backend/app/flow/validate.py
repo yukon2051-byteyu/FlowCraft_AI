@@ -32,6 +32,7 @@ from app.flow.schema import (
     LoadNode,
     Node,
     OutputNode,
+    ChangeFromPreviousCriterion,
     ParamRef,
     PeriodCriterion,
     TotalMatchCriterion,
@@ -340,7 +341,11 @@ def criteria_issues(flow: FlowDefinition) -> list[Issue]:
         elif c.kind == "all_matched" and ref not in joins:
             err("CRITERION_TARGET_NOT_JOIN", c, "この種類の基準は、「別の表から情報を付け加える」ステップの結果を対象にしてください。")
 
-        needs_column = c.kind in CRITERIA_NEEDING_COLUMN or (isinstance(c, ExpectedValueCriterion) and c.params.measure == "sum")
+        needs_column = (
+            c.kind in CRITERIA_NEEDING_COLUMN
+            or (isinstance(c, ExpectedValueCriterion) and c.params.measure == "sum")
+            or (isinstance(c, ChangeFromPreviousCriterion) and c.params.measure == "sum")
+        )
         if needs_column and not c.target.column:
             err("CRITERION_COLUMN_REQUIRED", c, "確かめる列を指定してください。")
 

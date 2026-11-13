@@ -122,9 +122,21 @@ export const CRITERION_KINDS: Record<CriterionKind, KindInfo> = {
     }),
     defaultOnFail: 'record',
   },
+  change_from_previous: {
+    label: '前回からの変化',
+    help: '前月に正式に出力した結果と比べた、件数・合計の変化を示す（閾値を設定したときだけ判定。初期の重さは注意）',
+    target: 'result',
+    column: 'sum_only',
+    defaultParams: () => ({ measure: 'rows' }),
+    defaultOnFail: 'caution',
+  },
 }
 
-export const KIND_ORDER = Object.keys(CRITERION_KINDS) as CriterionKind[]
+/**
+ * 追加のメニューに出す種類。「前回からの変化」は、画面が前回の記録を送れるようになるまで（品質MVP QM-3）出さない
+ * （それまでは常に「対象外」になるため）。この種類を含む作業手順を開くことはできる
+ */
+export const KIND_ORDER = (Object.keys(CRITERION_KINDS) as CriterionKind[]).filter((k) => k !== 'change_from_previous')
 
 export const ON_FAIL_LABEL: Record<Criterion['on_fail'], string> = {
   critical: '重大（止める）',
@@ -457,6 +469,11 @@ export function describeCriterion(c: Criterion, flow: FlowDoc, paramLabel: (id: 
     case 'list_rows': {
       const cond = p.condition as { column?: string; value?: string | null } | undefined
       return `${ref}：「${cond?.column ?? ''}」の条件に合う行`
+    }
+    case 'change_from_previous': {
+      const what = p.measure === 'sum' ? `${col}の合計` : '件数'
+      const limits = [p.max_decrease_pct != null ? `${String(p.max_decrease_pct)}%以上の減少` : '', p.max_increase_pct != null ? `${String(p.max_increase_pct)}%以上の増加` : ''].filter(Boolean)
+      return `${ref} ${what}：前月と比べる${limits.length ? `（${limits.join('・')}で変化を検出）` : '（数値を示すだけ）'}`
     }
     default:
       return `${ref} ${col}`
