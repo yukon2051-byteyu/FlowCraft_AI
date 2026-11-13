@@ -133,9 +133,13 @@ export default function WorkspacePage() {
               skipped={screen === 'data' ? [] : SKIP_AI}
               hint={
                 screen === 'result'
-                  ? lastRun?.run.verdict?.export === 'report_only' || lastRun?.run.status === 'failed'
+                  ? lastRun?.run.status === 'failed'
                     ? '止まった理由を確かめてください。調査用に、確認結果をExcelに出力できます'
-                    : '実行結果を確かめて、Excelに出力してください'
+                    : lastRun?.run.verdict?.export === 'report_only'
+                      ? '重大と判定された理由を確かめてください。調査用に、確認結果をExcelに出力できます'
+                      : lastRun?.run.verdict?.export === 'needs_confirmation'
+                        ? '判定の理由を確かめ、確認したうえでExcelに出力してください'
+                        : '実行結果を確かめて、Excelに出力してください'
                   : screen === 'edit'
                   ? editHint(nodes)
                   : screen === 'define'

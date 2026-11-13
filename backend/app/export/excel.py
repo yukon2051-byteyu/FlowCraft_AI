@@ -54,6 +54,35 @@ SEVERITY_LABEL = {"info": "お知らせ", "warning": "確認が必要", "error":
 
 MAX_WIDTH = 60
 
+CRITERION_KIND_LABEL = {
+    "required_columns": "必要な列がそろっている",
+    "data_type": "データの形式に合っている",
+    "no_blank": "空欄がない",
+    "unique": "重複がない",
+    "value_range": "値が範囲内にある",
+    "period": "対象期間内の日付だけ",
+    "total_match": "2つの結果で合計が一致する",
+    "row_count": "件数が範囲内にある",
+    "all_matched": "照合できない行が上限以下",
+    "expected_value": "確認用の値と一致する",
+    "list_rows": "条件に合う行を一覧にする",
+}
+CRITERION_STATUS_LABEL = {"passed": "満たしている", "failed": "満たしていない", "unverified": "未検証", "not_applicable": "対象外", "recorded": "記録"}
+ON_FAIL_LABEL = {"critical": "重大", "caution": "注意", "record": "記録のみ"}
+
+
+def _criterion_rank(c: Any) -> int:
+    """重要な順：重大で満たさない → 未検証 → 注意で満たさない → 満たしている → 記録"""
+    if c.status == "failed" and c.on_fail == "critical":
+        return 0
+    if c.status == "unverified" and c.on_fail != "record":
+        return 1
+    if c.status == "failed" and c.on_fail == "caution":
+        return 2
+    if c.status == "passed":
+        return 3
+    return 4
+
 
 def verdict_text(result: RunResult) -> str:
     """総合判定（タスク2-3）。確認結果のシートの「総合判定」の行に書く"""
@@ -220,6 +249,29 @@ def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResul
         *[["判定の理由", r] for r in (result.verdict.reasons if result.verdict else [])],
         [],
     ]
+    # 完了基準の判定と根拠（タスク2-5）。画面と同じく、重要な順に並べる
+    criteria_header = None
+    if result.criteria:
+        rows.append(["完了基準の判定と根拠（プログラムで計算。AIは使っていません）"])
+        criteria_header = len(rows)
+        rows.append(["完了基準", "種類", "満たさないとき", "判定", "理由", "根拠", "対応", "該当する例"])
+        for c in sorted(result.criteria, key=_criterion_rank):
+            judged = CRITERION_STATUS_LABEL.get(c.status, c.status)
+            if c.status == "failed":
+                judged += f"（{ON_FAIL_LABEL.get(c.on_fail, c.on_fail)}）"
+            rows.append(
+                [
+                    c.name,
+                    CRITERION_KIND_LABEL.get(c.kind, c.kind),
+                    ON_FAIL_LABEL.get(c.on_fail, c.on_fail),
+                    judged,
+                    c.summary,
+                    " ／ ".join(f"{k}：{v}" for k, v in c.evidence.items()),
+                    (c.how_to_fix or "") if c.status != "passed" else "",
+                    " ／ ".join("、".join(f"{k}：{v}" for k, v in e.items()) for e in c.examples),
+                ]
+            )
+        rows.append([])
     if result.flow_issues:
         rows.append(["実行前に見つかった問題"])
         rows += [[SEVERITY_LABEL.get(i.severity, i.severity), i.message, i.cause or "", i.how_to_fix or ""] for i in result.flow_issues]
@@ -233,9 +285,9 @@ def _write_checks(book: _Book, name: str, flow: FlowDefinition, result: RunResul
             rows.append(_issue_row(str(i + 1), n.node_name, status, rows_in, n.output_rows, None))
         for issue in sorted(n.issues, key=lambda x: {"error": 0, "warning": 1}.get(x.severity, 2)):
             rows.append(_issue_row(str(i + 1), n.node_name, status, rows_in, n.output_rows, issue))
-    _set_widths(ws, rows[header_at:], first=1)
+    _set_widths(ws, rows[header_at:] + (rows[criteria_header:] if criteria_header is not None else []), first=1)
     ws.set_column(0, 0, 24)
-    _write_lines(book, ws, rows, {header_at}, {0})
+    _write_lines(book, ws, rows, {header_at} | ({criteria_header} if criteria_header is not None else set()), {0})
 
 
 def _write_record(book: _Book, name: str, flow: FlowDefinition, ex: Execution, executed_at: datetime, flow_hash: str) -> None:

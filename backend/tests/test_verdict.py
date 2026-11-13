@@ -194,3 +194,38 @@ def test_critical_criterion_blocks_result_sheets(client):
     assert "最後まで実行しましたが、総合判定が「重大」のため、処理結果は出力していません（調査用）。" in flat
     assert any(v.startswith("重大（完了基準と標準の確認）") for v in flat)
     assert "重大とした完了基準を満たしていません：「部署は4つ」" in flat
+
+
+# ===================== 1枚レポート（Excelの確認結果シート。タスク2-5） =====================
+
+
+def check_rows(res) -> list[list[str]]:
+    ws = openpyxl.load_workbook(io.BytesIO(res.content), read_only=True)["確認結果"]
+    return [[str(v) if v is not None else "" for v in row] for row in ws.iter_rows(values_only=True)]
+
+
+def test_report_lists_criteria_with_evidence_in_importance_order(client):
+    unverified = {"criterion_id": "c_p", "name": "対象月の伝票だけ", "kind": "period", "target": {"ref": "sales", "column": "売上日"}, "params": {"month": {"$param": "m"}}, "on_fail": "critical"}
+    caution = {**ROWS_4, "criterion_id": "c_5", "name": "部署は5つ", "params": {"min": 5}, "on_fail": "caution"}
+    f = flow_with([ROWS_4, caution, unverified])
+    f["run_parameters"] = [{"param_id": "m", "label": "対象月", "type": "month"}]
+    h, body = run(client, f)
+    assert body["verdict"]["verdict"] == "unverified"
+    res = client.get(f"/api/runs/{body['run_id']}/export?confirmed=true", headers=h)
+    rows = check_rows(res)
+    start = next(i for i, r in enumerate(rows) if r[0] == "完了基準")
+    assert rows[start][:8] == ["完了基準", "種類", "満たさないとき", "判定", "理由", "根拠", "対応", "該当する例"]
+    table = rows[start + 1 : start + 4]
+    # 重要な順：未検証 → 注意で満たさない → 満たしている
+    assert [r[0] for r in table] == ["対象月の伝票だけ", "部署は5つ", "部署は4つ"]
+    assert table[0][3] == "未検証" and "「対象月」が入力されていません" in table[0][4]
+    assert table[1][3] == "満たしていない（注意）" and table[1][5] == "件数：4 ／ 範囲：5〜" and table[1][6]
+    assert table[2][1:4] == ["件数が範囲内にある", "重大", "満たしている"]
+    assert table[2][5] == "件数：4 ／ 範囲：4〜4" and table[2][6] == ""  # 満たしているものに対応は書かない
+
+
+def test_report_without_criteria_has_no_criteria_table(client):
+    h, body = run(client, FLOW)
+    rows = check_rows(client.get(f"/api/runs/{body['run_id']}/export", headers=h))
+    assert not any(r[0] == "完了基準" for r in rows)
+    assert any(r[0] == "総合判定" and "標準の確認のみ" in r[1] for r in rows)

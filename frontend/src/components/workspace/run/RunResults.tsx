@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
 import { fetchRun } from '../../../api/flows'
-import type { RunSummary, StepRun, Verdict } from '../../../api/flows'
+import type { CriterionResult, RunSummary, StepRun, Verdict } from '../../../api/flows'
 import { contentSnapshot } from '../../../flow/ops'
 import { useFlowStore } from '../../../flow/store'
 import { Button } from '../../ui/Button'
@@ -71,11 +71,13 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1200px] space-y-5 px-6 py-6">
           <section className="rounded-2xl bg-panel p-6 ring-1 ring-edge" aria-label="実行の結論">
-            <p className={`flex items-center gap-2 text-[1.35rem] font-bold ${headline.cls}`}>
-              <Head className="size-6" aria-hidden />
-              {headline.text}
+            {/* タスク2-5：総合判定を最初に大きく示す。処理がどこまで進んだかは、その下に */}
+            {verdict && <VerdictBox verdict={verdict} />}
+            <p className={`flex items-center gap-2 font-bold ${verdict ? 'mt-3 text-[1rem]' : 'text-[1.35rem]'} ${headline.cls}`}>
+              <Head className={verdict ? 'size-4.5' : 'size-6'} aria-hidden />
+              {verdict ? `処理：${headline.text}` : headline.text}
             </p>
-            <p className="mt-1.5 text-subtle">{headline.sub}</p>
+            <p className="mt-1 text-[0.9rem] text-subtle">{headline.sub}</p>
             <p className="mt-2 text-[0.85rem] text-subtle">
               実行日時：{new Date(run.executed_at).toLocaleString('ja-JP')} ／ 処理時間：{(run.duration_ms / 1000).toFixed(1)}秒
             </p>
@@ -84,7 +86,6 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
                 実行した後に作業手順を変更しました。この結果は変更前の内容です。作業手順に戻って、もう一度実行してください。
               </p>
             )}
-            {verdict && <VerdictBox verdict={verdict} />}
 
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-edge pt-4">
               {needsConfirm && !reportOnly && (
@@ -145,6 +146,8 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               </div>
             )}
           </section>
+
+          {run.criteria.length > 0 && <CriteriaResults criteria={run.criteria} />}
 
           {run.flow_issues.length > 0 && (
             <section className="light-panel rounded-2xl p-5">
@@ -214,13 +217,13 @@ function VerdictBox({ verdict }: { verdict: Verdict }) {
   const s = VERDICT_STYLE[verdict.verdict]
   const Icon = s.icon
   return (
-    <div className={`mt-3 rounded-lg px-3 py-2.5 ring-1 ${s.cls}`} role="status" aria-label="総合判定">
-      <p className="flex flex-wrap items-center gap-2 font-bold">
-        <Icon className="size-4.5" aria-hidden />
+    <div className={`rounded-xl px-4 py-3.5 ring-1 ${s.cls}`} role="status" aria-label="総合判定">
+      <p className="flex flex-wrap items-center gap-2 text-[1.35rem] font-bold">
+        <Icon className="size-6" aria-hidden />
         総合判定：{s.label}
         <span className="text-[0.8rem] font-normal text-subtle">（{verdict.standard_only ? '標準の確認のみ' : '完了基準と標準の確認'}）</span>
       </p>
-      <p className="mt-1 text-[0.9rem] text-white/90">{verdict.headline}</p>
+      <p className="mt-1 text-white/90">{verdict.headline}</p>
       {verdict.reasons.length > 0 && (
         <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[0.85rem] text-white/80" aria-label="判定の理由">
           {verdict.reasons.map((r) => (
@@ -229,6 +232,91 @@ function VerdictBox({ verdict }: { verdict: Verdict }) {
         </ul>
       )}
     </div>
+  )
+}
+
+/* ---------- 完了基準の判定と根拠（タスク2-5） ---------- */
+
+const CRITERION_STATUS: Record<string, { label: string; cls: string }> = {
+  passed: { label: '満たしている', cls: 'bg-success-soft text-success-ink ring-success/30' },
+  failed_critical: { label: '満たしていない（重大）', cls: 'bg-error-soft text-error-ink ring-error/40' },
+  failed_caution: { label: '満たしていない（注意）', cls: 'bg-warning-soft text-warning-ink ring-warning/40' },
+  failed_record: { label: '満たしていない（記録のみ）', cls: 'bg-ink/6 text-muted ring-ink/15' },
+  unverified: { label: '未検証', cls: 'bg-warning-soft text-warning-ink ring-warning/40' },
+  not_applicable: { label: '対象外', cls: 'bg-ink/6 text-muted ring-ink/15' },
+  recorded: { label: '記録', cls: 'bg-ink/6 text-muted ring-ink/15' },
+}
+
+/** 表示の順：止める重大な問題 → 確かめられなかったもの → 注意 → 満たしているもの → 記録（指示書の優先順位） */
+function rank(c: CriterionResult): number {
+  if (c.status === 'failed' && c.on_fail === 'critical') return 0
+  if (c.status === 'unverified' && c.on_fail !== 'record') return 1
+  if (c.status === 'failed' && c.on_fail === 'caution') return 2
+  if (c.status === 'passed') return 3
+  return 4
+}
+
+function statusKey(c: CriterionResult): string {
+  return c.status === 'failed' ? `failed_${c.on_fail}` : c.status
+}
+
+function CriteriaResults({ criteria }: { criteria: CriterionResult[] }) {
+  const sorted = [...criteria].sort((a, b) => rank(a) - rank(b))
+  return (
+    <section className="light-panel rounded-2xl p-5" aria-label="完了基準の判定">
+      <h2 className="font-bold">完了基準の判定と根拠</h2>
+      <p className="mt-0.5 text-[0.85rem] text-muted">判定はプログラムで計算しています（AIは使っていません）。根拠は、判定に使った実際の値です。</p>
+      <ol className="mt-3 space-y-2">
+        {sorted.map((c) => (
+          <CriterionRow key={c.criterion_id} c={c} />
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function CriterionRow({ c }: { c: CriterionResult }) {
+  const [open, setOpen] = useState(false)
+  const s = CRITERION_STATUS[statusKey(c)] ?? CRITERION_STATUS.not_applicable
+  const evidence = Object.entries(c.evidence)
+  return (
+    <li className="rounded-lg bg-paper px-4 py-3 ring-1 ring-line" aria-label={`完了基準：${c.name}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded-full px-2.5 py-0.5 text-[0.78rem] font-bold ring-1 ring-inset ${s.cls}`}>{s.label}</span>
+        <span className="font-bold">{c.name}</span>
+      </div>
+      <p className="mt-1 text-[0.9rem] text-ink/85">{c.summary}</p>
+      {evidence.length > 0 && (
+        <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[0.85rem]" aria-label="根拠">
+          {evidence.map(([k, v]) => (
+            <div key={k} className="flex gap-1.5">
+              <dt className="text-muted">{k}</dt>
+              <dd className="font-bold tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {c.how_to_fix && c.status !== 'passed' && <p className="mt-1.5 text-[0.85rem] text-ink/80">対応：{c.how_to_fix}</p>}
+      {c.examples.length > 0 && (
+        <div className="mt-1.5">
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-1 text-[0.82rem] font-bold text-forest hover:underline">
+            <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+            該当する例（{c.examples.length}件まで表示）
+          </button>
+          {open && (
+            <ul className="mt-1 space-y-0.5 text-[0.82rem] text-ink/80">
+              {c.examples.map((e, i) => (
+                <li key={i}>
+                  {Object.entries(e)
+                    .map(([k, v]) => `${k}：${String(v)}`)
+                    .join(' ／ ')}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </li>
   )
 }
 

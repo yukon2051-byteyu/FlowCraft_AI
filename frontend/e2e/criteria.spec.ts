@@ -56,6 +56,22 @@ test('別の月を指定すると、対象期間の基準を満たさず「重�
   await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
   await expect(verdictBox(page)).toContainText('総合判定：重大', { timeout: 30_000 })
   await expect(verdictBox(page).getByRole('list', { name: '判定の理由' })).toContainText('「対象月の伝票だけ」')
+
+  // 完了基準の判定と根拠（2-5）：重大で満たさないものが先頭。根拠の値と、該当する例を示す
+  const results = page.getByRole('region', { name: '完了基準の判定' }).getByRole('listitem')
+  await expect(results).toHaveCount(5)
+  const first = results.first()
+  await expect(first).toHaveAttribute('aria-label', '完了基準：対象月の伝票だけ')
+  await expect(first).toContainText('満たしていない（重大）')
+  await expect(first.getByRole('definition').first()).toBeVisible()
+  await expect(first).toContainText('対象期間2026-11-01〜2026-11-30')
+  await expect(first).toContainText('期間外の件数240') // 10月分のファイルなので、全240行が期間外
+  await expect(first).toContainText('対応：')
+  await first.getByRole('button', { name: /該当する例/ }).click()
+  await expect(first).toContainText('結果の行：1')
+  // 満たしているものは後ろに並び、対応は出さない
+  const passed = results.filter({ hasText: '満たしている' }).first()
+  await expect(passed).not.toContainText('対応：')
 })
 
 test('手動で基準を追加・設定し、未設定の間は実行できない。保存したファイルに基準が残る', async ({ page, request }) => {
