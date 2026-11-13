@@ -2,14 +2,7 @@ import {
   Building2,
   ArrowDownRight,
   ArrowRight,
-  ChartColumn,
   CircleX,
-  ClipboardList,
-  Info,
-  History,
-  Layers,
-  TrendingDown,
-  TrendingUp,
   Cloud,
   Monitor,
   CalendarClock,
@@ -253,16 +246,16 @@ function Reasons() {
           <div className="grid gap-4 sm:grid-cols-2">
             {REASONS.map((r) => (
               <article key={r.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="grid size-9 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
+                {/* ①と同じく、アイコンの右に番号と見出し（「開発中」の表示は見出しの行に入れない。利用者の指示） */}
+                <div className="flex items-center gap-2.5">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
                     <r.icon className="size-5" aria-hidden />
                   </span>
-                  <DevBadge feature={r.feature} />
+                  <h3 className="flex min-w-0 items-baseline gap-2 text-[1.04rem] leading-snug font-bold text-white">
+                    <span className="text-[0.8rem] text-subtle/70 tabular-nums">{r.no}</span>
+                    {r.title}
+                  </h3>
                 </div>
-                <h3 className="mt-3 flex items-baseline gap-2 text-[1.04rem] font-bold text-white">
-                  <span className="text-[0.8rem] text-subtle/70 tabular-nums">{r.no}</span>
-                  {r.title}
-                </h3>
                 <p className="mt-2 text-[0.92rem] leading-relaxed text-subtle">{r.body}</p>
                 {/* リンクはカードの下端にそろえる（リンクのないカードには場所を取らない） */}
                 {r.more && (
@@ -715,36 +708,11 @@ function TryOwnExcel() {
 /** 見つける品質異常の例（コーラル＝異常・リスク） */
 const ANOMALIES = ['集計結果の不一致', '商品コードの照合漏れ', '必須項目の欠損', '対象期間外のデータ', '重複データ']
 
-/** 決めた基準で検証してから出力するまで */
+/** 決めた基準で検証してから出力するまで（TOP では3点だけを伝える。判定の詳しい区分は実行結果の画面の「判定基準について」） */
 const TRUST_FLOW: { icon: LucideIcon; title: string; body: string }[] = [
-  { icon: ScanSearch, title: 'ルールで検証', body: '件数・金額・期間・重複などを、設定した基準で確認します。' },
-  { icon: ListChecks, title: '根拠を記録', body: '異常件数・該当行・判定理由を、後から確認できる形で残します。' },
-  { icon: ShieldCheck, title: '誤出力を防ぐ', body: '重大な異常を検出した場合、正式な結果の出力を停止します。' },
-]
-
-/**
- * 判定と出力の関係（4区分。注意と未検証は意味が違う）。
- * 出力の扱いは、今の判定のしかた（backend/app/criteria/verdict.py・app/quality/output.py）と一致させる
- */
-const VERDICTS: { icon: LucideIcon; label: string; meaning: string; output: string; cls: string }[] = [
-  { icon: CircleCheck, label: '正常', meaning: '設定した基準を満たしている', output: '正式出力を許可', cls: 'text-mint' },
-  { icon: TriangleAlert, label: '注意', meaning: '検証した結果、確認が必要な点がある', output: '内容を確認してから出力', cls: 'text-warning' },
-  { icon: Info, label: '未検証', meaning: '必要な検証が完了していない', output: '必須（重大）のルールなら停止。それ以外は確認してから出力', cls: 'text-sky-300' },
-  { icon: CircleX, label: '重大', meaning: '重大な品質異常を検出', output: '正式出力を停止（データの修正・再実行が必要）', cls: 'text-kaizen-text' },
-]
-
-/** 品質検証の強化（品質MVP）。完成するまで「開発中」 */
-const QUALITY_PLUS: { icon: LucideIcon; title: string; body: string; feature: FeatureKey }[] = [
-  { icon: ChartColumn, title: '前回からの変化を発見', body: '前回と比較し、件数・金額・品質異常件数の増減を確認します。', feature: 'previousCompare' },
-  { icon: Layers, title: '品質ルールを複製して使う', body: '作成した品質ルールを、別の業務にも複製して活用できます。', feature: 'ruleReuse' },
-  { icon: History, title: 'いつ・何を検出したか残す', body: '実行結果・品質判定・検出した異常を履歴として管理します。', feature: 'qualityHistory' },
-]
-
-/** 前回との比較の表示例（架空のデータ。実際の実行結果ではない） */
-const SAMPLE_COMPARE: { item: string; before: string; after: string; change: string; flagged: boolean; dir: 'down' | 'up' }[] = [
-  { item: '売上件数', before: '1,200件', after: '850件', change: '-29.2%', flagged: true, dir: 'down' },
-  { item: '売上金額', before: '12,500,000円', after: '11,800,000円', change: '-5.6%', flagged: false, dir: 'down' },
-  { item: '照合漏れ', before: '2件', after: '15件', change: '+13件', flagged: true, dir: 'up' },
+  { icon: ScanSearch, title: '検証する', body: '決めたルールで、件数・金額・重複などを確認。' },
+  { icon: ListChecks, title: '根拠を残す', body: '異常の内容・該当データ・判定理由を記録。' },
+  { icon: ShieldCheck, title: '誤出力を防ぐ', body: '重大な異常を検出した場合、正式出力を停止。' },
 ]
 
 const CAUTIONS: { icon: LucideIcon; text: string }[] = [
@@ -755,184 +723,69 @@ const CAUTIONS: { icon: LucideIcon; text: string }[] = [
 ]
 
 function Trust() {
-  const plusAnyInDev = QUALITY_PLUS.some((q) => !isAvailable(q.feature))
   return (
     <section id="trust" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8 lg:py-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <SectionHeading
-            eyebrow="品質の確認"
-            title="AIの判断だけに頼らない。決めた基準で、毎回検証。"
-            lead="処理が成功しても、業務上正しいとは限りません。設定した完了基準に沿って、異常の検出・根拠の記録・正式出力の可否判定まで行います。"
-          />
+          <SectionHeading eyebrow="品質の確認" title="AI任せにしない。決めた基準で、毎回検証。" lead="件数・金額・重複・照合漏れなどを自動で確認。重大な異常があれば、正式な出力を止めます。" />
           <DevBadge feature="quality" className="mb-1" />
         </div>
-        {/* 基本の3つ：ルールで検証 → 根拠を記録 → 誤出力を防ぐ */}
-        <div className="mt-6">
-          <ol className="grid gap-3 sm:grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
-              {TRUST_FLOW.map((t, i) => (
-                <li key={t.title} className="rounded-2xl bg-panel p-4 ring-1 ring-edge">
-                  <p className="flex items-center gap-2 font-bold text-white">
-                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white/10 text-[0.72rem] tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                    <t.icon className={`size-4.5 shrink-0 ${i === 2 ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
-                    {t.title}
-                  </p>
-                  <p className="mt-2 text-[0.88rem] leading-relaxed text-subtle">{t.body}</p>
-                </li>
-              ))}
-            </ol>
-        </div>
-        {/* 左：見つける異常と判定の意味。右：さらに強化と、その完成イメージ（つながりが見えるよう縦に並べる） */}
-        <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-          <div className="flex flex-col gap-4">
-            <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge" aria-label="見つける品質異常の例">
-              <p className="flex items-center gap-2 font-bold text-white">
-                <TriangleAlert className="size-4.5 text-kaizen" aria-hidden />
-                こんな品質異常を見つけます
-              </p>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {ANOMALIES.map((a) => (
-                  <li key={a} className="rounded-full bg-kaizen/10 px-3 py-1 text-[0.88rem] font-bold text-kaizen-text ring-1 ring-kaizen/40">
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge" role="region" aria-label="判定と出力の関係">
-              <p className="font-bold text-white">判定と出力の関係</p>
-              <table className="mt-3 w-full text-[0.86rem]">
-                <thead className="text-left text-[0.78rem] text-subtle">
-                  <tr>
-                    <th className="border-b border-edge pb-1.5 font-bold">判定</th>
-                    <th className="border-b border-edge pb-1.5 font-bold">出力の扱い</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {VERDICTS.map((v) => (
-                    <tr key={v.label} className="border-b border-edge/60 last:border-0">
-                      <td className="py-2 pr-3 align-top">
-                        <span className={`flex items-center gap-1.5 font-bold whitespace-nowrap ${v.cls}`}>
-                          <v.icon className="size-4 shrink-0" aria-hidden />
-                          {v.label}
-                        </span>
-                        <span className="mt-0.5 block text-[0.78rem] text-subtle">{v.meaning}</span>
-                      </td>
-                      <td className="py-2 align-top text-white/90">{v.output}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* 説明を読んだ直後に、実際に異常を見つけるところを体験できる（既存のデモ：月次売上集計の品質異常） */}
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-kaizen/6 px-5 py-4 ring-1 ring-kaizen/35">
-              <p className="min-w-0 flex-1 text-[0.88rem] text-white/85">架空のデータで、異常を見つけて正式な出力を止めるところを体験できます。</p>
-              <Button to="/build?demo=monthly_sales&pattern=ng" variant="outlineDark" size="sm">
-                <CirclePlay className="size-4" aria-hidden />
-                品質異常のデモを体験する
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-4">
-            {/* 品質MVPで追加する3つの機能（完成したものから featureStatus.ts で「開発中」を外す） */}
-            <div className="relative rounded-2xl bg-mint/6 px-4 pt-6 pb-4 ring-1 ring-mint/40" role="region" aria-label="品質検証のさらなる強化">
-              <span className="absolute -top-2.5 left-4 flex items-center gap-2">
-                <span className="rounded-full bg-[#17362E] px-2.5 py-0.5 text-[0.75rem] font-bold text-mint ring-1 ring-mint/50">さらに強化</span>
-                {plusAnyInDev && <span className="rounded-full bg-nav px-2 py-0.5 text-[0.75rem] text-subtle">（開発中の機能を含む）</span>}
+
+        <ol className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
+          {TRUST_FLOW.map((t, i) => (
+            <li key={t.title} className="flex items-start gap-3 rounded-2xl bg-panel p-4 ring-1 ring-edge">
+              <span className={`grid size-10 shrink-0 place-items-center rounded-xl ring-1 ${i === 2 ? 'bg-kaizen/12 text-kaizen ring-kaizen/35' : 'bg-mint/12 text-mint ring-mint/30'}`}>
+                <t.icon className="size-5" aria-hidden />
               </span>
-              <ul className="grid gap-3 sm:grid-cols-3 sm:divide-x sm:divide-mint/20">
-                {QUALITY_PLUS.map((q) => (
-                  <li key={q.title} className="flex flex-col sm:px-3 sm:first:pl-0 sm:last:pr-0">
-                    <p className="flex items-start gap-2 font-bold text-white">
-                      <q.icon className="mt-0.5 size-4.5 shrink-0 text-mint" aria-hidden />
-                      {q.title}
-                    </p>
-                    <p className="mt-1.5 text-[0.85rem] leading-relaxed text-subtle">{q.body}</p>
-                    <span className="mt-auto pt-2">
-                      <DevBadge feature={q.feature} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {/* 前回との比較の表示例。架空のデータで、実際の実行結果ではないことを明示する。
-                右カラムの幅に合わせ、表は幅いっぱいに置き、検証結果と確認すべきことはその下に並べる（表を縮めない） */}
-            <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge" role="region" aria-label="前回との比較の表示例">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-bold text-white">完成イメージ：前回比較で、変化と品質異常を発見</p>
-                <span className="rounded-full bg-white/8 px-2 py-0.5 text-[0.75rem] text-subtle ring-1 ring-white/15">架空のデータによる表示例</span>
-                <DevBadge feature="previousCompare" />
-              </div>
-              <table className="mt-3 w-full overflow-hidden rounded-xl text-[0.88rem] ring-1 ring-edge">
-                <thead className="bg-white/4 text-[0.8rem] text-subtle">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-bold">項目</th>
-                    <th className="px-3 py-2 text-right font-bold whitespace-nowrap">前月（10月）</th>
-                    <th className="px-3 py-2 text-right font-bold whitespace-nowrap">今月（11月）</th>
-                    <th className="px-3 py-2 text-center font-bold">変化</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SAMPLE_COMPARE.map((r) => (
-                    <tr key={r.item} className="border-t border-edge">
-                      <td className="px-3 py-2 font-bold whitespace-nowrap text-white">{r.item}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap text-white/80 tabular-nums">{r.before}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap text-white tabular-nums">{r.after}</td>
-                      <td className="px-3 py-2 text-center">
-                        {/* 注意すべき変化だけを色で強調する（正常な増減は強調しない） */}
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.82rem] font-bold whitespace-nowrap tabular-nums ring-1 ${
-                            r.flagged ? 'bg-warning/12 text-warning ring-warning/40' : 'bg-white/6 text-white/75 ring-white/15'
-                          }`}
-                        >
-                          {r.dir === 'down' ? <TrendingDown className="size-3.5" aria-hidden /> : <TrendingUp className="size-3.5" aria-hidden />}
-                          {r.change}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                <div>
-                  <p className="text-[0.88rem] font-bold text-white/85">検証結果</p>
-                  <p className="mt-2 flex items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[0.86rem] text-white ring-1 ring-warning/40">
-                    <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-                    <span>
-                      <b className="text-warning">注意：</b>前月から売上件数が29.2%減少しています。
-                    </span>
-                  </p>
-                  <ul className="mt-2 space-y-1.5 text-[0.86rem] text-white/85">
-                    <li className="flex items-center gap-2">
-                      <CircleCheck className="size-4 shrink-0 text-mint" aria-hidden />
-                      必須項目の欠損：0件
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CircleCheck className="size-4 shrink-0 text-mint" aria-hidden />
-                      重複データ：0件
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-                      マスタ照合漏れ：15件（前月：2件、+13件）
-                    </li>
-                  </ul>
-                </div>
-                {/* 確認すべきこと：原因は断定せず、確かめることを示す（実際のレポートでは、検出した異常や変化に応じて規則で作る） */}
-                <div className="rounded-xl bg-[#17362E] px-4 py-3 ring-1 ring-mint/45" role="note" aria-label="確認すべきこと">
-                  <p className="flex items-center gap-2 text-[0.9rem] font-bold text-mint">
-                    <ClipboardList className="size-4.5 shrink-0" aria-hidden />
-                    確認すべきこと
-                  </p>
-                  <p className="mt-1 text-[0.85rem] leading-relaxed text-white/85">
-                    <b className="text-white">売上件数が大幅に減少</b>しています。対象期間や未取込ファイルがないかを確認してください。また、<b className="text-white">照合漏れが増加</b>
-                    しているため、未登録の商品コードを確認してください。
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+              <span className="min-w-0">
+                <span className="flex items-baseline gap-2 font-bold text-white">
+                  <span className="text-[0.78rem] text-subtle/70 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                  {t.title}
+                </span>
+                <span className="mt-1 block text-[0.88rem] leading-relaxed text-subtle">{t.body}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="検出できる異常の例">
+          <p className="flex items-center gap-1.5 text-[0.9rem] font-bold text-white">
+            <TriangleAlert className="size-4 text-kaizen" aria-hidden />
+            検出できる異常の例
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {ANOMALIES.map((a) => (
+              <li key={a} className="rounded-full bg-kaizen/10 px-3 py-1 text-[0.85rem] font-bold text-kaizen-text ring-1 ring-kaizen/40">
+                {a}
+              </li>
+            ))}
+          </ul>
         </div>
-        <p className="mt-3 text-[0.85rem] text-subtle">
-          確認できるのは、自動で行う確認と、設定した完了基準の範囲です。すべての誤りを見つけられるわけではありません。単発の作業にも同じ確認を行います。
+
+        {/* 実行結果のイメージ（架空のデータ）。照合漏れが必ず重大になるわけではない：重大度は設定した品質ルールに従う */}
+        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl bg-panel px-5 py-4 ring-1 ring-edge" role="region" aria-label="実行結果のイメージ">
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2 text-[0.82rem] text-subtle">
+              <span className="font-bold text-white/85">実行結果のイメージ</span>
+              <span className="rounded-full bg-white/8 px-2 py-0.5 ring-1 ring-white/15">架空のデータ・照合漏れを重大として設定した場合</span>
+            </p>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="flex items-center gap-1.5 font-bold text-kaizen-text">
+                <CircleX className="size-5 shrink-0" aria-hidden />
+                重大な品質異常を検出
+              </span>
+              <span className="text-white">商品マスタ照合漏れ：15件</span>
+              <span className="rounded-lg bg-kaizen/15 px-2.5 py-0.5 font-bold text-kaizen-text ring-1 ring-kaizen/45">判定：正式出力を停止</span>
+            </p>
+            <p className="mt-1 text-[0.82rem] text-subtle">詳しい根拠や該当データは、実行結果の画面で確認できます。</p>
+          </div>
+          <Button to="/build?demo=monthly_sales&pattern=ng" variant="primary">
+            <CirclePlay className="size-4.5" aria-hidden />
+            品質異常のデモを体験する
+          </Button>
+        </div>
+        <p className="mt-3 text-[0.82rem] text-subtle">
+          確認できるのは、自動で行う確認と、設定した基準の範囲です。前回との比較・品質ルールの複製・検出の履歴は開発中です。
         </p>
         <h3 className="mt-8 text-[0.95rem] font-bold text-white">データの取り扱い・ご利用上の注意</h3>
         <ul className="mt-3 grid gap-x-8 gap-y-2 md:grid-cols-2">

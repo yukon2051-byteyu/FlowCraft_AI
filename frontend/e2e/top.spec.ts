@@ -59,7 +59,7 @@ test('特徴カードから詳しい説明へ：③「品質検証の仕組み�
   for (const href of ['#flow', '#trust', '#try']) await expect(page.locator(href)).toHaveCount(1)
 
   await features.getByRole('link', { name: '品質検証の仕組みを見る' }).click()
-  const heading = page.getByRole('heading', { name: 'AIの判断だけに頼らない。決めた基準で、毎回検証。' })
+  const heading = page.getByRole('heading', { name: 'AI任せにしない。決めた基準で、毎回検証。' })
   await expect(heading).toBeFocused()
   await expect.poll(async () => (await heading.boundingBox())?.y ?? -1, { timeout: 10_000 }).toBeGreaterThan(64)
   await expect.poll(async () => (await heading.boundingBox())?.y ?? 999, { timeout: 10_000 }).toBeLessThan(160)

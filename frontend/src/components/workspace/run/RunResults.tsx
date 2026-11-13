@@ -246,7 +246,38 @@ function VerdictBox({ verdict }: { verdict: Verdict }) {
           ))}
         </ul>
       )}
+      <VerdictGuide />
     </div>
+  )
+}
+
+/**
+ * 判定基準について（TOP の「判定と出力の関係」をここへ移した）。
+ * 出力の扱いは、判定のしかた（backend/app/criteria/verdict.py・app/quality/output.py）と一致させる
+ */
+const VERDICT_GUIDE: { label: string; meaning: string; output: string }[] = [
+  { label: '正常', meaning: '設定した基準を満たしている', output: '正式な結果を出力できる' },
+  { label: '注意', meaning: '検証した結果、確認が必要な点がある', output: '内容を確認してから出力できる' },
+  { label: '未検証', meaning: '必要な検証が完了していない', output: '必須（重大）のルールが確かめられなければ停止。それ以外は確認してから出力できる' },
+  { label: '重大', meaning: '重大な品質異常を検出した', output: '正式な出力を停止（調査用の確認結果だけ出力できる）' },
+]
+
+function VerdictGuide() {
+  return (
+    <details className="mt-2 text-[0.85rem]">
+      <summary className="cursor-pointer text-white/75 hover:text-white">判定基準について</summary>
+      <table className="mt-1.5 w-full text-left">
+        <tbody>
+          {VERDICT_GUIDE.map((v) => (
+            <tr key={v.label} className="border-t border-white/10 align-top">
+              <th className="py-1 pr-3 font-bold whitespace-nowrap text-white">{v.label}</th>
+              <td className="py-1 pr-3 text-white/75">{v.meaning}</td>
+              <td className="py-1 text-white/90">{v.output}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
   )
 }
 

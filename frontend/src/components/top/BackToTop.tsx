@@ -32,11 +32,12 @@ export function BackToTop() {
       title="ページの先頭に戻る"
       tabIndex={visible ? 0 : -1}
       aria-hidden={!visible}
-      className={`fixed right-5 bottom-5 z-40 grid size-12 place-items-center rounded-full bg-panel-hi text-mint shadow-lg ring-1 ring-mint/40 transition duration-200 hover:bg-mint hover:text-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint ${
+      // 少し内側（左上）に置き、大きく・ミントの縁取りと影で目立たせる（利用者の指示）
+      className={`fixed right-8 bottom-8 z-40 grid size-14 place-items-center rounded-full bg-panel-hi text-mint shadow-[0_8px_24px_-6px_rgba(57,217,173,0.45)] ring-2 ring-mint/70 transition duration-200 hover:bg-mint hover:text-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint ${
         visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'
       }`}
     >
-      <ArrowUp className="size-5" aria-hidden />
+      <ArrowUp className="size-6" aria-hidden />
     </button>
   )
 }
