@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { normalizeFlow } from './ops'
-import { selectIsDirty, useFlowStore } from './store'
+import { selectIsDirty, selectNeedsLeaveGuard, selectSaveState, useFlowStore } from './store'
+import { contentSnapshot } from './ops'
 import type { FlowDoc } from './types'
 
 // ファイルの内容そのまま（省略された項目がある）
@@ -52,6 +53,48 @@ describe('作る画面の状態管理', () => {
     store().renameNode('n1', '条件で残す（東日本）')
     expect(store().commitSave().flow_version).toBe(2)
     expect(store().commitSave({ flow_name: '月次の集計（改）' }).flow_version).toBe(3) // 名前だけの変更でも版は上がる
+  })
+
+  it('今回だけの作業：保存しなくても、出力すれば離れるときの確認を出さない（1-11）', () => {
+    expect(selectSaveState(store())).toBe('none') // まだ何も作っていない
+    expect(selectNeedsLeaveGuard(store())).toBe(false)
+
+    store().addStep('filter', null)
+    expect(selectSaveState(store())).toBe('never') // 保存は任意（控えめに表示）
+    expect(selectNeedsLeaveGuard(store())).toBe(true) // 保存も出力もしていないので、離れると失われる
+
+    store().markExported(contentSnapshot(store().flow)) // この内容で実行して出力した
+    expect(selectNeedsLeaveGuard(store())).toBe(false)
+    expect(selectSaveState(store())).toBe('never') // 保存していないことは変わらない
+
+    store().renameNode('n1', '出力した後の変更') // 出力した後に変えた内容は失われるので、確認する
+    expect(selectNeedsLeaveGuard(store())).toBe(true)
+  })
+
+  it('保存した作業手順を変えると「変更あり」、保存すると表示しない', () => {
+    store().openFlow(DEMO)
+    expect(selectSaveState(store())).toBe('none')
+    store().renameFlow('別の名前')
+    expect(selectSaveState(store())).toBe('changed')
+    store().commitSave()
+    expect(selectSaveState(store())).toBe('none')
+    expect(selectNeedsLeaveGuard(store())).toBe(false)
+  })
+
+  it('別の作業手順を開くと、出力の記録は消える', () => {
+    store().addStep('filter', null)
+    store().markExported(contentSnapshot(store().flow))
+    store().openFlow(DEMO)
+    expect(store().exportedSnapshot).toBeNull()
+  })
+
+  it('処理の中身の比較では、名前・説明・版数・保存日時の違いを変更と扱わない（保存しただけで「実行後に変更した」にならない）', () => {
+    store().addStep('filter', null)
+    const before = contentSnapshot(store().flow)
+    store().commitSave({ flow_name: '新しい名前', description: '説明' })
+    expect(contentSnapshot(store().flow)).toBe(before)
+    store().renameNode('n1', '名前を変えた')
+    expect(contentSnapshot(store().flow)).not.toBe(before)
   })
 
   it('変更を元に戻すと未保存の印も消える', () => {

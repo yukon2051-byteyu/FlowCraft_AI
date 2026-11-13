@@ -20,7 +20,7 @@ import type { ApiErrorBody } from '../api/client'
 import { buildFromChoices } from '../flow/define'
 import type { InputChoice } from '../flow/define'
 import { editHint } from '../flow/hints'
-import { selectIsDirty, useFlowStore } from '../flow/store'
+import { selectNeedsLeaveGuard, selectSaveState, useFlowStore } from '../flow/store'
 
 /**
  * 作る画面の中の表示
@@ -59,6 +59,8 @@ export default function WorkspacePage() {
     try {
       const name = await exportRun(lastRun.run.run_id)
       setExported({ runId: lastRun.run.run_id, name })
+      // 出力した内容を記録する（今回だけの作業なら、これで終われる。離れるときに確認しない）
+      markExported(lastRun.snap)
     } catch (e) {
       setExportError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'Excelに出力できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null })
     } finally {
@@ -69,7 +71,10 @@ export default function WorkspacePage() {
   const nodes = useFlowStore((s) => s.flow.nodes)
   const flowName = useFlowStore((s) => s.flow.flow_name)
   // 処理ステップがある作業手順で、保存していない変更があるか（まだ何も作っていないときは対象外）
-  const unsaved = useFlowStore((s) => s.flow.nodes.length > 0 && selectIsDirty(s))
+  const saveState = useFlowStore(selectSaveState)
+  // 離れると失われる作業があるか（保存も出力もしていない変更）
+  const unsaved = useFlowStore(selectNeedsLeaveGuard)
+  const markExported = useFlowStore((s) => s.markExported)
   const [saving, setSaving] = useState(false)
   const [opening, setOpening] = useState(false)
   // 今の作業手順を、新しく作ったか、保存したものを開いたか（戻る先が変わる）
@@ -102,7 +107,8 @@ export default function WorkspacePage() {
       <div className="hidden h-screen min-h-[640px] flex-col bg-canvas lg:flex">
         <AppHeader
           flowName={sample ? '月次売上集計' : flowName}
-          unsaved={!sample && unsaved}
+          saveState={sample ? 'none' : saveState}
+          confirmLeave={!sample && unsaved}
           canSave={!sample && nodes.length > 0}
           onSave={() => setSaving(true)}
           onOpen={sample ? undefined : () => setOpening(true)}
@@ -140,6 +146,7 @@ export default function WorkspacePage() {
             <div className={screen === 'data' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
               <UploadStart
                 onShowSample={() => setParams({ view: 'sample' })}
+                onOpenSaved={() => setOpening(true)}
                 onFileCountChange={setFileCount}
                 onDefine={(s) => {
                   setSources((prev) => (prev && sourcesKey(prev) === sourcesKey(s) ? prev : s))
@@ -169,6 +176,8 @@ export default function WorkspacePage() {
                 snap={lastRun.snap}
                 onBack={() => setScreen('edit')}
                 onExport={doExport}
+                onSave={() => setSaving(true)}
+                saved={saveState === 'none'}
                 exporting={exporting}
                 exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
                 exportError={exportError}

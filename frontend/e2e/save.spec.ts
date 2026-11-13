@@ -27,7 +27,7 @@ const dialog = (page: Page) => page.getByRole('dialog', { name: '作業手順を
 test('保存すると、版1としてブラウザの一覧とファイルに保存され、ファイルはサーバーの検証を通る', async ({ page, request }) => {
   test.setTimeout(90_000)
   await startFlow(page)
-  await expect(header(page).getByText('未保存の変更があります')).toBeVisible()
+  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeVisible() // 一度も保存していないときは、控えめに表示（1-11）
 
   await header(page).getByRole('button', { name: '作業手順を保存' }).click()
   await expect(dialog(page)).toContainText('初めての保存です。版1として保存します。')
@@ -62,6 +62,7 @@ test('保存すると、版1としてブラウザの一覧とファイルに保�
   await dialog(page).getByRole('button', { name: '閉じる' }).last().click()
   await expect(header(page)).toContainText('月次売上集計')
   await expect(header(page).getByText('未保存の変更があります')).toBeHidden()
+  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeHidden()
 
   // 変更してから保存すると版2。一覧は置き換わり、2件にならない
   await page.getByRole('button', { name: '処理ステップを追加する' }).click()
@@ -100,7 +101,7 @@ test('保存先を1つも選ばないと保存できない。「やめる」で�
   await dialog(page).getByRole('button', { name: 'やめる' }).click()
   await expect(dialog(page)).toBeHidden()
   expect(await page.evaluate((k) => localStorage.getItem(k), LIBRARY_KEY)).toBeNull()
-  await expect(header(page).getByText('未保存の変更があります')).toBeVisible()
+  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeVisible()
 })
 
 test('未保存のままトップへ戻ろうとすると確認が出る。キャンセルすれば留まる', async ({ page }) => {

@@ -13,11 +13,11 @@ export const FEATURE_STATUS = {
   /** AIによる作業手順の提案 */
   aiFlow: 'in_development',
   /** 加工・結合・集計を画面から実行 */
-  processing: 'in_development',
+  processing: 'available',
   /** 比較分析・ランキング・グラフ */
   analysis: 'in_development',
   /** 作業手順の保存・再実行 */
-  saveReuse: 'in_development',
+  saveReuse: 'available',
   /** 既存の手順をもとに新しく作る */
   derive: 'in_development',
   /** 品質検証の結果表示 */

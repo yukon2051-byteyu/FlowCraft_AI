@@ -245,6 +245,19 @@ export function prepareForSave(flow: FlowDoc, now: Date = new Date(), bump = tru
   }
 }
 
+/**
+ * 処理の中身だけの比較用の文字列。実行した結果が「今の作業手順と同じ内容か」を判定するのに使う。
+ * 名前・説明・版数・保存日時など、処理の結果に影響しない項目は含めない（保存しただけで「変更した」と扱わないため）。
+ */
+export function contentSnapshot(flow: FlowDoc): string {
+  return snapshot({
+    schema_version: flow.schema_version,
+    input_definitions: flow.input_definitions,
+    nodes: flow.nodes,
+    validation_rules: flow.validation_rules ?? null,
+  } as unknown as FlowDoc)
+}
+
 /** 未保存の変更があるかを判定するための、内容の比較用の文字列（キーの順序に影響されない）。 */
 export function snapshot(flow: FlowDoc): string {
   const sortKeys = (v: unknown): unknown => {

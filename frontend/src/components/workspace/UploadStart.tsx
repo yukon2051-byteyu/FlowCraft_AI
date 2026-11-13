@@ -32,9 +32,11 @@ type Props = {
   onFileCountChange: (n: number) => void
   /** 「使う列と形式を決める」へ進む（各ファイルの、今選んでいるシート・見出し行の内容を渡す） */
   onDefine: (sources: DefineSource[]) => void
+  /** 保存した作業手順を開く */
+  onOpenSaved?: () => void
 }
 
-export function UploadStart({ onShowSample, onFileCountChange, onDefine }: Props) {
+export function UploadStart({ onShowSample, onFileCountChange, onDefine, onOpenSaved }: Props) {
   const [files, setFiles] = useState<Loaded[]>([])
   const [uploading, setUploading] = useState<string[]>([])
   const [failures, setFailures] = useState<UploadFailure[]>([])
@@ -196,7 +198,7 @@ export function UploadStart({ onShowSample, onFileCountChange, onDefine }: Props
               <p className="text-center text-[0.88rem] text-muted">.xlsx ／ .csv（UTF-8・Shift_JIS）・最大5ファイル・1ファイル10MB・合計10万行まで</p>
               {notices}
             </section>
-            <SideCards onShowSample={onShowSample} />
+            <SideCards onShowSample={onShowSample} onOpenSaved={onOpenSaved} />
           </div>
         ) : (
           <div className="mx-auto grid max-w-[1500px] gap-6 px-6 py-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
@@ -295,7 +297,7 @@ function RouteChooser() {
   )
 }
 
-function SideCards({ onShowSample }: { onShowSample: () => void }) {
+function SideCards({ onShowSample, onOpenSaved }: { onShowSample: () => void; onOpenSaved?: () => void }) {
   return (
     <aside className="space-y-4" aria-label="ほかの始め方">
       <p className="px-1 text-[0.85rem] font-bold tracking-wide text-subtle">ほかの始め方</p>
@@ -305,6 +307,7 @@ function SideCards({ onShowSample }: { onShowSample: () => void }) {
         body="以前作った作業手順のファイルを開き、新しいファイルで同じ処理を実行します。"
         action="作業手順を開く"
         feature="saveReuse"
+        onClick={onOpenSaved}
       />
       <StartCard
         icon={Copy}
@@ -344,7 +347,7 @@ function SideCards({ onShowSample }: { onShowSample: () => void }) {
   )
 }
 
-function StartCard({ icon: Icon, title, body, action, feature }: { icon: LucideIcon; title: string; body: string; action: string; feature: FeatureKey }) {
+function StartCard({ icon: Icon, title, body, action, feature, onClick }: { icon: LucideIcon; title: string; body: string; action: string; feature: FeatureKey; onClick?: () => void }) {
   const ready = isAvailable(feature)
   return (
     <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
@@ -357,7 +360,7 @@ function StartCard({ icon: Icon, title, body, action, feature }: { icon: LucideI
       </div>
       <p className="mt-1.5 text-[0.92rem] text-subtle">{body}</p>
       <div className="mt-3">
-        <Button variant="outlineDark" size="sm" disabled={!ready} title={ready ? undefined : 'この機能は開発中のため、まだ使えません'}>
+        <Button variant="outlineDark" size="sm" disabled={!ready || !onClick} onClick={onClick} title={ready ? undefined : 'この機能は開発中のため、まだ使えません'}>
           {action}
         </Button>
       </div>

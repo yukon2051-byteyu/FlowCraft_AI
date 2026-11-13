@@ -5,7 +5,7 @@ import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
 import { previewStep } from '../../../api/flows'
 import type { PreviewResult } from '../../../api/flows'
-import { snapshot } from '../../../flow/ops'
+import { contentSnapshot } from '../../../flow/ops'
 import { useFlowStore } from '../../../flow/store'
 import type { FlowNode } from '../../../flow/types'
 import { Button } from '../../ui/Button'
@@ -28,7 +28,7 @@ export function StepPreview({ node, index }: { node: FlowNode; index: number }) 
   const mutation = useMutation({
     mutationFn: () => previewStep(flow, Object.values(bindings), node.node_id),
     onSuccess: (data) => {
-      setResult({ data, snap: snapshot(flow) })
+      setResult({ data, snap: contentSnapshot(flow) })
       setError(null)
       setView(data.output ? 'after' : 0)
     },
@@ -36,7 +36,7 @@ export function StepPreview({ node, index }: { node: FlowNode; index: number }) 
       setError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'テスト実行ができませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),
   })
 
-  const stale = result !== null && result.snap !== snapshot(flow)
+  const stale = result !== null && result.snap !== contentSnapshot(flow)
   const data = result?.data
   const stoppedIndex = data?.stopped_at ? flow.nodes.findIndex((n) => n.node_id === data.stopped_at) : -1
   const run = data?.node

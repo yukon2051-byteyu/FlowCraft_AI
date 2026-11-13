@@ -162,3 +162,11 @@ test('ブラウザを閉じて開き直しても、保存した一覧から開�
   expect(await stepNames(p)).toEqual(before)
   await reopened.close()
 })
+
+test('開始画面の「保存した作業手順を使う」から開ける', async ({ page }) => {
+  await page.goto('/build')
+  const card = page.getByRole('complementary', { name: 'ほかの始め方' })
+  await expect(card.getByText('保存した作業手順を使う')).toBeVisible()
+  await card.getByRole('button', { name: '作業手順を開く' }).click()
+  await expect(openDialog(page)).toBeVisible()
+})

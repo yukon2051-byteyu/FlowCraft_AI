@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, CircleCheck, CircleMinus, CircleX, FileOutput, LoaderCircle, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CircleCheck, CircleMinus, CircleX, FileOutput, LoaderCircle, Save, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
 import { fetchRun } from '../../../api/flows'
 import type { RunSummary, StepRun } from '../../../api/flows'
-import { snapshot } from '../../../flow/ops'
+import { contentSnapshot } from '../../../flow/ops'
 import { useFlowStore } from '../../../flow/store'
 import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
@@ -34,13 +34,17 @@ type Props = {
   /** 出力したファイルの名前（この実行で出力済みのとき） */
   exportedName: string | null
   exportError: ApiErrorBody | null
+  /** 作業手順を保存する（今回だけの作業から、毎月の作業にする） */
+  onSave: () => void
+  /** 今の作業手順が保存済み（変更なし）か */
+  saved: boolean
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, onSave, saved }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
-  const stale = snapshot(flow) !== snap
+  const stale = contentSnapshot(flow) !== snap
   const stopped = run.nodes.findIndex((n) => n.status === 'error')
   const warnings = run.nodes.filter((n) => n.status === 'warning').length
 
@@ -95,6 +99,28 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
             {exportError && (
               <div className="mt-3">
                 <ErrorNotice error={exportError} />
+              </div>
+            )}
+
+            {/* タスク1-11：保存は任意。出力して終わってもよいし、ここから保存して毎月使うこともできる（作り直し不要） */}
+            {!stale && (
+              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-edge pt-4" aria-label="作業手順の保存">
+                {saved ? (
+                  <p className="flex items-center gap-1.5 text-[0.88rem] text-subtle">
+                    <CircleCheck className="size-4 text-success" aria-hidden />
+                    この作業手順は保存済みです。次回は「作業手順を開く」から、新しいファイルで実行できます。
+                  </p>
+                ) : (
+                  <>
+                    <Button variant="outlineDark" size="sm" onClick={onSave}>
+                      <Save className="size-4" aria-hidden />
+                      この作業手順を保存する
+                    </Button>
+                    <span className="text-[0.85rem] text-subtle">
+                      任意です。今回だけの作業なら、保存せずに終われます。毎月の作業なら、保存しておくと次回は新しいファイルを選ぶだけで実行できます。
+                    </span>
+                  </>
+                )}
               </div>
             )}
           </section>

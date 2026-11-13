@@ -5,11 +5,13 @@
  *   flow          ：編集中の作業手順（正本は画面側。サーバーは毎回まるごと受け取って検証・実行する）
  *   bindings      ：入力の割当（作業手順のファイルには保存しない）
  *   savedSnapshot ：最後に保存したときの内容。これと違えば「未保存の変更あり」
+ *   exportedSnapshot：最後にExcelへ出力したときの作業手順の内容（今回だけの作業：出力して終われば、離れるときに確認しない）
  */
 
 import { create } from 'zustand'
 import { STEP_TYPES } from './catalog'
 import {
+  contentSnapshot,
   createFlow,
   insertIndex,
   moveNode as moveNodeOp,
@@ -30,6 +32,9 @@ type FlowState = {
   bindings: Record<string, Binding>
   selectedNodeId: string | null
   savedSnapshot: string | null
+  exportedSnapshot: string | null
+  /** Excelに出力したことを記録する（snap：出力した結果を実行したときの作業手順の処理の中身＝contentSnapshot） */
+  markExported: (snap: string) => void
 
   newFlow: (name: string) => void
   /** 作業手順を開く。ファイルから読んだ内容をそのまま渡してよい（省略された項目を補う） */
@@ -66,18 +71,37 @@ type FlowState = {
 /** 未保存の変更があるか */
 export const selectIsDirty = (s: FlowState): boolean => s.savedSnapshot === null || snapshot(s.flow) !== s.savedSnapshot
 
+/**
+ * 上部に出す保存の状態（タスク1-11：今回だけの作業では、保存を促し続けない）
+ *   none    ：表示しない（作業手順がまだない／保存済みで変更なし）
+ *   never   ：一度も保存していない（保存は任意。控えめに表示）
+ *   changed ：保存した作業手順を変更した（注意として表示）
+ */
+export const selectSaveState = (s: FlowState): 'none' | 'never' | 'changed' =>
+  s.flow.nodes.length === 0 || !selectIsDirty(s) ? 'none' : s.savedSnapshot === null ? 'never' : 'changed'
+
+/**
+ * 離れるときに確認するか：保存していない変更があり、かつ、その内容でExcelに出力していないとき。
+ * 出力して終わった今回だけの作業では確認しない（作業は出力したファイルとして手元に残っているため）
+ */
+export const selectNeedsLeaveGuard = (s: FlowState): boolean =>
+  selectSaveState(s) !== 'none' && contentSnapshot(s.flow) !== s.exportedSnapshot
+
 export const useFlowStore = create<FlowState>((set, get) => ({
   flow: createFlow('無題の作業手順'),
   bindings: {},
   selectedNodeId: null,
   savedSnapshot: null,
+  exportedSnapshot: null,
 
-  newFlow: (name) => set({ flow: createFlow(name), bindings: {}, selectedNodeId: null, savedSnapshot: null }),
+  newFlow: (name) => set({ flow: createFlow(name), bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null }),
+
+  markExported: (snap) => set({ exportedSnapshot: snap }),
 
   // 開いた直後は「保存済み」の状態（変更していないので、未保存の警告を出さない）
   openFlow: (raw) => {
     const flow = normalizeFlow(raw)
-    set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: snapshot(flow) })
+    set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: snapshot(flow), exportedSnapshot: null })
   },
 
   renameFlow: (name) => set((s) => ({ flow: { ...s.flow, flow_name: name } })),

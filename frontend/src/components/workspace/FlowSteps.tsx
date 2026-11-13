@@ -9,7 +9,7 @@ import { fieldOf, runFlow, stepIndexOf, validateFlow } from '../../api/flows'
 import type { RunSummary } from '../../api/flows'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
-import { dataChoices, describeInputs, snapshot, UNSELECTED, usedBy } from '../../flow/ops'
+import { contentSnapshot, dataChoices, describeInputs, snapshot, UNSELECTED, usedBy } from '../../flow/ops'
 import { inferColumns, paramProblems, summarize } from '../../flow/params'
 import type { FlowDoc } from '../../flow/types'
 import { StepSettings } from './StepSettings'
@@ -63,7 +63,7 @@ export function FlowSteps({
   const runMutation = useMutation({
     mutationFn: () => runFlow(flow, Object.values(bindings)),
     onMutate: () => setRunError(null),
-    onSuccess: (run) => onRan(run, snapshot(flow)),
+    onSuccess: (run) => onRan(run, contentSnapshot(flow)),
     onError: (e) => setRunError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '実行できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),
   })
   // 全体を実行できない理由（押せないボタンの近くに表示する）
