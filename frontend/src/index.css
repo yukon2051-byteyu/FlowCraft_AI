@@ -75,6 +75,24 @@ html {
 }
 
 /* ページ内リンクで滑らかにスクロール（動きを減らす設定の利用者には適用しない） */
+/* 特徴カードから移動した先の見出しを、短く控えめに強調する（動きを減らす設定では使わない。TopPage の SectionLink） */
+@keyframes section-flash {
+  0%,
+  30% {
+    background-color: rgb(57 217 173 / 0.16);
+    box-shadow: -10px 0 0 0 rgb(57 217 173 / 0.9);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: -10px 0 0 0 transparent;
+  }
+}
+.section-flash {
+  border-radius: 6px;
+  outline: none;
+  animation: section-flash 1.6s ease-out;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;

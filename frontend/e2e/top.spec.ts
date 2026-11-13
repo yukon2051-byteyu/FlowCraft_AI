@@ -47,3 +47,38 @@ test('先頭に戻るボタン：先頭では隠れ、スクロールすると�
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBe(0)
   await expect(btn).toHaveCSS('opacity', '0')
 })
+
+test('特徴カードから詳しい説明へ：③「品質検証の仕組みを見る」で品質の確認へ移動し、見出しがヘッダーに隠れない', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto('/')
+  const features = page.locator('#features')
+  // 詳しい説明のセクションがあるカードだけに案内を付ける（01・03・04）
+  const links = features.getByRole('link', { name: /見る$/ })
+  await expect(links).toHaveCount(3)
+  expect(await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['#flow', '#trust', '#try'])
+  for (const href of ['#flow', '#trust', '#try']) await expect(page.locator(href)).toHaveCount(1)
+
+  await features.getByRole('link', { name: '品質検証の仕組みを見る' }).click()
+  const heading = page.getByRole('heading', { name: 'AIの判断だけに頼らない。決めた基準で、毎回検証。' })
+  await expect(heading).toBeFocused()
+  await expect.poll(async () => (await heading.boundingBox())?.y ?? -1, { timeout: 10_000 }).toBeGreaterThan(64)
+  await expect.poll(async () => (await heading.boundingBox())?.y ?? 999, { timeout: 10_000 }).toBeLessThan(160)
+  // 同じページの中の移動で、履歴を増やさない
+  expect(page.url()).not.toContain('#')
+  // 説明を読んだ直後に、品質異常のデモを体験できる
+  await expect(page.locator('#trust').getByRole('link', { name: '品質異常のデモを体験する' })).toHaveAttribute('href', '/build?demo=monthly_sales&pattern=ng')
+})
+
+test('キーボードでも使える。動きを減らす設定では、すぐに移動し強調しない', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  const link = page.locator('#features').getByRole('link', { name: '保存・再実行について見る' })
+  await link.focus()
+  await page.keyboard.press('Enter')
+  const heading = page.getByRole('heading', { name: '一度作った手順を、何度でも使える。' })
+  await expect(heading).toBeFocused()
+  await expect(heading).not.toHaveClass(/section-flash/)
+  const y = (await heading.boundingBox())!.y
+  expect(y).toBeGreaterThan(64)
+  expect(y).toBeLessThan(160)
+})
