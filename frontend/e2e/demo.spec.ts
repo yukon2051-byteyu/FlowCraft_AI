@@ -54,6 +54,12 @@ test('案内の帯から正常終了のデモに切り替えると、正常と�
   await run(page)
   await expect(verdictBox(page)).toContainText('総合判定：正常')
   await expect(verdictBox(page)).toContainText('完了基準（4件）をすべて満たしています。')
+  // 分析レポート（AIを使わない計算）：主要数値・部署別のランキングと構成比。前回がなくても分析は成立する
+  await expect(page.getByRole('region', { name: '今回の主要数値' })).toContainText('20,818,240')
+  const chart = page.getByRole('region', { name: 'データの分析' }).getByRole('figure', { name: '「部署名」別の「売上合計」' })
+  await expect(chart).toContainText('EC事業部')
+  await expect(chart).toContainText('6,112,900（29.4%）')
+  await expect(page.getByRole('region', { name: '前回との比較' })).toContainText('比較できる前月（2026年9月）の正式な出力の記録がありません。今回のデータの分析は確認できます。')
   const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
   expect(download.suggestedFilename()).toContain('_結果_')
   // デモのファイルは入れ替わり、増え続けない

@@ -10,6 +10,8 @@ import { useFlowStore } from '../../../flow/store'
 import { compareRuns } from '../../../flow/compare'
 import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
+import { AnalysisReport } from './AnalysisReport'
+import type { Analysis, Comparison } from './AnalysisReport'
 import { IssueList } from './IssueList'
 import { PreviewTable } from './PreviewTable'
 
@@ -157,6 +159,15 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               </div>
             )}
           </section>
+
+          {/* 分析レポート（分析エンジン）：今回の主要数値 → 確認すべきこと → 前回との比較 → データの分析 */}
+          {run.analysis && run.status !== 'failed' && (
+            <AnalysisReport
+              analysis={run.analysis as unknown as Analysis}
+              comparison={(run.comparison ?? null) as unknown as Comparison | null}
+              inputs={((run.record?.inputs ?? []) as { label: string; filename: string | null; rows: number | null }[])}
+            />
+          )}
 
           {before && <ComparePanel before={before} after={run} />}
 
