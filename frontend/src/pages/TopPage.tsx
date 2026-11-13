@@ -13,7 +13,6 @@ import {
   Lightbulb,
   ListChecks,
   Lock,
-  MessageSquareText,
   Play,
   ScanSearch,
   ShieldCheck,
@@ -134,7 +133,17 @@ function Hero() {
 type Reason = { no: string; icon: LucideIcon; title: string; body: ReactNode; feature: FeatureKey }
 
 const REASONS: Reason[] = [
-  { no: '02', icon: MessageSquareText, title: '手順を簡単に作れる', body: '作業を日本語で説明すると、AIが処理の手順を組み立てます。内容は確認してから使います。', feature: 'aiFlow' },
+  {
+    no: '02',
+    icon: Workflow,
+    title: 'AIの提案を、実行できる手順に',
+    body: (
+      <>
+        日本語で伝えた作業を、<span className="font-semibold text-mint">編集・検証・実行できる手順</span>に変換。AIの回答だけで終わらせません。
+      </>
+    ),
+    feature: 'aiFlow',
+  },
   {
     no: '03',
     icon: ShieldCheck,
@@ -146,7 +155,18 @@ const REASONS: Reason[] = [
     ),
     feature: 'criteria',
   },
-  { no: '04', icon: Repeat, title: '単発にも定型にも', body: '一度きりの集計にも、毎月の定型業務にも。保存するかは後から選べます。', feature: 'saveReuse' },
+  {
+    no: '04',
+    icon: Repeat,
+    // 「同じ品質」ではなく「同じルール」：品質を保証するのではなく、同じ検証基準で毎回確かめる
+    title: '一度作れば、次回も同じルールで',
+    body: (
+      <>
+        処理手順と確認ルールをセットで保存。次回はデータを入れ替えるだけで、<span className="font-semibold text-mint">同じ条件で再実行</span>できます。
+      </>
+    ),
+    feature: 'saveReuse',
+  },
   {
     no: '05',
     icon: CopyPlus,
