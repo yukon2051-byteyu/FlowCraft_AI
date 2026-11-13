@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 test('無人定期実行のカードは「開発中」と、5つの確認を示す', async ({ page }) => {
   await page.goto('/')
   const card = page.getByRole('article', { name: '決まった日時に無人で実行できる' })
-  await expect(card.getByRole('heading', { name: '毎月の作業は、もう開かなくていい。' })).toBeVisible()
+  await expect(card.getByRole('heading', { name: '毎月のExcel作業を、確認するだけの業務へ。' })).toBeVisible()
   await expect(card.getByText('開発中', { exact: true })).toHaveCount(3) // 無人定期実行・クラウドで試す・Windows Worker
   // 3分後の自動実行デモは、完成するまで押せない
   await expect(card.getByRole('button', { name: '3分後に自動実行を試す' })).toBeDisabled()

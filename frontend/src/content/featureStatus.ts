@@ -20,6 +20,11 @@ export const FEATURE_STATUS = {
   saveReuse: 'available',
   /** 既存の手順をもとに新しく作る */
   derive: 'in_development',
+  /**
+   * 作業の部品化と再利用（処理ステップを部品として保存・複製・組み合わせ・変更し、別の業務へ使う）。
+   * 作業手順全体の保存・読み込み・再実行（saveReuse）とは別の機能。部品単位の保存・複製・組み合わせは未実装
+   */
+  stepReuse: 'in_development',
   /** 品質検証の結果表示 */
   quality: 'available',
   /** デモ */

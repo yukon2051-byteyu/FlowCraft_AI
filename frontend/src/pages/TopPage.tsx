@@ -17,7 +17,7 @@ import {
   Play,
   ScanSearch,
   ShieldCheck,
-  SlidersHorizontal,
+  CopyPlus,
   Repeat,
   TriangleAlert,
   Upload,
@@ -147,7 +147,18 @@ const REASONS: Reason[] = [
     feature: 'criteria',
   },
   { no: '04', icon: Repeat, title: '単発にも定型にも', body: '一度きりの集計にも、毎月の定型業務にも。保存するかは後から選べます。', feature: 'saveReuse' },
-  { no: '05', icon: SlidersHorizontal, title: '業務に合わせて変えられる', body: '処理の手順も、確認の条件も、自分の業務に合わせて変更できます。', feature: 'processing' },
+  {
+    no: '05',
+    icon: CopyPlus,
+    title: '作業を部品として再利用できる',
+    body: (
+      <>
+        作成済みの処理ステップを<span className="font-semibold text-mint">複製・組み合わせ・変更</span>。ゼロから作り直さず、別の業務にも活用できます。
+      </>
+    ),
+    // 部品単位の保存・複製・組み合わせは未実装（作業手順全体の保存・再実行とは別の機能）
+    feature: 'stepReuse',
+  },
 ]
 
 const KAIZEN_WAYS = [
@@ -234,22 +245,30 @@ function ScheduleCard() {
   return (
     <article
       aria-label="決まった日時に無人で実行できる"
-      className="mt-4 grid gap-5 rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center"
+      className="mt-4 grid gap-x-6 gap-y-4 rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-center"
     >
       <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="grid size-10 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
+        {/* 利用者が得られるメリットを見出しに（技術的な説明は後ろ）。最も伝えたいのは「正常時は、結果を確認するだけ。」 */}
+        <div className="flex items-center gap-2">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
             <CalendarClock className="size-5" aria-hidden />
           </span>
           <span className="text-[0.8rem] text-subtle/70 tabular-nums">06</span>
-          <h3 className="text-[1.2rem] font-bold text-white">毎月の作業は、もう開かなくていい。</h3>
-          <DevBadge feature="schedule" />
+          <h3 className="min-w-0 flex-1 text-[1.2rem] leading-snug font-bold text-white">毎月のExcel作業を、確認するだけの業務へ。</h3>
+          <span className="shrink-0">
+            <DevBadge feature="schedule" />
+          </span>
         </div>
-        <p className="mt-2.5 text-[0.92rem] leading-relaxed text-subtle">
-          ファイルの取得から加工・集計、品質検証、保存までを、決まった日時に自動で実行。
-          <span className="font-bold text-white">通常時は、結果を確認するだけ。</span>
-          問題があれば<span className="font-bold text-kaizen-text">正式な出力を止めて</span>お知らせします。
-        </p>
+        <p className="mt-3 text-[0.92rem] leading-relaxed text-subtle">ファイルの取得から加工・集計、品質検証、保存まで、決まった日時に自動実行します。</p>
+        <div className="mt-3 rounded-xl border px-4 py-3" style={{ backgroundColor: '#17362E', borderColor: '#327D69' }} aria-label="正常時は、結果を確認するだけ">
+          <p className="flex items-center gap-2 text-[1.12rem] font-bold" style={{ color: '#39D9AD' }}>
+            <CircleCheck className="size-5 shrink-0" aria-hidden />
+            正常時は、結果を確認するだけ。
+          </p>
+          <p className="mt-1 text-[0.86rem] leading-relaxed" style={{ color: '#D1DED8' }}>
+            異常があれば<span className="font-bold text-kaizen-text">正式な出力を止め</span>、確認が必要なことをお知らせします。
+          </p>
+        </div>
       </div>
       <div>
         <p className="text-[0.85rem] font-bold text-white/90">設定しただけでは動きません。5つの確認を通ってから始めます</p>
