@@ -585,7 +585,7 @@ function TryOwnExcel() {
   return (
     <section id="try" className="relative scroll-mt-16 overflow-hidden bg-canvas">
       <div className="pointer-events-none absolute -bottom-48 -left-24 h-[460px] w-[680px] bg-[radial-gradient(closest-side,rgba(56,217,173,0.12),transparent)]" />
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-14 lg:py-14">
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-14">
         <div>
           <SectionHeading
             eyebrow="自分のExcelで試す"
@@ -621,28 +621,31 @@ function TryOwnExcel() {
         </div>
 
         {/*
-          対応形式・AIの利用条件は、必要なときに確かめる補足情報。
-          以前は明るいパネルで左側のボタンより目立っていたため、暗い面にそろえ、横幅もやや狭くした
+          対応形式・AIの利用条件は、必要なときに確かめる補足情報（優先度：左の使い方とボタン ＞ 対応形式 ＞ AIの利用条件）。
+          2つの独立したカードにし、左の列の高さに合わせて上下に分ける（左右の重心をそろえる。カードは引き伸ばさない）。
+          上端は左の「3つの使い方」の上端に、下端は「自分のExcelで試す」ボタンの下端に近づける（カードの間は最小 1.25rem）
         */}
-        <div className="self-start rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6" aria-label="対応形式とAI機能の利用について">
-          <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-white">
-            <FileSpreadsheet className="size-5 text-mint" aria-hidden />
-            対応形式
-          </h3>
-          <dl className="mt-3 divide-y divide-edge rounded-xl ring-1 ring-edge">
-            {SPECS.map((s) => (
-              <div key={s.k} className="grid gap-0.5 px-4 py-2.5 sm:grid-cols-[8.5rem_1fr] sm:gap-3">
-                <dt className="text-[0.86rem] font-bold text-subtle">{s.k}</dt>
-                <dd className="text-[0.92rem] text-white/90">{s.v}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="mt-4 rounded-xl bg-mint-deep p-4 ring-1 ring-mint-line">
-            <p className="flex items-center gap-2 font-bold text-mint-title">
-              <KeyRound className="size-4.5" aria-hidden />
+        <div className="flex flex-col gap-5 lg:justify-between lg:pt-[9.4rem]">
+          <div className="rounded-2xl bg-panel p-5 ring-1 ring-edge sm:p-6" role="region" aria-label="対応形式">
+            <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-white">
+              <FileSpreadsheet className="size-5 text-mint" aria-hidden />
+              対応形式
+            </h3>
+            <dl className="mt-3 divide-y divide-edge rounded-xl ring-1 ring-edge">
+              {SPECS.map((s) => (
+                <div key={s.k} className="grid gap-0.5 px-3.5 py-2.5 sm:grid-cols-[8rem_1fr] sm:gap-2.5">
+                  <dt className="text-[0.86rem] font-bold text-subtle">{s.k}</dt>
+                  <dd className="text-[0.92rem] text-white/90">{s.v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          <div className="rounded-2xl bg-mint-deep p-5 ring-1 ring-mint-line sm:p-6" role="region" aria-label="AI機能の利用について">
+            <h3 className="flex items-center gap-2 text-[1.05rem] font-bold text-mint-title">
+              <KeyRound className="size-5" aria-hidden />
               AI機能の利用について
-            </p>
-            <p className="mt-1.5 text-[0.9rem] leading-relaxed text-mint-body">
+            </h3>
+            <p className="mt-2 text-[0.9rem] leading-relaxed text-mint-body">
               AIによる作業手順の作成や改善の提案には、<span className="font-bold text-white">AI使用パスワード</span>が必要です。AIを使う操作のときにだけ入力を求めます。
             </p>
             <p className="mt-1 text-[0.88rem] leading-relaxed text-subtle">ファイルの読み込みや、Excelの加工・集計など、AIを使わない機能はパスワードなしで使えます。</p>
