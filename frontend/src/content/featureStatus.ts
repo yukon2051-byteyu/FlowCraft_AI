@@ -27,6 +27,12 @@ export const FEATURE_STATUS = {
   stepReuse: 'in_development',
   /** 品質検証の結果表示 */
   quality: 'available',
+  /** 品質MVP：前回実行との比較（docs/quality-mvp-design.md） */
+  previousCompare: 'in_development',
+  /** 品質MVP：品質ルールの複製・再利用 */
+  ruleReuse: 'in_development',
+  /** 品質MVP：品質検証の履歴（どの版のルールで、どのデータを検証したか） */
+  qualityHistory: 'in_development',
   /** デモ */
   demo: 'available',
   /** デモの案件（M1-2：データと作業手順を作成済み） */

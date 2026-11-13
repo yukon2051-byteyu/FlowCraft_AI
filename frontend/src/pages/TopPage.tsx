@@ -1,6 +1,11 @@
 import {
   Building2,
   ArrowRight,
+  ChartColumn,
+  History,
+  Layers,
+  TrendingDown,
+  TrendingUp,
   Cloud,
   Monitor,
   CalendarClock,
@@ -39,7 +44,7 @@ import { DevBadge } from '../components/ui/DevBadge'
 /*
  * TOPページ（全面改修：新しい製品コンセプト）
  * 伝えること：①その作業は本当に必要か ②不要な作業は減らし、必要な作業は効率化する ③処理して終わりではなく、結果の正しさまで確認する
- * 構成：ヒーロー → FlowCraft AIの6つの特徴 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 処理できた、だけで終わらせない
+ * 構成：ヒーロー → FlowCraft AIの6つの特徴 → 自動化だけでは終わらない（4つの段階）→ デモ → 自分のExcelで試す → 品質の確認
  * 未実装の機能には「開発中」を表示する（content/featureStatus.ts で一元管理）。
  */
 export default function TopPage() {
@@ -684,23 +689,37 @@ function TryOwnExcel() {
   )
 }
 
-/* ================= 処理できた、だけで終わらせない ================= */
+/* ================= 品質の確認（決めた基準で、毎回検証） ================= */
 
 /** 見つける品質異常の例（コーラル＝異常・リスク） */
 const ANOMALIES = ['集計結果の不一致', '商品コードの照合漏れ', '必須項目の欠損', '対象期間外のデータ', '重複データ']
 
-/** 見つけてから止めるまで */
+/** 決めた基準で検証してから出力するまで */
 const TRUST_FLOW: { icon: LucideIcon; title: string; body: string }[] = [
-  { icon: ScanSearch, title: '検出する', body: '自動で行う確認（結合で行が増えていないか、集計前後の合計など）と、業務ごとの完了基準を、毎回プログラムで確かめます。' },
-  { icon: ListChecks, title: '根拠と原因を示す', body: '件数・該当する行・判定の理由を示します。照合漏れは「空白」「マスタにない」「空欄」など原因ごとに分けます。' },
-  { icon: ShieldCheck, title: '出力を止める', body: '重大な問題があれば、正式な結果を出力しません。原因を調べるための確認結果だけを出力できます。' },
+  { icon: ScanSearch, title: 'ルールで検証', body: '件数・金額・期間・重複などを、設定した基準で確認します。' },
+  { icon: ListChecks, title: '根拠を記録', body: '異常件数・該当行・判定理由を、後から確認できる形で残します。' },
+  { icon: ShieldCheck, title: '誤出力を防ぐ', body: '重大な異常を検出した場合、正式な結果の出力を停止します。' },
 ]
 
 /** 判定の色（ページ全体で同じ意味） */
 const VERDICTS: { label: string; note: string; cls: string }[] = [
-  { label: '正常', note: 'そのまま出力', cls: 'bg-mint/12 text-mint ring-mint/40' },
+  { label: '正常', note: '正式出力', cls: 'bg-mint/12 text-mint ring-mint/40' },
   { label: '注意・未検証', note: '確認してから出力', cls: 'bg-warning/12 text-warning ring-warning/40' },
-  { label: '重大', note: '出力を停止', cls: 'bg-kaizen/12 text-kaizen-text ring-kaizen/45' },
+  { label: '重大', note: '正式出力を停止', cls: 'bg-kaizen/12 text-kaizen-text ring-kaizen/45' },
+]
+
+/** 品質検証の強化（品質MVP）。完成するまで「開発中」 */
+const QUALITY_PLUS: { icon: LucideIcon; title: string; body: string; feature: FeatureKey }[] = [
+  { icon: ChartColumn, title: '前回と比較', body: '前月からの件数・金額・異常件数の変化を確認', feature: 'previousCompare' },
+  { icon: Layers, title: 'ルールを再利用', body: '作成した品質ルールを、別の業務にも複製して活用', feature: 'ruleReuse' },
+  { icon: History, title: '履歴を追跡', body: 'いつ、どの版のルールで、どのデータから何を検出したかを確認', feature: 'qualityHistory' },
+]
+
+/** 前回との比較の表示例（架空のデータ。実際の実行結果ではない） */
+const SAMPLE_COMPARE: { item: string; before: string; after: string; change: string; flagged: boolean; dir: 'down' | 'up' }[] = [
+  { item: '売上件数', before: '1,200件', after: '850件', change: '-29.2%', flagged: true, dir: 'down' },
+  { item: '売上金額', before: '12,500,000円', after: '11,800,000円', change: '-5.6%', flagged: false, dir: 'down' },
+  { item: '照合漏れ', before: '2件', after: '15件', change: '+13件', flagged: true, dir: 'up' },
 ]
 
 const CAUTIONS: { icon: LucideIcon; text: string }[] = [
@@ -711,11 +730,16 @@ const CAUTIONS: { icon: LucideIcon; text: string }[] = [
 ]
 
 function Trust() {
+  const plusAllInDev = QUALITY_PLUS.every((q) => !isAvailable(q.feature))
   return (
     <section id="trust" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8 lg:py-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <SectionHeading eyebrow="品質の確認" title="処理できた、だけで終わらせない。" lead="エラーなく処理が終わっても、業務として正しいとは限りません。問題を見つけ、根拠を示し、誤った結果の出力を止めます。" />
+          <SectionHeading
+            eyebrow="品質の確認"
+            title="AIの判断だけに頼らない。決めた基準で、毎回検証。"
+            lead="処理が成功しても、業務上正しいとは限りません。設定した完了基準に沿って、異常の検出・根拠の記録・正式出力の可否判定まで行います。"
+          />
           <DevBadge feature="quality" className="mb-1" />
         </div>
         <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
@@ -741,18 +765,108 @@ function Trust() {
               ))}
             </ul>
           </div>
-          <ol className="grid gap-3 sm:grid-cols-3" aria-label="見つけてから止めるまで">
-            {TRUST_FLOW.map((t, i) => (
-              <li key={t.title} className="rounded-2xl bg-panel p-4 ring-1 ring-edge">
-                <p className="flex items-center gap-2 font-bold text-white">
-                  <span className="grid size-6 place-items-center rounded-full bg-white/10 text-[0.8rem]">{i + 1}</span>
-                  <t.icon className={`size-4.5 ${i === 2 ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
-                  {t.title}
-                </p>
-                <p className="mt-2 text-[0.88rem] leading-relaxed text-subtle">{t.body}</p>
-              </li>
-            ))}
-          </ol>
+          <div className="flex flex-col gap-4">
+            <ol className="grid gap-3 sm:grid-cols-3" aria-label="決めた基準で検証してから出力するまで">
+              {TRUST_FLOW.map((t, i) => (
+                <li key={t.title} className="rounded-2xl bg-panel p-4 ring-1 ring-edge">
+                  <p className="flex items-center gap-2 font-bold text-white">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white/10 text-[0.72rem] tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                    <t.icon className={`size-4.5 shrink-0 ${i === 2 ? 'text-kaizen' : 'text-mint'}`} aria-hidden />
+                    {t.title}
+                  </p>
+                  <p className="mt-2 text-[0.88rem] leading-relaxed text-subtle">{t.body}</p>
+                </li>
+              ))}
+            </ol>
+            {/* 品質MVPで追加する3つの機能（完成するまで「開発中」。featureStatus.ts で切り替える） */}
+            <div className="relative flex-1 rounded-2xl bg-mint/6 px-4 pt-6 pb-4 ring-1 ring-mint/40" role="region" aria-label="品質検証のさらなる強化">
+              <span className="absolute -top-2.5 left-4 flex items-center gap-2">
+                <span className="rounded-full bg-[#17362E] px-2.5 py-0.5 text-[0.75rem] font-bold text-mint ring-1 ring-mint/50">さらに強化</span>
+                {/* 3つとも開発中のあいだは、バッジを1つにまとめる（一部が完成したら、項目ごとに出す） */}
+                {plusAllInDev && (
+                  <span className="rounded-full bg-nav">
+                    <DevBadge feature="previousCompare" />
+                  </span>
+                )}
+              </span>
+              <ul className="grid gap-3 sm:grid-cols-3 sm:divide-x sm:divide-mint/20">
+                {QUALITY_PLUS.map((q) => (
+                  <li key={q.title} className="sm:px-3 sm:first:pl-0 sm:last:pr-0">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold text-white">
+                      <q.icon className="size-4.5 shrink-0 text-mint" aria-hidden />
+                      {q.title}
+                      {!plusAllInDev && <DevBadge feature={q.feature} />}
+                    </p>
+                    <p className="mt-1.5 text-[0.85rem] leading-relaxed text-subtle">{q.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* 前回との比較の表示例。架空のデータで、実際の実行結果ではないことを明示する */}
+        <div className="mt-4 rounded-2xl bg-panel p-5 ring-1 ring-edge" role="region" aria-label="前回との比較の表示例">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-bold text-white">例：前回との比較（売上集計の結果）</p>
+            <span className="rounded-full bg-white/8 px-2 py-0.5 text-[0.75rem] text-subtle ring-1 ring-white/15">架空のデータによる表示例</span>
+            <DevBadge feature="previousCompare" />
+          </div>
+          <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-center">
+            <table className="w-full overflow-hidden rounded-xl text-[0.88rem] ring-1 ring-edge">
+              <thead className="bg-white/4 text-[0.8rem] text-subtle">
+                <tr>
+                  <th className="px-3 py-2 text-left font-bold">項目</th>
+                  <th className="px-3 py-2 text-right font-bold">前月（10月）</th>
+                  <th className="px-3 py-2 text-right font-bold">今月（11月）</th>
+                  <th className="px-3 py-2 text-center font-bold">変化</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SAMPLE_COMPARE.map((r) => (
+                  <tr key={r.item} className="border-t border-edge">
+                    <td className="px-3 py-2 font-bold text-white">{r.item}</td>
+                    <td className="px-3 py-2 text-right text-white/80 tabular-nums">{r.before}</td>
+                    <td className="px-3 py-2 text-right text-white tabular-nums">{r.after}</td>
+                    <td className="px-3 py-2 text-center">
+                      {/* 注意すべき変化だけを色で強調する（正常な増減は強調しない） */}
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.82rem] font-bold tabular-nums ring-1 ${
+                          r.flagged ? 'bg-warning/12 text-warning ring-warning/40' : 'bg-white/6 text-white/75 ring-white/15'
+                        }`}
+                      >
+                        {r.dir === 'down' ? <TrendingDown className="size-3.5" aria-hidden /> : <TrendingUp className="size-3.5" aria-hidden />}
+                        {r.change}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="lg:border-l lg:border-edge lg:pl-5">
+              <p className="text-[0.88rem] font-bold text-white/85">検証結果</p>
+              <p className="mt-2 flex items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[0.88rem] text-white ring-1 ring-warning/40">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                <span>
+                  <b className="text-warning">注意：</b>前月から売上件数が29.2%減少しています。
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1.5 text-[0.86rem] text-white/85">
+                <li className="flex items-center gap-2">
+                  <CircleCheck className="size-4 shrink-0 text-mint" aria-hidden />
+                  必須項目の欠損：0件
+                </li>
+                <li className="flex items-center gap-2">
+                  <CircleCheck className="size-4 shrink-0 text-mint" aria-hidden />
+                  重複データ：0件
+                </li>
+                <li className="flex items-center gap-2">
+                  <TriangleAlert className="size-4 shrink-0 text-warning" aria-hidden />
+                  マスタ照合漏れ：15件（前月：2件、+13件）
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
         <p className="mt-3 text-[0.85rem] text-subtle">
           確認できるのは、自動で行う確認と、設定した完了基準の範囲です。すべての誤りを見つけられるわけではありません。単発の作業にも同じ確認を行います。
