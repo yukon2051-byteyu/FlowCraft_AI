@@ -211,9 +211,10 @@ function Reasons() {
           title="Excelの処理だけでなく、その前と後ろまで。"
           lead="作業そのものを見直し、処理した結果が正しいかまで確かめる。生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。"
         />
-        <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        {/* 右側（02〜05）を少し広げて見出し・説明文の折り返しを減らし、カードの縦幅を抑える（01 はその高さに合わせて縮む） */}
+        <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
           {/* ⑤ 新しい価値：大きく見せる */}
-          <article className="relative overflow-hidden rounded-2xl bg-panel p-6 ring-1 ring-edge sm:p-7">
+          <article className="relative overflow-hidden rounded-2xl bg-panel p-6 ring-1 ring-edge">
             <span className="absolute inset-x-0 top-0 h-1 bg-kaizen" aria-hidden />
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
@@ -228,9 +229,9 @@ function Reasons() {
                 作業の必要性・<span className="font-bold text-kaizen-text">ムダ・重複している工程を見直します。</span>
                 <span className="font-bold text-white">不要な作業は、わざわざ自動化しません。</span>
               </p>
-              <ol className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <ol className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
                 {KAIZEN_WAYS.map((w, i) => (
-                  <li key={w.label} className={`rounded-xl px-3 py-2.5 ring-1 ${i === 3 ? 'bg-mint/12 ring-mint/40' : 'bg-panel-hi ring-edge'}`}>
+                  <li key={w.label} className={`rounded-xl px-3 py-2 ring-1 ${i === 3 ? 'bg-mint/12 ring-mint/40' : 'bg-panel-hi ring-edge'}`}>
                     <span className={`block font-bold ${i === 3 ? 'text-mint' : 'text-white'}`}>
                       {i + 1}. {w.label}
                     </span>
@@ -242,26 +243,33 @@ function Reasons() {
                 <CircleHelp className="mt-0.5 size-4 shrink-0 text-subtle" aria-hidden />
                 診断するかどうかは自由です。業務上必要な作業の廃止を強制することはありません。
               </p>
-              <SectionLink target="flow" label="改善診断について見る" />
+              <div className="mt-4">
+                <SectionLink target="flow" label="改善診断について見る" />
+              </div>
             </div>
           </article>
 
           {/* ①〜④ */}
           <div className="grid gap-4 sm:grid-cols-2">
             {REASONS.map((r) => (
-              <article key={r.title} className="rounded-2xl bg-panel p-5 ring-1 ring-edge">
+              <article key={r.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="grid size-10 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
+                  <span className="grid size-9 place-items-center rounded-xl bg-mint/12 text-mint ring-1 ring-mint/30">
                     <r.icon className="size-5" aria-hidden />
                   </span>
                   <DevBadge feature={r.feature} />
                 </div>
-                <h3 className="mt-3 flex items-baseline gap-2 text-[1.08rem] font-bold text-white">
+                <h3 className="mt-3 flex items-baseline gap-2 text-[1.04rem] font-bold text-white">
                   <span className="text-[0.8rem] text-subtle/70 tabular-nums">{r.no}</span>
                   {r.title}
                 </h3>
-                <p className="mt-1.5 text-[0.92rem] leading-relaxed text-subtle">{r.body}</p>
-                {r.more && <SectionLink target={r.more.target} label={r.more.label} />}
+                <p className="mt-2 text-[0.92rem] leading-relaxed text-subtle">{r.body}</p>
+                {/* リンクはカードの下端にそろえる（リンクのないカードには場所を取らない） */}
+                {r.more && (
+                  <div className="mt-auto pt-3.5">
+                    <SectionLink target={r.more.target} label={r.more.label} />
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -955,7 +963,8 @@ function SectionLink({ target, label }: { target: string; label: string }) {
         e.preventDefault()
         scrollToSection(target)
       }}
-      className="group mt-3 inline-flex items-center gap-1 rounded text-[0.85rem] font-semibold text-mint transition-colors hover:text-[#5BE3BE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint"
+      // 「詳しく見る」系の操作だけに使う淡いブルーの小さなボタン（本文の強調に使うミントと区別する。主な操作のボタンより控えめに）
+      className="group inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#52799E] bg-[#29394B] px-3 text-[0.84rem] font-semibold text-[#A9D2FF] transition-colors hover:border-[#6E96BC] hover:bg-[#32465C] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A9D2FF]"
     >
       {label}
       <ArrowDownRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:translate-y-0.5" aria-hidden />
