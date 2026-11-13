@@ -149,7 +149,9 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
             columns.append(col.name)
             specs[col.name] = ColumnSpec(col.type, col.scale)
             data[col.name] = [None] * n_rows
-            issues.append(EngineIssue("OPTIONAL_COLUMN_ADDED", "info", f"任意の列「{col.name}」がファイルにないため、空欄の列として追加しました。"))
+            issues.append(
+                EngineIssue("OPTIONAL_COLUMN_ADDED", "info", f"任意の列「{col.name}」がファイルにないため、空欄の列として追加しました。", details={"column": col.name})
+            )
 
     if skipped:
         issues.append(

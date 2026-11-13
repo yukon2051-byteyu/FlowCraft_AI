@@ -60,6 +60,8 @@ class ValidateRequest(BaseModel):
 class ExecuteRequest(BaseModel):
     flow: dict[str, Any]
     bindings: list[BindingIn] = Field(default_factory=list)
+    # 実行時に指定する値（例 {"target_month": "2026-10"}）。完了基準の評価に使う
+    run_parameters: Annotated[dict[Annotated[str, Field(max_length=64)], Annotated[str, Field(max_length=200)]], Field(max_length=20)] = Field(default_factory=dict)
 
 
 class PreviewRequest(ExecuteRequest):
@@ -137,6 +139,18 @@ class OutputSheetOut(BaseModel):
     reference: str
 
 
+class CriterionResultOut(BaseModel):
+    criterion_id: str
+    name: str
+    kind: str
+    on_fail: str
+    status: str  # passed／failed／unverified／not_applicable／recorded
+    summary: str
+    evidence: dict[str, str]
+    examples: list[dict[str, Any]]
+    how_to_fix: str | None
+
+
 class RunSummary(BaseModel):
     run_id: str
     status: str
@@ -149,6 +163,8 @@ class RunSummary(BaseModel):
     flow_issues: list[IssueOut]
     outputs: list[OutputSheetOut]
     fingerprints: dict[str, str]
+    criteria: list[CriterionResultOut] = Field(default_factory=list)
+    run_parameters: dict[str, str] = Field(default_factory=dict)
 
 
 class RunDetail(RunSummary):
@@ -210,7 +226,7 @@ def _preview(ref: str, t: Table, limit: int) -> TablePreview:
     return TablePreview(reference=ref, columns=list(t.columns), types=[t.type_of(c) for c in t.columns], rows=rows, shown=len(rows), total=t.row_count)
 
 
-def _summary(run_id: str, ex: Execution, fhash: str, executed_at: datetime) -> dict[str, Any]:
+def _summary(run_id: str, ex: Execution, fhash: str, executed_at: datetime, run_values: dict[str, str] | None = None) -> dict[str, Any]:
     r: RunResult = ex.result
     return {
         "run_id": run_id,
@@ -224,6 +240,8 @@ def _summary(run_id: str, ex: Execution, fhash: str, executed_at: datetime) -> d
         "flow_issues": [_issue(i) for i in r.flow_issues],
         "outputs": [OutputSheetOut(sheet_name=o.sheet_name, reference=o.reference) for o in r.outputs],
         "fingerprints": r.fingerprints,
+        "criteria": [CriterionResultOut(**jsonable_encoder(asdict(c))) for c in r.criteria],
+        "run_parameters": dict(run_values or {}),
     }
 
 
@@ -301,15 +319,15 @@ def execute(
 ) -> RunSummary:
     """本番の実行。未確定のノード・構造エラーがあれば実行せず、理由を返す（status=failed）。"""
     flow = _parse_or_422(req.flow)
-    ex = run_flow(flow, _bindings(flow, req.bindings), session.files, limits=_limits(settings), require_confirmed=True)
+    ex = run_flow(flow, _bindings(flow, req.bindings), session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters)
     run_id = "r_" + secrets.token_urlsafe(9)
     executed_at = datetime.now(timezone.utc)
     fhash = flow_hash(flow)
     # Excel出力（処理の記録）のため、実行した作業手順も一緒に持つ（セッションの中だけ。保存はしない）
-    session.runs[run_id] = {"execution": ex, "flow_hash": fhash, "executed_at": executed_at, "flow": flow}
+    session.runs[run_id] = {"execution": ex, "flow_hash": fhash, "executed_at": executed_at, "flow": flow, "run_values": dict(req.run_parameters)}
     while len(session.runs) > MAX_STORED_RUNS:  # 古い実行結果から捨てる（メモリ保護）
         session.runs.pop(next(iter(session.runs)))
-    return RunSummary(**_summary(run_id, ex, fhash, executed_at))
+    return RunSummary(**_summary(run_id, ex, fhash, executed_at, req.run_parameters))
 
 
 @router.get("/runs/{run_id}", response_model=RunDetail)
@@ -319,7 +337,7 @@ def run_detail(run_id: str, limit: Annotated[int, Query(ge=1, le=200)] = PREVIEW
         raise AppError(404, "RUN_NOT_FOUND", "実行結果が見つかりません。", how_to_fix="もう一度実行してください。古い実行結果は自動で削除されます。")
     ex: Execution = stored["execution"]
     previews = [_preview(o.reference, ex.tables[o.reference], limit) for o in ex.result.outputs if o.reference in ex.tables]
-    return RunDetail(**_summary(run_id, ex, stored["flow_hash"], stored["executed_at"]), output_previews=previews)
+    return RunDetail(**_summary(run_id, ex, stored["flow_hash"], stored["executed_at"], stored.get("run_values")), output_previews=previews)
 
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

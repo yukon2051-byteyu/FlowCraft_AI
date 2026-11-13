@@ -21,17 +21,17 @@ def _key_text(key: tuple[Any, ...]) -> str:
     return " / ".join(to_string(v) or "（空欄）" for v in key)
 
 
-@register("duplicates")
-def run_duplicates(node: DuplicatesNode, inputs: list[Table], ctx: NodeContext) -> NodeOutput:
-    table = inputs[0]
-    p = node.parameters
-    require_columns(table, p.key_columns, node.node_name)
-    keys = [tuple(table.data[c][i] for c in p.key_columns) for i in range(table.row_count)]
+def find_duplicates(table: Table, key_columns: list[str]) -> tuple[list[tuple[Any, ...]], dict[str, Any]]:
+    """キーの重複を数える（「重複の確認」ステップと、完了基準「重複がない」で共用）。
+
+    戻り値：各行のキー、詳細（重複したキーの種類数・重複している行数・例・キーに空欄を含む行数）。
+    空欄どうしは同じ値として扱う。
+    """
+    keys = [tuple(table.data[c][i] for c in key_columns) for i in range(table.row_count)]
     counts = Counter(keys)
     dup_keys = {k: n for k, n in counts.items() if n > 1}
     dup_rows = sum(dup_keys.values())
     blank_key_rows = sum(1 for k in keys if any(v is None for v in k))
-    key_label = "・".join(p.key_columns)
 
     # 重複が多い順（同数なら最初に現れた順）に例を示す。行番号は1回のループで集める（大量データでも遅くならないように）
     rows_of: dict[tuple[Any, ...], list[int]] = {}
@@ -40,7 +40,20 @@ def run_duplicates(node: DuplicatesNode, inputs: list[Table], ctx: NodeContext) 
             rows_of.setdefault(k, []).append(i + 1)
     ranked = sorted(dup_keys.items(), key=lambda kn: (-kn[1], rows_of[kn[0]][0]))[:MAX_EXAMPLES]
     examples = [{"key": _key_text(k), "count": n, "rows": rows_of[k][:MAX_EXAMPLES]} for k, n in ranked]
-    details = {"duplicate_keys": len(dup_keys), "duplicate_rows": dup_rows, "examples": examples, "blank_key_rows": blank_key_rows}
+    return keys, {"duplicate_keys": len(dup_keys), "duplicate_rows": dup_rows, "examples": examples, "blank_key_rows": blank_key_rows}
+
+
+@register("duplicates")
+def run_duplicates(node: DuplicatesNode, inputs: list[Table], ctx: NodeContext) -> NodeOutput:
+    table = inputs[0]
+    p = node.parameters
+    require_columns(table, p.key_columns, node.node_name)
+    keys, details = find_duplicates(table, p.key_columns)
+    dup_keys = details["duplicate_keys"]
+    dup_rows = details["duplicate_rows"]
+    blank_key_rows = details["blank_key_rows"]
+    examples = details["examples"]
+    key_label = "・".join(p.key_columns)
     issues = []
     if blank_key_rows:
         issues.append(info("BLANK_KEYS", f"キー（{key_label}）に空欄を含む行が{blank_key_rows:,}行あります。空欄どうしは同じ値として扱います。"))
@@ -52,7 +65,7 @@ def run_duplicates(node: DuplicatesNode, inputs: list[Table], ctx: NodeContext) 
                 0,
                 warning(
                     "DUPLICATES_FOUND",
-                    f"キー（{key_label}）が重複している行が{dup_rows:,}行（{len(dup_keys):,}種類）あります。",
+                    f"キー（{key_label}）が重複している行が{dup_rows:,}行（{dup_keys:,}種類）あります。",
                     cause=f"例：{ex}",
                     how_to_fix="意図しない重複の場合は、元データを確認するか「重複を除去」を選んでください。",
                     **details,

@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass
 
 from app import ENGINE_VERSION
+from app.criteria.evaluate import evaluate_criteria
 from app.engine import nodes as _nodes  # noqa: F401  ノードを registry に登録する
 from app.engine.registry import NodeContext, get_handler
 from app.engine.result import EngineIssue, NodeFailure, NodeRun, OutputSheet, RunResult
@@ -44,11 +45,15 @@ def run_flow(
     limits: RunLimits | None = None,
     require_confirmed: bool = True,
     stop_after: str | None = None,
+    run_values: dict[str, str] | None = None,
 ) -> Execution:
     """フローを実行する。
 
     require_confirmed=False：プレビュー用。未確定ノードがあっても実行する（成果物は作らない）
     stop_after：このノードまで実行して止める（プレビュー用）
+    run_values：実行時に指定する値（例 {"target_month": "2026-10"}）。完了基準の評価に使う
+    本番の実行（require_confirmed=True かつ stop_after なし）では、最後に完了基準を評価する（タスク2-2）。
+    途中で止まった場合も評価し、確かめられなかった基準は「未検証」になる。
     """
     limits = limits or RunLimits()
     started = time.perf_counter()
@@ -57,7 +62,10 @@ def run_flow(
     if blockers:
         issues = [EngineIssue(b.code, "error", b.message, details={"node_id": b.node_id}) for b in blockers]
         runs = [NodeRun(n.node_id, n.node_type, n.node_name, "skipped") for n in flow.nodes]
-        return Execution(RunResult("failed", ENGINE_VERSION, runs, flow_issues=issues), {})
+        blocked = RunResult("failed", ENGINE_VERSION, runs, flow_issues=issues)
+        if require_confirmed:
+            blocked.criteria = evaluate_criteria(flow, blocked, {}, run_values)
+        return Execution(blocked, {})
 
     ctx = NodeContext(
         bindings=bindings,
@@ -143,4 +151,7 @@ def run_flow(
         fingerprints={} if failed else {o.reference: tables[o.reference].fingerprint() for o in outputs if o.reference in tables},
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
+    if require_confirmed and stop_after is None:
+        result.criteria = evaluate_criteria(flow, result, tables, run_values)
+        result.duration_ms = int((time.perf_counter() - started) * 1000)
     return Execution(result, tables)

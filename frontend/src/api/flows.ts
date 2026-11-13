@@ -87,6 +87,23 @@ export type RunSummary = {
   flow_issues: EngineIssue[]
   outputs: { sheet_name: string; reference: string }[]
   fingerprints: Record<string, string>
+  /** 完了基準の評価結果（タスク2-2）。表示は 2-5 で作る */
+  criteria: CriterionResult[]
+  /** 実行時に指定した値 */
+  run_parameters: Record<string, string>
+}
+
+/** 完了基準1つの評価結果。unverified（未検証）は「確かめられなかった」で、満たしているとはみなさない */
+export type CriterionResult = {
+  criterion_id: string
+  name: string
+  kind: string
+  on_fail: 'critical' | 'caution' | 'record' | string
+  status: 'passed' | 'failed' | 'unverified' | 'not_applicable' | 'recorded' | string
+  summary: string
+  evidence: Record<string, string>
+  examples: Record<string, unknown>[]
+  how_to_fix: string | null
 }
 
 export type RunDetail = RunSummary & { output_previews: TablePreview[] }
@@ -100,8 +117,12 @@ export function previewStep(flow: FlowDoc, bindings: Binding[], nodeId: string, 
 }
 
 /** 作業手順全体を実行する（すべてのステップが確認済みであること） */
-export function runFlow(flow: FlowDoc, bindings: Binding[]): Promise<RunSummary> {
-  return apiRequest<RunSummary>('/api/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(flow, bindings) })
+export function runFlow(flow: FlowDoc, bindings: Binding[], runParameters: Record<string, string> = {}): Promise<RunSummary> {
+  return apiRequest<RunSummary>('/api/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body(flow, bindings, { run_parameters: runParameters }),
+  })
 }
 
 export function fetchRun(runId: string, limit = 50): Promise<RunDetail> {

@@ -59,6 +59,8 @@ class RunResult:
     outputs: list[OutputSheet] = field(default_factory=list)
     fingerprints: dict[str, str] = field(default_factory=dict)  # 参照名 → 表の指紋
     duration_ms: int = 0
+    # 完了基準の評価結果（app.criteria.evaluate.CriterionResult）。本番の実行のときだけ作る
+    criteria: list[Any] = field(default_factory=list)
 
     @property
     def can_export(self) -> bool:
