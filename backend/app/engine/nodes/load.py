@@ -18,6 +18,7 @@ from app.engine.convert import convert_value, to_string
 from app.engine.registry import NodeContext, NodeOutput, register
 from app.engine.result import EngineIssue, NodeFailure
 from app.engine.table import ColumnSpec, Table
+from app.files.blanks import detect_blanks
 from app.files.profile import build_table
 from app.flow.schema import LoadNode
 
@@ -38,6 +39,23 @@ class Binding:
 
 def _fail(code: str, message: str, how_to_fix: str, cause: str | None = None, **details: object) -> NodeFailure:
     return NodeFailure(EngineIssue(code, "error", message, cause=cause, how_to_fix=how_to_fix, details=dict(details)))
+
+
+def _blank_message(report, rules, drop: set[int], last_row: int | None) -> str:
+    parts: list[str] = []
+    n_mid = len(report.middle_blank_rows)
+    if n_mid:
+        how = {"skip": "区切りとして除外しました", "keep": "残しています", "unset": "扱いが決まっていません"}.get(rules.blank_rows, "")
+        parts.append(f"表の途中の空白行 {n_mid}行（{how}）")
+    if last_row is not None:
+        how = {"exclude": "除外しました", "data": "データの行として扱っています", "unset": "扱いが決まっていません"}[rules.last_row]
+        parts.append(f"最後の行（{last_row}行目）が合計・メモの行の可能性（{how}）")
+    blanks = sum(c.total for c in report.columns)
+    if blanks:
+        parts.append(f"空欄 {blanks}件")
+    if not report.formulas_checked:
+        parts.append("空の文字列を返す数式は判別できませんでした")
+    return "空白データの確認：" + ("、".join(parts) if parts else "空白行・空欄はありません") + "。"
 
 
 @register("load")
@@ -83,7 +101,49 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
             )
         names[names.index(actual)] = defined
     raw_data = {names[i]: [r[i] for r in src.rows] for i in range(len(names))}
-    n_rows = len(src.rows)
+
+    # 空白データ（Phase Q）：検出し、作業手順の空白のルールを適用する（元のファイルは変えず、読み込んだ写しに適用する）
+    rules = definition.blank_rules
+    report = detect_blanks(raw, binding.header_row, names)
+    excel_rows = [binding.header_row + 1 + i for i in range(len(src.rows))]  # 各行の Excel 上の行番号
+    drop: set[int] = set()
+    if report.middle_blank_rows and rules.blank_rows == "error":
+        shown = "、".join(str(r) for r in report.middle_blank_rows[:10])
+        raise _fail(
+            "BLANK_ROWS_FOUND",
+            f"表の途中に空白行が{len(report.middle_blank_rows)}行あります（Excelの行：{shown}）。",
+            how_to_fix="空白行を取り除いたファイルを使うか、作業手順の空白の扱いを見直してください。",
+            rows=report.middle_blank_rows,
+        )
+    if report.middle_blank_rows and rules.blank_rows == "skip":
+        drop |= {r - binding.header_row - 1 for r in report.middle_blank_rows}
+    last_row = report.total_row_candidates[0].row if report.total_row_candidates else None
+    if last_row is not None and rules.last_row == "exclude":
+        drop.add(last_row - binding.header_row - 1)
+    if rules.whitespace_is_blank:
+        for col_values in raw_data.values():
+            for i, v in enumerate(col_values):
+                if isinstance(v, str) and v != "" and v.strip() == "":
+                    col_values[i] = None
+    if drop:
+        keep = [i for i in range(len(src.rows)) if i not in drop]
+        raw_data = {k: [vals[i] for i in keep] for k, vals in raw_data.items()}
+        excel_rows = [excel_rows[i] for i in keep]
+    n_rows = len(excel_rows)
+    issues.append(
+        EngineIssue(
+            "BLANK_SUMMARY",
+            "info",
+            _blank_message(report, rules, drop, last_row),
+            details={
+                "middle_blank_rows": report.middle_blank_rows,
+                "last_row_candidate": {"row": last_row, "reasons": report.total_row_candidates[0].reasons} if last_row is not None else None,
+                "columns": {c.name: {"count": c.total, "rows": c.rows, "whitespace": c.whitespace_only, "formula": c.formula_blank} for c in report.columns if c.total},
+                "excluded_rows": sorted(binding.header_row + 1 + i for i in drop),
+                "formulas_checked": report.formulas_checked,
+            },
+        )
+    )
 
     # 必須列の確認
     missing = [c.name for c in definition.columns if c.required and c.name not in raw_data]
@@ -119,7 +179,7 @@ def run_load(node: LoadNode, inputs: list[Table], ctx: NodeContext) -> NodeOutpu
                     bad += 1
                     if len(examples) < MAX_EXAMPLES:
                         # 利用者がExcelで探せるよう、シート上の行番号で示す
-                        examples.append({"row": binding.header_row + 1 + i, "value": to_string(v)})
+                        examples.append({"row": excel_rows[i], "value": to_string(v)})
                 converted.append(out)
             if bad:
                 failures[name] = {"type": col.type, "count": bad, "examples": examples}

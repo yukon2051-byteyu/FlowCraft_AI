@@ -3,7 +3,8 @@
  * 画面の部品から切り離した純粋な関数にしておき、単体テストで確かめる。
  */
 
-import type { Binding, ColumnType, FlowNode, InputDefinition } from './types'
+import { DEFAULT_BLANK_RULES } from './types'
+import type { BlankAction, BlankRules, Binding, ColumnType, FlowNode, InputDefinition } from './types'
 
 /** 1つの列について、利用者が決めた内容 */
 export type ColumnChoice = {
@@ -12,6 +13,8 @@ export type ColumnChoice = {
   type: ColumnType
   /** 今後のファイルにも必ずある列か（ない場合は実行前に止める） */
   required: boolean
+  /** 値が空欄のときの扱い（Phase Q）。null＝決めていない（任意の列は許可とみなす。必須の列は実行すると未検証） */
+  blank?: BlankAction | null
 }
 
 /** 1つのファイルについて、利用者が決めた内容 */
@@ -23,6 +26,23 @@ export type InputChoice = {
   headerRow: number
   label: string
   columns: ColumnChoice[]
+  /** 表の途中の空白行・最後の行（合計・メモの可能性）・空白文字の扱い（Phase Q） */
+  blankRules?: BlankRules
+}
+
+/**
+ * 空白データの扱いで、まだ決めていないこと（Phase Q-4・案A）。決めずに作ることもできるが、実行すると「未検証」になる。
+ * blanks：読み込んだファイルの検出結果（列名 → 空欄の件数）、中間の空白行の数、合計の行の可能性の有無
+ */
+export function undecidedBlanks(i: InputChoice, blanks: { columns: Record<string, number>; middleRows: number; lastRow: boolean }): string[] {
+  const out: string[] = []
+  const rules = i.blankRules ?? DEFAULT_BLANK_RULES
+  for (const c of i.columns) {
+    if (c.use && c.required && !c.blank && (blanks.columns[c.name] ?? 0) > 0) out.push(`「${i.fileName}」の「${c.name}」の空欄の扱い`)
+  }
+  if (blanks.middleRows > 0 && rules.blank_rows === 'unset') out.push(`「${i.fileName}」の表の途中の空白行の扱い`)
+  if (blanks.lastRow && rules.last_row === 'unset') out.push(`「${i.fileName}」の最後の行（合計・メモの可能性）の扱い`)
+  return out
 }
 
 // 年月・日付を表す部分（例：2026-10、202610、2026年10月、10月分、R8年10月）
@@ -78,7 +98,8 @@ export function buildFromChoices(inputs: InputChoice[]): {
       file_kind: i.kind,
       sheet_hint: i.kind === 'xlsx' ? i.sheet : null,
       header_row: i.headerRow,
-      columns: i.columns.filter((c) => c.use).map((c) => ({ name: c.name, type: c.type, required: c.required })),
+      columns: i.columns.filter((c) => c.use).map((c) => ({ name: c.name, type: c.type, required: c.required, ...(c.blank ? { blank: { action: c.blank } } : {}) })),
+      blank_rules: { ...DEFAULT_BLANK_RULES, ...(i.blankRules ?? {}) },
     })
     bindings.push({ input_id: id, file_id: i.fileId, sheet: i.kind === 'xlsx' ? i.sheet : null, header_row: i.headerRow, column_mapping: {} })
     loadNodes.push({

@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass
 
 from app import ENGINE_VERSION
+from app.criteria.blank_rules import blank_results
 from app.criteria.evaluate import evaluate_criteria
 from app.criteria.verdict import decide
 from app.engine import nodes as _nodes  # noqa: F401  ノードを registry に登録する
@@ -157,6 +158,8 @@ def run_flow(
     )
     if require_confirmed and stop_after is None:
         result.criteria = evaluate_criteria(flow, result, tables, run_values, history=history, source=source)
+        # 空白のルール（Phase Q）：完了基準と同じ形の結果として、総合判定に入れる
+        result.criteria += blank_results(flow, result)
         result.verdict = decide(result)
         result.duration_ms = int((time.perf_counter() - started) * 1000)
     return Execution(result, tables)

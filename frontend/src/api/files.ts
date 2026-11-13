@@ -27,6 +27,19 @@ export type SheetDetail = {
   columns: ColumnInfo[]
   preview: { columns: string[]; rows: (string | null)[][]; shown: number; total: number }
   warnings: FileWarning[]
+  /** 空白データの検出（Phase Q-2。backend/app/files/blanks.py）。判定はしない */
+  blanks?: BlankDetection | null
+}
+
+export type BlankDetection = {
+  data_rows: number
+  middle_blank_rows: number[]
+  columns: { name: string; blank: number; whitespace_only: number; formula_blank: number; merged: number; rows: number[] }[]
+  merged_ranges: string[]
+  formula_blank_cells: string[]
+  total_row_candidates: { row: number; reasons: string[] }[]
+  formulas_checked: boolean
+  whitespace_cells: string[]
 }
 
 export type SheetSummary = { name: string; hidden: boolean; is_empty: boolean }

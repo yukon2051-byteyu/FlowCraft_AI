@@ -4,7 +4,11 @@ import { useState } from 'react'
 import { ApiError } from '../../api/client'
 import { COLUMN_TYPE_LABEL, typeCheck } from '../../api/files'
 import type { ColumnType, TypeCheckResult } from '../../api/files'
-import { choiceProblems, suggestLabel } from '../../flow/define'
+import { choiceProblems, suggestLabel, undecidedBlanks } from '../../flow/define'
+import { DEFAULT_BLANK_RULES } from '../../flow/types'
+import type { BlankAction, BlankRules } from '../../flow/types'
+
+type ColumnBlank = BlankAction | null
 import type { InputChoice } from '../../flow/define'
 import { Button } from '../ui/Button'
 import { ErrorNotice } from '../ui/ErrorNotice'
@@ -75,6 +79,21 @@ export function DefineInputs({ sources, onBack, onStart, replaceCount = 0, namin
     ...problems,
   ]
   const canStart = reasons.length === 0
+
+  // 空白データ（Phase Q-4）：読み込んだファイルの検出結果。空欄のある列・途中の空白行・合計の行の可能性だけを聞く
+  const blankOf = (fileId: string) => {
+    const b = sources.find((s) => s.summary.file_id === fileId)?.detail.blanks
+    return {
+      columns: Object.fromEntries((b?.columns ?? []).map((x) => [x.name, x.blank + x.whitespace_only + x.formula_blank])),
+      middleRows: b?.middle_blank_rows.length ?? 0,
+      middleList: b?.middle_blank_rows ?? [],
+      last: b?.total_row_candidates[0] ?? null,
+      lastRow: !!b?.total_row_candidates.length,
+    }
+  }
+  // 決めずに作ることもできる（案A：実行すると「未検証」）。決めていないことは下に示す
+  const undecided = choices.flatMap((c) => undecidedBlanks(c, blankOf(c.fileId)))
+  const rulesOf = (c: InputChoice) => c.blankRules ?? DEFAULT_BLANK_RULES
 
   const update = (fileId: string, patch: (c: InputChoice) => InputChoice) => setChoices((all) => all.map((c) => (c.fileId === fileId ? patch(c) : c)))
   const updateColumn = (fileId: string, name: string, patch: Partial<InputChoice['columns'][number]>) =>
@@ -182,6 +201,7 @@ export function DefineInputs({ sources, onBack, onStart, replaceCount = 0, namin
                           </span>
                         </th>
                         <th className="border-b border-line px-2 py-2 text-left font-bold">全件の確認</th>
+                        <th className="border-b border-line px-2 py-2 text-left font-bold whitespace-nowrap">空欄の扱い</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -231,12 +251,70 @@ export function DefineInputs({ sources, onBack, onStart, replaceCount = 0, namin
                               />
                             </td>
                             <td className="px-2 py-2">{col.use && <CheckCell result={current} />}</td>
+                            <td className="px-2 py-2">
+                              {col.use && (blankOf(c.fileId).columns[col.name] ?? 0) > 0 ? (
+                                <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                  <span className="text-[0.82rem] text-muted">空欄 {(blankOf(c.fileId).columns[col.name] ?? 0).toLocaleString()}件</span>
+                                  <select
+                                    value={col.blank ?? ''}
+                                    onChange={(e) => updateColumn(c.fileId, col.name, { blank: (e.target.value || null) as ColumnBlank })}
+                                    aria-label={`「${col.name}」の空欄の扱い`}
+                                    className={`h-8 rounded-lg px-2 ring-1 focus:ring-2 focus:ring-forest focus:outline-none ${
+                                      !col.blank && col.required ? 'bg-warning-soft ring-warning/50' : 'bg-card ring-line'
+                                    }`}
+                                  >
+                                    <option value="">{col.required ? '（決めていない）' : '（任意の列：許可）'}</option>
+                                    <option value="allow">許可する</option>
+                                    <option value="caution">注意にする</option>
+                                    <option value="critical">止める（必須項目）</option>
+                                  </select>
+                                </span>
+                              ) : (
+                                <span className="text-[0.82rem] text-muted">{col.use ? '空欄なし' : ''}</span>
+                              )}
+                            </td>
                           </tr>
                         )
                       })}
                     </tbody>
                   </table>
                 </div>
+                {(blankOf(c.fileId).middleRows > 0 || blankOf(c.fileId).lastRow) && (
+                  <div className="mx-6 mb-4 space-y-2 rounded-xl bg-warning-soft/60 px-4 py-3 ring-1 ring-warning/30" role="group" aria-label={`「${c.fileName}」の空白データの確認`}>
+                    <p className="text-[0.88rem] font-bold">空白データの確認（決めた内容は作業手順に保存され、次回から自動で適用されます）</p>
+                    {blankOf(c.fileId).middleRows > 0 && (
+                      <label className="flex flex-wrap items-center gap-2 text-[0.88rem]">
+                        表の途中に空白行が{blankOf(c.fileId).middleRows}行あります（Excelの行：{blankOf(c.fileId).middleList.slice(0, 5).join('、')}）。
+                        <select
+                          value={rulesOf(c).blank_rows}
+                          onChange={(e) => update(c.fileId, (x) => ({ ...x, blankRules: { ...rulesOf(x), blank_rows: e.target.value as BlankRules['blank_rows'] } }))}
+                          aria-label={`「${c.fileName}」の途中の空白行の扱い`}
+                          className="h-8 rounded-lg bg-card px-2 ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
+                        >
+                          <option value="unset">（決めていない）</option>
+                          <option value="skip">区切りとして除外する</option>
+                          <option value="keep">残す</option>
+                          <option value="error">止める</option>
+                        </select>
+                      </label>
+                    )}
+                    {blankOf(c.fileId).last && (
+                      <label className="flex flex-wrap items-center gap-2 text-[0.88rem]">
+                        最後の行（Excelの{blankOf(c.fileId).last!.row}行目）は合計・メモの行の可能性があります：{blankOf(c.fileId).last!.reasons.join('／')}。
+                        <select
+                          value={rulesOf(c).last_row}
+                          onChange={(e) => update(c.fileId, (x) => ({ ...x, blankRules: { ...rulesOf(x), last_row: e.target.value as BlankRules['last_row'] } }))}
+                          aria-label={`「${c.fileName}」の最後の行の扱い`}
+                          className="h-8 rounded-lg bg-card px-2 ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
+                        >
+                          <option value="unset">（決めていない）</option>
+                          <option value="exclude">合計・メモの行なので除外する</option>
+                          <option value="data">データの行として扱う</option>
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                )}
               </section>
             )
           })}
@@ -251,6 +329,11 @@ export function DefineInputs({ sources, onBack, onStart, replaceCount = 0, namin
         <div className="ml-auto flex min-w-0 items-center gap-3">
           {canStart && replaceCount > 0 && (
             <p className="text-right text-[0.85rem] text-warning">作り直すと、追加した処理ステップ（{replaceCount}個）は消えます</p>
+          )}
+          {canStart && undecided.length > 0 && (
+            <p className="min-w-0 text-right text-[0.82rem] text-warning" aria-label="空白データの扱いで決めていないこと">
+              空白データの扱いで決めていないことが{undecided.length}件あります（このまま作れますが、実行すると「未検証」になります）
+            </p>
           )}
           {!canStart && (
             <ul className="min-w-0 text-right text-[0.85rem] text-warning" aria-label="まだ進めない理由">

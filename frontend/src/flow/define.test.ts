@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildFromChoices, choiceProblems, suggestLabel } from './define'
+import { buildFromChoices, undecidedBlanks, choiceProblems, suggestLabel } from './define'
 import type { InputChoice } from './define'
 import { checkOrder, describeInputs } from './ops'
 import { useFlowStore } from './store'
@@ -71,8 +71,28 @@ describe('入力の定義・割当・読み込みステップを作る', () => {
         { name: '商品コード', type: 'string', required: true },
         { name: '金額', type: 'integer', required: true },
       ],
+      // 空白の扱い（Phase Q）：決めていなければ初期値（未定義・空白文字は空欄として扱う）
+      blank_rules: { blank_rows: 'unset', whitespace_is_blank: true, last_row: 'unset' },
     })
     expect(built.definitions[1].sheet_hint).toBeNull() // CSVにシートはない
+  })
+
+  it('空欄の扱いを決めた列は、作業手順に保存する。決めていないことを一覧にする（Phase Q-4）', () => {
+    const c = choice()
+    c.columns = c.columns.map((x) => (x.name === '金額' ? { ...x, blank: 'critical' as const } : x))
+    c.blankRules = { blank_rows: 'skip', whitespace_is_blank: true, last_row: 'unset' }
+    const def = buildFromChoices([c]).definitions[0]
+    expect(def.columns.find((x) => x.name === '金額')?.blank).toEqual({ action: 'critical' })
+    expect(def.columns.find((x) => x.name === '商品コード')?.blank).toBeUndefined()
+    expect(def.blank_rules?.blank_rows).toBe('skip')
+    // 必須の列「商品コード」に空欄があり未定義、最後の行も未定義。空白行は決めてある。金額は決めてある
+    expect(undecidedBlanks(c, { columns: { 商品コード: 2, 金額: 1 }, middleRows: 3, lastRow: true })).toEqual([
+      `「${c.fileName}」の「商品コード」の空欄の扱い`,
+      `「${c.fileName}」の最後の行（合計・メモの可能性）の扱い`,
+    ])
+    // 任意の列の空欄は聞かない
+    c.columns = c.columns.map((x) => ({ ...x, required: false }))
+    expect(undecidedBlanks(c, { columns: { 商品コード: 2 }, middleRows: 0, lastRow: false })).toEqual([])
   })
 
   it('入力の割当はファイルIDを持つが、定義には入らない', () => {

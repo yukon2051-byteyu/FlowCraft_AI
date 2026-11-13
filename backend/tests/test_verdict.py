@@ -165,7 +165,8 @@ def test_standard_only_is_not_called_complete(client):
 def test_caution_requires_confirmation_before_export(client):
     # 11月分：照合できない商品コードなど、標準の確認の警告がある
     h, body = run(client, FLOW, sales="売上実績_2026-11.xlsx", mapping={"金額": "売上金額"})
-    assert body["verdict"]["verdict"] == "caution" and body["can_export"] is True
+    # 必ずある列「商品コード」に空欄があり、空欄の扱いが決まっていないため「未検証」（Phase Q・案A）。確認すれば出力できる
+    assert body["verdict"]["verdict"] == "unverified" and body["verdict"]["export"] == "needs_confirmation" and body["can_export"] is True
     res = client.get(f"/api/runs/{body['run_id']}/export", headers=h)
     assert res.status_code == 409
     assert res.json()["error"]["code"] == "EXPORT_CONFIRMATION_REQUIRED"
@@ -263,3 +264,21 @@ def test_report_without_criteria_has_no_criteria_table(client):
     rows = check_rows(client.get(f"/api/runs/{body['run_id']}/export", headers=h))
     assert not any(str(r[0]).startswith("2. 完了基準の詳細") for r in rows)
     assert any(r[0] == "判定の根拠" and r[1].startswith("標準の確認のみ") for r in rows)
+
+
+def test_blank_rule_once_decided_is_applied_next_time(client):
+    """空欄の扱いを決めて作業手順に保存すれば、次回からは自動で適用される（Phase Q）：注意と決めた → 注意。止めると決めた → 重大"""
+    from app.flow.validate import parse_flow
+
+    base = parse_flow(copy.deepcopy(FLOW)).model_dump(mode="json", by_alias=True)
+    sales = next(d for d in base["input_definitions"] if d["input_id"] == "sales")
+    col = next(c for c in sales["columns"] if c["name"] == "商品コード")
+    col["blank"] = {"action": "caution"}
+    _, body = run(client, base, sales="売上実績_2026-11.xlsx", mapping={"金額": "売上金額"})
+    assert body["verdict"]["verdict"] == "caution"
+    rule = next(c for c in body["criteria"] if c["kind"] == "blank_rule")
+    assert rule["status"] == "failed" and rule["on_fail"] == "caution" and rule["evidence"]["空欄の件数"] == "3"
+    col["blank"] = {"action": "critical"}
+    _, body = run(client, base, sales="売上実績_2026-11.xlsx", mapping={"金額": "売上金額"})
+    assert body["verdict"]["verdict"] == "critical" and body["can_export"] is False
+

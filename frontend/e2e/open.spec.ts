@@ -171,7 +171,7 @@ test('開始画面の「保存した手順を再利用する」から開ける�
   await expect(openDialog(page)).toBeVisible()
 })
 
-test('形の版 1.0 の作業手順ファイルを開いて保存すると、最新の版（1.2）になり、完了基準の欄が加わる（2-1）', async ({ page }) => {
+test('形の版 1.0 の作業手順ファイルを開いて保存すると、最新の版（1.3）になり、完了基準の欄が加わる（2-1）', async ({ page }) => {
   await page.goto('/build?start=file')
   await header(page).getByRole('button', { name: '作業手順を開く' }).click()
   await openDialog(page).getByTestId('flow-file-input').setInputFiles(demo('../flows/monthly_sales.json'))
@@ -183,7 +183,7 @@ test('形の版 1.0 の作業手順ファイルを開いて保存すると、最
   await expect(dialog).toContainText('変更はありません')
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
   const saved = JSON.parse(await readFile((await download.path())!, 'utf-8'))
-  expect(saved.schema_version).toBe('1.2')
+  expect(saved.schema_version).toBe('1.3')
   expect(saved.completion_criteria).toEqual({ version: 1, items: [], changelog: [] })
   expect(saved.run_parameters).toEqual([])
 })

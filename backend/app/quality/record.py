@@ -17,6 +17,7 @@ from typing import Any
 from app.engine.nodes.load import Binding
 from app.engine.runner import Execution
 from app.flow.schema import FlowDefinition, LoadNode
+from app.quality.compare import _hash as hash_obj
 from app.quality.compare import change_metric_fingerprint, change_metric_id, input_fingerprint, period_of, ref_fingerprint, rule_fingerprint
 from app.quality.models import CopySource, InputRecord, MetricRecord, OfficialOutputRecord, OutputRecord, RuleRecord, RunRecord, RunSource
 from app.quality.output import OutputDecision, decide_output
@@ -33,6 +34,7 @@ ANOMALY_EVIDENCE: dict[str, str] = {
     "value_range": "範囲外の件数",
     "data_type": "変換できない件数",
     "list_rows": "該当件数",
+    "blank_rule": "空欄の件数",
 }
 
 _LEADING_INT = re.compile(r"^\s*([0-9][0-9,]*)")
@@ -98,7 +100,29 @@ def build_record(
     defs = {c.criterion_id: c for c in flow.completion_criteria.items}
     rules = []
     for c in r.criteria:
-        d = defs[c.criterion_id]
+        d = defs.get(c.criterion_id)
+        if d is None:
+            # 空白のルール（Phase Q）：入力の定義の中のルール。写しには、その入力の空白の扱いと列の定義を残す
+            input_id = c.criterion_id.split("__")[1] if c.criterion_id.startswith("blank__") else ""
+            src = next((x for x in flow.input_definitions if x.input_id == input_id), None)
+            rules.append(
+                RuleRecord(
+                    criterion_id=c.criterion_id,
+                    rule_id=f"{flow.flow_id}:{c.criterion_id}",
+                    rule_version=1,
+                    copied_from=None,
+                    name=c.name,
+                    kind=c.kind,
+                    on_fail=c.on_fail,
+                    snapshot={"blank_rules": src.blank_rules.model_dump(mode="json"), "columns": [x.model_dump(mode="json") for x in src.columns]} if src else {},
+                    status=c.status,
+                    summary=c.summary,
+                    evidence=dict(c.evidence),
+                    examples=[dict(e) for e in c.examples],
+                    anomaly_count=anomaly_count(c.kind, c.evidence),
+                )
+            )
+            continue
         rules.append(
             RuleRecord(
                 criterion_id=c.criterion_id,
@@ -164,11 +188,16 @@ def build_metrics(
         what = f"「{c.target.column}」の合計" if c.params.measure == "sum" else "件数"
         out.append(MetricRecord(metric_id=change_metric_id(c), label=f"{c.name}（{what}）", category="business", value=value, fingerprint=change_metric_fingerprint(flow, c)))
     # 品質異常の件数：ルールごとの異常件数と、満たしていない基準の数（全体・重大）
+    def fp(r: RuleRecord) -> str:
+        d = defs.get(r.criterion_id)
+        # 空白のルール：その入力の空白の扱い・列の定義（写し）から作る
+        return rule_fingerprint(flow, d) if d is not None else hash_obj({"rule": r.criterion_id, "snapshot": r.snapshot})
+
     judged = [r for r in rules if r.status in ("passed", "failed") and r.on_fail != "record"]
     for r in rules:
         if r.anomaly_count is not None and r.status in ("passed", "failed", "recorded"):
-            out.append(MetricRecord(metric_id=f"anomaly:{r.rule_id}", label=f"{r.name}（異常の件数）", category="quality", value=str(r.anomaly_count), fingerprint=rule_fingerprint(flow, defs[r.criterion_id])))
-    all_fp = "|".join(sorted(rule_fingerprint(flow, defs[r.criterion_id]) for r in rules if r.on_fail != "record"))
+            out.append(MetricRecord(metric_id=f"anomaly:{r.rule_id}", label=f"{r.name}（異常の件数）", category="quality", value=str(r.anomaly_count), fingerprint=fp(r)))
+    all_fp = "|".join(sorted(fp(r) for r in rules if r.on_fail != "record"))
     failed = [r for r in judged if r.status == "failed"]
     out.append(MetricRecord(metric_id="quality:failed_rules", label="満たしていない完了基準の数", category="quality", value=str(len(failed)), fingerprint=all_fp or "none"))
     out.append(

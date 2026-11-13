@@ -20,8 +20,8 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 
 # 1.1（2026-11-13）：完了基準（completion_criteria）と、実行のたびに指定する値（run_parameters）を追加。
 # 1.0 のファイルはそのまま読み込み、1.1 として扱う（追加項目は空）。docs/completion-criteria.md §3
-SCHEMA_VERSION = "1.2"
-SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2")
+SCHEMA_VERSION = "1.3"
+SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2", "1.3")
 
 MAX_NODES = 100
 MAX_EXPRESSION_DEPTH = 5
@@ -77,12 +77,34 @@ class StrictModel(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ColumnBlankRule(StrictModel):
+    """列の値が空欄のときの扱い（Phase Q。docs/blank-data-design.md §2）。
+
+    allow：許可（件数だけ記録）／caution：注意／critical：止める（必須項目の欠損）。
+    ルールがない（None）とき：任意の列は許可とみなし、必須の列は「扱いが決まっていない」（未検証・注意）とする（案A）。
+    """
+
+    action: Literal["allow", "caution", "critical"]
+
+
 class ColumnSchema(StrictModel):
     name: ColumnName
     type: ColumnType
     scale: Annotated[int, Field(ge=0, le=10)] | None = None  # decimal の小数桁数
     date_format: str | None = None  # 例 "%Y/%m/%d"。省略時は既定の書式で解釈
     required: bool = True
+    blank: ColumnBlankRule | None = None
+
+
+class BlankRules(StrictModel):
+    """入力（ファイル）ごとの空白の扱い（Phase Q）。ルールを変えると作業手順の内容が変わり、無人実行は要再検証になる"""
+
+    # 表の途中の完全空白行：skip（区切りとして除外）／keep（残す）／error（止める）／unset（未定義＝確認を求める）
+    blank_rows: Literal["skip", "keep", "error", "unset"] = "unset"
+    # 空白文字だけのセルを空欄として扱う（見た目は空欄なので、初期値は「扱う」）
+    whitespace_is_blank: bool = True
+    # 最後の行が合計・メモの行に見えるとき：data（データの行として扱う）／exclude（除外）／unset（未定義＝注意）
+    last_row: Literal["data", "exclude", "unset"] = "unset"
 
 
 class InputDefinition(StrictModel):
@@ -92,6 +114,7 @@ class InputDefinition(StrictModel):
     sheet_hint: str | None = None
     header_row: Annotated[int, Field(ge=1, le=100)] = 1
     columns: Annotated[list[ColumnSchema], Field(min_length=1)]
+    blank_rules: BlankRules = Field(default_factory=BlankRules)
 
     @model_validator(mode="after")
     def _unique_columns(self) -> InputDefinition:
@@ -866,8 +889,8 @@ def legacy_rule_id(flow_id: Any, criterion_id: Any) -> str:
 
 
 class FlowDefinition(StrictModel):
-    # 読み込んだ 1.0・1.1 のファイルは 1.2 として扱う（_upgrade）。保存し直すと 1.2 になる
-    schema_version: Literal["1.2"]
+    # 読み込んだ 1.0〜1.2 のファイルは 1.3 として扱う（_upgrade）。保存し直すと 1.3 になる
+    schema_version: Literal["1.3"]
     engine_version: str
     flow_id: UUID
     flow_version: Annotated[int, Field(ge=1)]
@@ -889,6 +912,7 @@ class FlowDefinition(StrictModel):
 
         1.0 → 1.1：実行時に指定する値・完了基準が加わった
         1.1 → 1.2：完了基準の各項目に、品質ルールの識別（rule_id・rule_version・copied_from）が加わった
+        1.2 → 1.3：入力の定義に空白の扱い（blank_rules）、列に空欄の扱い（blank）が加わった（Phase Q）
         """
         if not isinstance(data, dict):
             return data
@@ -912,6 +936,14 @@ class FlowDefinition(StrictModel):
                 ]
                 data = {**data, "completion_criteria": {**criteria, "items": items}}
             data = {**data, "schema_version": "1.2"}
+        if data.get("schema_version") == "1.2":
+            for d in data.get("input_definitions") or []:
+                if not isinstance(d, dict):
+                    continue
+                bad = "blank_rules" in d or any(isinstance(c, dict) and "blank" in c for c in d.get("columns") or [])
+                if bad:
+                    raise ValueError("形の版 1.2 のファイルには「blank_rules」「blank」を書けません（1.3 の項目です）")
+            data = {**data, "schema_version": "1.3"}
         return data
 
 

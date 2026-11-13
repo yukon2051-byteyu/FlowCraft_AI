@@ -4,7 +4,7 @@
  * 決まりはサーバー側の app/flow/validate.py と同じ。最終的な判定は常にサーバー側の検証で行う。
  */
 
-import { SCHEMA_VERSION } from './types'
+import { DEFAULT_BLANK_RULES, SCHEMA_VERSION } from './types'
 import { defaultParams, syncParams } from './params'
 import type { Dependency, FlowDoc, FlowNode, NodeType } from './types'
 
@@ -32,7 +32,15 @@ export function normalizeFlow(raw: unknown): FlowDoc {
   // ただし古い版に新しい版の項目が書かれた不正なファイルは、版をそのまま残してサーバーの検証で拒否させる（黙って直さない）
   const has11 = 'run_parameters' in f || 'completion_criteria' in f
   const has12 = (f.completion_criteria?.items ?? []).some((c) => 'rule_id' in c || 'rule_version' in c || 'copied_from' in c)
-  const old = f.schema_version === '1.0' ? !has11 && !has12 : f.schema_version === '1.1' ? !has12 : false
+  const has13 = (f.input_definitions ?? []).some((d) => 'blank_rules' in d || (d.columns ?? []).some((c) => 'blank' in c))
+  const old =
+    f.schema_version === '1.0'
+      ? !has11 && !has12 && !has13
+      : f.schema_version === '1.1'
+        ? !has12 && !has13
+        : f.schema_version === '1.2'
+          ? !has13
+          : false
   const version = old ? SCHEMA_VERSION : (f.schema_version ?? SCHEMA_VERSION)
   const flowId = f.flow_id ?? ''
   return {
@@ -49,6 +57,8 @@ export function normalizeFlow(raw: unknown): FlowDoc {
       header_row: 1,
       sheet_hint: null,
       ...d,
+      // 空白の扱い（1.3）：省略されたときはサーバーの初期値と同じ（未定義・空白文字は空欄として扱う）
+      blank_rules: { ...DEFAULT_BLANK_RULES, ...(d.blank_rules ?? {}) },
       columns: (d.columns ?? []).map((c) => ({ ...c, required: c.required ?? true })),
     })),
     nodes: (f.nodes ?? []).map((n) => ({

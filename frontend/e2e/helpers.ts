@@ -30,6 +30,8 @@ export async function buildMonthlySales(page: Page, master: string) {
   await page.getByTestId('file-input').first().setInputFiles([demo('売上実績_2026-10.xlsx'), demo(master), demo('部署マスタ.csv')])
   await expect(page.getByText('3ファイル')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：使う列と形式を決める' }).click()
+  // 空白データの扱い（Phase Q-4）：売上実績の「備考」は空欄が多い。業務上ありうるので許可する
+  await page.getByRole('combobox', { name: '「備考」の空欄の扱い' }).first().selectOption('allow')
   await page.getByRole('button', { name: 'この内容で作業手順を作り始める' }).click()
 
   await addAtEnd(page, '別の表から情報を付け加える')

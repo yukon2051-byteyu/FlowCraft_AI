@@ -74,13 +74,13 @@ def codes(flow) -> list[str]:
 # ===================== 1.0 からの移行 =====================
 
 
-def test_current_version_is_12():
-    assert SCHEMA_VERSION == "1.2"
+def test_current_version_is_13():
+    assert SCHEMA_VERSION == "1.3"
 
 
 def test_10_file_is_read_as_latest_with_empty_criteria():
     flow = parse_flow(FLOW_10)
-    assert flow.schema_version == "1.2"
+    assert flow.schema_version == "1.3"
     assert flow.run_parameters == []
     assert flow.completion_criteria.items == [] and flow.completion_criteria.version == 1
     assert validate_structure(flow) == []
@@ -246,7 +246,7 @@ def test_11_file_gets_rule_identity_that_is_the_same_every_time():
     a = parse_flow(_flow_11_with_criteria())
     b = parse_flow(_flow_11_with_criteria())
     item = a.completion_criteria.items[0]
-    assert a.schema_version == "1.2"
+    assert a.schema_version == "1.3"
     assert item.rule_id == f"{FLOW_10['flow_id']}:{item.criterion_id}"
     assert item.rule_version == 1 and item.copied_from is None
     assert b.completion_criteria.items[0].rule_id == item.rule_id
@@ -271,4 +271,30 @@ def test_12_requires_rule_id_and_keeps_version_and_copy_source():
     item.update({"rule_id": "r-new", "rule_version": 4, "copied_from": {"rule_id": "r-origin", "rule_version": 2}})
     got = parse_flow(f).completion_criteria.items[0]
     assert (got.rule_id, got.rule_version, got.copied_from.rule_id, got.copied_from.rule_version) == ("r-new", 4, "r-origin", 2)
+
+
+# ===================== 1.2 → 1.3：空白の扱い（Phase Q） =====================
+
+
+def test_12_file_gets_default_blank_rules_and_13_keeps_them():
+    f = flow_11()
+    flow = parse_flow(f)
+    d = flow.input_definitions[0]
+    assert (d.blank_rules.blank_rows, d.blank_rules.whitespace_is_blank, d.blank_rules.last_row) == ("unset", True, "unset")
+    assert all(c.blank is None for c in d.columns)
+    g = flow.model_dump(mode="json", by_alias=True)
+    g["input_definitions"][0]["blank_rules"] = {"blank_rows": "skip", "whitespace_is_blank": True, "last_row": "exclude"}
+    g["input_definitions"][0]["columns"][0]["blank"] = {"action": "critical"}
+    again = parse_flow(g)
+    assert again.input_definitions[0].blank_rules.blank_rows == "skip"
+    assert again.input_definitions[0].columns[0].blank.action == "critical"
+
+
+def test_12_file_with_13_items_is_rejected():
+    g = parse_flow(flow_11()).model_dump(mode="json", by_alias=True)
+    g["schema_version"] = "1.2"
+    g["input_definitions"][0]["columns"][0]["blank"] = {"action": "allow"}
+    with pytest.raises(FlowSchemaError) as e:
+        parse_flow(g)
+    assert "1.3 の項目" in str(e.value.errors)
 

@@ -5,7 +5,7 @@
  */
 
 /** 1.1（2026-11-13）：完了基準と、実行のたびに指定する値を追加。1.0 のファイルは 1.1 として読む */
-export const SCHEMA_VERSION = '1.2'
+export const SCHEMA_VERSION = '1.3'
 
 export type ColumnType = 'string' | 'integer' | 'decimal' | 'date' | 'boolean'
 
@@ -15,7 +15,23 @@ export type ColumnSchema = {
   scale?: number | null
   date_format?: string | null
   required?: boolean
+  /** 列の値が空欄のときの扱い（Phase Q・1.3）。ないとき：任意の列は許可、必須の列は「扱いが決まっていない」 */
+  blank?: { action: BlankAction } | null
 }
+
+export type BlankAction = 'allow' | 'caution' | 'critical'
+
+/** 入力（ファイル）ごとの空白の扱い（Phase Q・1.3） */
+export type BlankRules = {
+  /** 表の途中の完全空白行：skip（区切りとして除外）／keep（残す）／error（止める）／unset（未定義） */
+  blank_rows: 'skip' | 'keep' | 'error' | 'unset'
+  /** 空白文字だけのセルを空欄として扱う */
+  whitespace_is_blank: boolean
+  /** 最後の行が合計・メモの行に見えるとき：data／exclude／unset */
+  last_row: 'data' | 'exclude' | 'unset'
+}
+
+export const DEFAULT_BLANK_RULES: BlankRules = { blank_rows: 'unset', whitespace_is_blank: true, last_row: 'unset' }
 
 export type InputDefinition = {
   input_id: string
@@ -24,6 +40,7 @@ export type InputDefinition = {
   sheet_hint?: string | null
   header_row?: number
   columns: ColumnSchema[]
+  blank_rules?: BlankRules
 }
 
 export type NodeType =
