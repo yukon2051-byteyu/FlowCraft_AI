@@ -28,6 +28,8 @@ from app.engine.runner import Execution, RunLimits, run_flow
 from app.engine.table import Table
 from app.errors import AppError
 from app.export.excel import build_workbook
+from app.files.compare import compare_input
+from app.files.profile import build_table
 from app.flow.schema import FlowDefinition
 from app.flow.validate import FlowSchemaError, compute_dependencies, execution_blockers, parse_flow, validate_structure
 from app.sessions.store import Session
@@ -320,6 +322,83 @@ def preview(
         stopped_at=stopped,
         flow_issues=[_issue(i) for i in ex.result.flow_issues],
     )
+
+
+# ---------------------------------------------------------------------------
+# 再実行時の入力の変化の検出（Phase 3-1）
+# ---------------------------------------------------------------------------
+
+
+class InputCheckRequest(BaseModel):
+    flow: dict[str, Any]
+    bindings: list[BindingIn] = Field(default_factory=list)
+
+
+class RenameCandidateOut(BaseModel):
+    column: str
+    score: float
+    reasons: list[str]
+
+
+class MissingColumnOut(BaseModel):
+    name: str
+    type: str
+    required: bool
+    candidates: list[RenameCandidateOut]
+
+
+class TypeProblemOut(BaseModel):
+    name: str
+    type: str
+    failed: int
+    examples: list[dict[str, Any]]
+
+
+class BlankValuesOut(BaseModel):
+    name: str
+    count: int
+    rows: list[int]
+
+
+class InputCheckOut(BaseModel):
+    input_id: str
+    label: str
+    assigned: bool
+    can_run: bool
+    has_changes: bool
+    missing: list[MissingColumnOut] = Field(default_factory=list)
+    added: list[str] = Field(default_factory=list)
+    order_changed: bool = False
+    expected_order: list[str] = Field(default_factory=list)
+    actual_order: list[str] = Field(default_factory=list)
+    type_problems: list[TypeProblemOut] = Field(default_factory=list)
+    blank_required: list[BlankValuesOut] = Field(default_factory=list)
+    mapping_errors: list[str] = Field(default_factory=list)
+    mapping_applied: dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/flows/check-inputs", response_model=list[InputCheckOut])
+def check_inputs(req: InputCheckRequest, session: Session = Depends(current_session)) -> list[InputCheckOut]:
+    """保存した作業手順の列構成と、今回割り当てたファイルを比べる。処理は行わない（実行前の確認）。
+
+    列名の対応付けは自動では決めない。候補と理由を返し、利用者が承認した対応付け（column_mapping）を当てて比べ直す。
+    """
+    flow = _parse_or_422(req.flow)
+    bindings = _bindings(flow, req.bindings)
+    out: list[InputCheckOut] = []
+    for d in flow.input_definitions:
+        b = bindings.get(d.input_id)
+        f = session.files.get(b.file_id) if b else None
+        if b is None or f is None:
+            out.append(InputCheckOut(input_id=d.input_id, label=d.label, assigned=False, can_run=False, has_changes=False))
+            continue
+        sheet = b.sheet or f.default_sheet()
+        raw = f.sheets.get(sheet)
+        if raw is None:
+            raise AppError(404, "SHEET_NOT_FOUND", f"シート「{sheet}」が見つかりません。", how_to_fix="シートを選び直してください。")
+        c = compare_input(d, build_table(raw, b.header_row, is_csv=f.kind == "csv"), b.header_row, b.column_mapping)
+        out.append(InputCheckOut(assigned=True, can_run=c.can_run, has_changes=c.has_changes, **asdict(c)))
+    return out
 
 
 @router.post("/runs", response_model=RunSummary)
