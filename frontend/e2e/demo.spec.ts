@@ -16,11 +16,11 @@ async function run(page: Page) {
   await expect(verdictBox(page)).toBeVisible({ timeout: 30_000 })
 }
 
-test('TOP から品質異常のデモを始めると、期間外の伝票を見つけて正式な出力を止める', async ({ page }) => {
+test('TOP の「品質の確認」から品質異常のデモを始めると、期間外の伝票を見つけて正式な出力を止める', async ({ page }) => {
   test.setTimeout(150_000)
   await page.goto('/')
-  const card = page.getByRole('article', { name: '月次売上集計デモ' })
-  await card.getByRole('link', { name: '月次売上集計デモ：異常デモを実行' }).click()
+  // 月次売上集計デモは、主要なデモのカードからは外したが、品質の確認の入口から開ける
+  await page.locator('#trust').getByRole('link', { name: '品質異常のデモを体験する' }).click()
   await expect(page).toHaveURL(/\/build\?demo=monthly_sales&pattern=ng/)
   // デモは「作業を知る」から始まる（いきなりデータの読み込みから始めない）
   await expect(page.getByRole('list', { name: '作業の段階' }).locator('[aria-current="step"]')).toContainText('作業を知る')
@@ -128,9 +128,8 @@ test('品質異常の後に「直したデータで再実行する」と、自�
   await expect(page.getByRole('region', { name: '直す前と後の比較' })).toHaveCount(0)
 })
 
-/* TOP のデモ：3案件 × 正常・異常 の6パターン。キーボード（Enter・Space）で開始し、正しいデモと判定になる */
+/* TOP のデモ：2案件 × 正常・異常 の4パターン（もう1つのカードは業務改善デモ）。キーボード（Enter・Space）で開始し、正しいデモと判定になる */
 for (const [id, title] of [
-  ['monthly_sales', '月次売上集計デモ'],
   ['product_match', '商品マスタ照合デモ'],
   ['inventory', '在庫差異検出デモ'],
 ] as const) {

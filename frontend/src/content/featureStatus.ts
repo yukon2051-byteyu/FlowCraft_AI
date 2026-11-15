@@ -38,6 +38,8 @@ export const FEATURE_STATUS = {
   /** デモの案件（M1-2：データと作業手順を作成済み） */
   demoProductMatch: 'available',
   demoInventory: 'available',
+  /** 業務改善診断デモ（デモ①「その集計、本当に必要？」。改善候補は決まった規則で見つける。AIは使わない） */
+  kaizenDemo: 'available',
   /** 業務の完了基準の設定・評価 */
   criteria: 'available',
   /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */

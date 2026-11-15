@@ -439,20 +439,13 @@ function Stages() {
 
 /*
  * デモ（docs/demo-design.md）：案件ごとに「正常終了」と「品質異常」を選べる。品質異常の原因は案件ごとに変える。
- * 色の意味：ミント＝正常・成功、コーラル＝異常・リスク（ページ全体で統一）。デモはまだ動かないため「開発中」で押せない。
+ * 色の意味：ミント＝正常・成功、コーラル＝異常・リスク（ページ全体で統一）。
+ * 2026-11-16：最初のカードを業務改善診断デモ（その集計、本当に必要？）に差し替えた。月次売上集計デモは主要なデモから外したが、
+ * 処理・データ・品質検証は残し、「品質の確認」の「品質異常のデモを体験する」から開ける。
  */
 type Demo = { id: string; feature: FeatureKey; title: string; summary: string; inputs: string; ok: string; ng: string }
 
 const DEMOS: Demo[] = [
-  {
-    id: 'monthly_sales',
-    feature: 'demo',
-    title: '月次売上集計デモ',
-    summary: '売上に商品・部署の情報を付け、部署別に集計します。',
-    inputs: '売上実績・商品マスタ・部署マスタ',
-    ok: '対象月（10月）の伝票だけを集計・検証・出力',
-    ng: '10月分に混ざった11月の伝票を検出 → 出力を停止',
-  },
   {
     id: 'product_match',
     feature: 'demoProductMatch',
@@ -480,12 +473,13 @@ function Demos() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <SectionHeading
             eyebrow="デモ"
-            title="正常終了も、品質異常の検出も体験できる"
-            lead="架空の業務データで、実際の処理と品質の確認を行います。問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。"
+            title="業務の見直しから、品質異常の検出まで体験できる"
+            lead="架空の業務データで、業務の説明から始め、実際の処理と品質の確認まで行います。問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。"
           />
         </div>
         {/* 3つのカードの各段（見出し・説明・ファイル・小見出し・選択肢）の高さを subgrid でそろえる（実行ボタンの位置もそろう） */}
         <div className="mt-8 grid gap-4 lg:grid-cols-3 lg:gap-y-0">
+          <KaizenDemoCard />
           {DEMOS.map((d) => (
             <article key={d.title} className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-edge lg:row-span-5 lg:grid lg:grid-rows-subgrid" aria-label={d.title}>
               <div className="flex items-start justify-between gap-2">
@@ -532,10 +526,57 @@ function Demos() {
           ))}
         </div>
         <p className="mt-4 text-[0.88rem] text-subtle">
-          品質異常のデモでは、問題を直したデータで再実行し、直す前と後の結果を比べることもできます。AI業務改善診断のデモは、機能の完成後に追加します。
+          どのデモも、業務の説明から始まり、実際の処理と品質の確認まで進みます。品質異常のデモでは、直したデータで再実行し、直す前と後を比べられます。業務改善デモの改善候補は決まった規則で見つけています（AIは使っていません）。
         </p>
       </div>
     </section>
+  )
+}
+
+/**
+ * 業務改善診断デモのカード（デモ①）。ほかのデモのカードと同じ5段（見出し・説明・使うファイル・小見出し・本体）にそろえる。
+ * 改善前後の数値は、デモですべての改善案を採用したときの比較と同じ（e2e/top.spec.ts で、実際のデモの結果と一致を確かめる）。
+ * 削減時間を強調しすぎない：「不要な作業を減らし、必要な品質確認を残す」を中心に伝える。
+ */
+function KaizenDemoCard() {
+  return (
+    <article className="flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-mint/45 lg:row-span-5 lg:grid lg:grid-rows-subgrid" aria-label="その集計、本当に必要？">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-[1.15rem] font-bold text-white">その集計、本当に必要？</h3>
+        <span className="shrink-0 rounded-full px-2 py-0.5 text-[0.75rem] font-bold text-kaizen-text ring-1 ring-kaizen/45">業務改善デモ</span>
+      </div>
+      <p className="mt-1.5 text-[0.92rem] leading-relaxed text-subtle">毎月のExcel作業を見直し、不要な転記や重複作業を発見。改善案を選ぶと、必要な処理だけを残した新しい手順を作成できます。</p>
+      <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-white/75">
+        <FileSpreadsheet className="size-4 shrink-0 text-subtle" aria-hidden />
+        月次報告資料の作成業務・3部署の売上Excel
+      </p>
+      <p className="mt-4 text-[0.88rem] font-bold text-white/85">見直すと、こう変わる</p>
+      <div className="mt-2 flex flex-col">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2" aria-label="改善前は7工程・毎月90分、改善後は5工程・毎月20分（想定）">
+          <div className="rounded-xl bg-kaizen/8 p-3 ring-1 ring-kaizen/40">
+            <p className="text-[0.78rem] font-bold text-kaizen-text">改善前</p>
+            <p className="mt-0.5 text-[0.95rem] font-bold text-white">7工程・毎月90分</p>
+            <p className="mt-0.5 text-[0.76rem] text-white/70">転記・重複集計あり</p>
+          </div>
+          <ArrowRight className="size-4.5 self-center text-mint" aria-hidden />
+          <div className="rounded-xl bg-mint/8 p-3 ring-1 ring-mint/40">
+            <p className="text-[0.78rem] font-bold text-mint">改善後</p>
+            <p className="mt-0.5 text-[0.95rem] font-bold text-white">
+              5工程・毎月20分<span className="text-[0.76rem] font-normal text-white/70">（想定）</span>
+            </p>
+            <p className="mt-0.5 text-[0.76rem] text-white/70">合計の照合は自動で残す</p>
+          </div>
+        </div>
+        <p className="mt-2 mb-3 text-[0.8rem] text-subtle">不要な作業を減らし、必要な品質確認は残す。時間は架空の設定値による想定です。</p>
+        <Link
+          to="/kaizen-demo"
+          className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-mint px-3 py-2 text-[0.88rem] font-bold text-[#0B2A22] transition-colors hover:bg-[#5BE3BE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <CirclePlay className="size-4" aria-hidden />
+          業務改善デモを体験する
+        </Link>
+      </div>
+    </article>
   )
 }
 
