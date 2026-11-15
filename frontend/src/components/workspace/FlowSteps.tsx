@@ -34,11 +34,14 @@ export function FlowSteps({
   onBack,
   onRan,
   backLabel = '使う列と形式の設定に戻る',
+  onShowResult,
 }: {
   onBack: () => void
   onRan: (run: RunSummary, snap: string) => void
   /** 戻るボタンの文言（保存した作業手順を開いたときは「ファイルの割当に戻る」） */
   backLabel?: string
+  /** 前回の実行結果を、実行し直さずに見る（実行結果があるときだけ渡す） */
+  onShowResult?: () => void
 }) {
   const flow = useFlowStore((s) => s.flow)
   const selectedId = useFlowStore((s) => s.selectedNodeId)
@@ -238,6 +241,12 @@ export function FlowSteps({
             </label>
           ))}
           {runBlocker && <span className="text-[0.82rem] text-subtle">{runBlocker}</span>}
+          {onShowResult && (
+            <Button variant="outlineDark" size="sm" onClick={onShowResult} title="実行し直さずに、前回の実行結果を表示します">
+              結果を見る（再実行しない）
+              <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          )}
           <Button variant="primary" size="sm" disabled={runBlocker !== null || runMutation.isPending} onClick={() => runMutation.mutate()} title={runBlocker ?? undefined}>
             {runMutation.isPending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
             作業手順全体を実行する

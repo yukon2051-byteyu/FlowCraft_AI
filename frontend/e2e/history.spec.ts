@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { demo } from './helpers'
+import { demo, throughDemoSteps } from './helpers'
 
 /*
  * 分析 Phase C：実行の履歴（このブラウザの IndexedDB）と、毎月の再実行での前回比較。
@@ -61,6 +61,7 @@ test('履歴の書き出し・取り込み・削除。デモの記録は通常�
   test.setTimeout(150_000)
   // デモを実行しても、通常の履歴には残らない
   await page.goto('/build?demo=monthly_sales&pattern=ok')
+  await throughDemoSteps(page)
   await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
   await runAll(page)
   await page.getByRole('banner').getByRole('button', { name: '実行の履歴' }).click()

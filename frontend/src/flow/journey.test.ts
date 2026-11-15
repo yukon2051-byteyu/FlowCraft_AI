@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modeFromParam, START_PARAM, stepOrder, stepViews } from './journey'
+import { demoStepIndex, demoStepViews, modeFromParam, START_PARAM, stepOrder, stepViews } from './journey'
 import type { Facts } from './journey'
 
 const none: Facts = { described: false, dataReady: false, procedureReady: false, ran: false, outputDone: false }
@@ -54,5 +54,23 @@ describe('段階の表示', () => {
   it('実行・出力を終えたら完了になる', () => {
     const v = stepViews('FILE_FIRST', 'result', { described: true, dataReady: true, procedureReady: true, ran: true, outputDone: true })
     expect(v.map((s) => s.state)).toEqual(['done', 'done', 'done', 'current', 'done'])
+  })
+})
+
+describe('デモの段階（業務を知るところから始める）', () => {
+  it('最初は「作業を知る」。名前はデモ用、順番は固定', () => {
+    const v = demoStepViews('demo_intro', 0)
+    expect(v.map((x) => x.label)).toEqual(['作業を知る', '手順と改善を確認', 'データを確認', '実行・品質確認', '結果を確認'])
+    expect(v.map((x) => x.state)).toEqual(['current', 'todo', 'todo', 'todo', 'todo'])
+  })
+
+  it('実行・品質確認は作業手順の画面、結果は結果の画面', () => {
+    expect(demoStepIndex('edit')).toBe(3)
+    expect(demoStepIndex('result')).toBe(4)
+    expect(demoStepIndex('data')).toBeNull()
+  })
+
+  it('前の段階へ戻っても、進んだことのある段階は完了のまま', () => {
+    expect(demoStepViews('demo_improve', 4).map((x) => x.state)).toEqual(['done', 'current', 'done', 'done', 'done'])
   })
 })

@@ -42,14 +42,19 @@ export function stepOrder(mode: StartMode, method: BuildMethod | null = null): S
 }
 
 /** 画面（WorkspacePage の Screen）→ その画面で行っている段階 */
-export type Screen = 'start' | 'describe' | 'data' | 'define' | 'assign' | 'edit' | 'result'
+export type Screen = 'start' | 'describe' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'demo_intro' | 'demo_improve' | 'demo_data'
 
 export function stepOfScreen(screen: Screen): StepId | null {
   switch (screen) {
     case 'start':
       return null
     case 'describe':
+    case 'demo_intro':
       return 'describe'
+    case 'demo_improve':
+      return 'procedure'
+    case 'demo_data':
+      return 'data'
     case 'data':
     case 'define':
     case 'assign': // 保存した手順に今回のファイルを割り当て、列を照合する（読込後の最終確認）
@@ -90,4 +95,39 @@ export function stepViews(mode: StartMode, screen: Screen, facts: Facts, method:
     const done = { describe: facts.described, data: facts.dataReady, procedure: facts.procedureReady, run: facts.ran, output: facts.outputDone }[id]
     return { id, label, state: done ? 'done' : 'todo' }
   })
+}
+
+/*
+ * デモの段階（デモ全面改善指示書）。デモは「業務を知る」から始め、決まった順番で進む：
+ *   作業を知る → 手順と改善を確認 → データを確認 → 実行・品質確認 → 結果を確認
+ * 画面は、作業を知る（demo_intro）・手順と改善（demo_improve）・データ（demo_data）だけがデモ専用で、
+ * 実行・品質確認（edit）と結果（result）は通常の作業手順の画面をそのまま使う（処理エンジン・品質検証は共通）。
+ * 通常の利用の段階の名前・順番は変えない（stepViews）。
+ */
+export const DEMO_STEP_ORDER: StepId[] = ['describe', 'procedure', 'data', 'run', 'output']
+export const DEMO_STEP_LABEL: Record<StepId, string> = {
+  describe: '作業を知る',
+  procedure: '手順と改善を確認',
+  data: 'データを確認',
+  run: '実行・品質確認',
+  output: '結果を確認',
+}
+
+/** デモの画面 → 段階の位置（0〜4）。デモで使わない画面は null */
+export function demoStepIndex(screen: Screen): number | null {
+  const at: Partial<Record<Screen, number>> = { demo_intro: 0, demo_improve: 1, demo_data: 2, edit: 3, result: 4 }
+  return at[screen] ?? null
+}
+
+/**
+ * デモの段階の表示。visited は、これまでに進んだ最も先の段階の位置。
+ * 前の段階へ戻っても、進んだことのある段階は「完了」のまま（戻っても状態を初期化しない）。
+ */
+export function demoStepViews(screen: Screen, visited: number): StepView[] {
+  const cur = demoStepIndex(screen) ?? 0
+  return DEMO_STEP_ORDER.map((id, i) => ({
+    id,
+    label: DEMO_STEP_LABEL[id],
+    state: i === cur ? 'current' : i < cur || i <= visited ? 'done' : 'todo',
+  }))
 }

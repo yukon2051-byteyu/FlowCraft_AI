@@ -1,3 +1,4 @@
+import { LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { AppHeader } from '../components/workspace/AppHeader'
@@ -5,7 +6,7 @@ import { SampleWorkspace } from '../components/workspace/SampleWorkspace'
 import { Stepper } from '../components/workspace/Stepper'
 import { StartChooser } from '../components/workspace/StartChooser'
 import { DescribeWork } from '../components/workspace/DescribeWork'
-import { modeFromParam, START_PARAM, stepViews } from '../flow/journey'
+import { demoStepIndex, demoStepViews, modeFromParam, START_PARAM, stepViews } from '../flow/journey'
 import { fetchTemplate } from '../api/templates'
 import { copyFlow } from '../flow/copy'
 import type { BuildMethod, Facts, Screen, StartMode } from '../flow/journey'
@@ -20,6 +21,10 @@ import { DemoBanner } from '../components/workspace/DemoBanner'
 import { startDemo } from '../api/demos'
 import { startKaizen } from '../api/kaizen'
 import { KaizenBanner } from '../components/workspace/KaizenBanner'
+import { DemoData } from '../components/workspace/demo/DemoData'
+import { DemoImprove } from '../components/workspace/demo/DemoImprove'
+import { DemoIntro } from '../components/workspace/demo/DemoIntro'
+import { DemoReview } from '../components/workspace/demo/DemoReview'
 import { handedFlow } from '../kaizen/handoff'
 import type { DemoPattern, DemoStart } from '../api/demos'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
@@ -66,7 +71,7 @@ export default function WorkspacePage() {
   const [method, setMethod] = useState<BuildMethod | null>(null)
   const [described, setDescribed] = useState(false)
   const [screen, setScreen] = useState<Screen>(() =>
-    params.get('demo') || params.get('kaizen') ? 'data' : mode === 'WORK_FIRST' ? 'describe' : mode === 'FILE_FIRST' ? 'data' : 'start',
+    params.get('demo') ? 'demo_intro' : params.get('kaizen') ? 'data' : mode === 'WORK_FIRST' ? 'describe' : mode === 'FILE_FIRST' ? 'data' : 'start',
   )
   const [sources, setSources] = useState<DefineSource[] | null>(null)
   // 直近の全体の実行結果と、実行したときの作業手順（実行後に変更したかを判定するため）
@@ -121,6 +126,10 @@ export default function WorkspacePage() {
   const setRunValues = useFlowStore((s) => s.setRunValues)
   const demoKey = `${params.get('demo') ?? ''}:${params.get('pattern') ?? ''}`
   const startedDemo = useRef('')
+  // デモの段階（作業を知る → 手順と改善 → データ → 実行・品質確認 → 結果）。進んだことのある最も先の段階
+  const [demoVisited, setDemoVisited] = useState(0)
+  // 「もう一度試す」でデモの開始をやり直す
+  const [demoAttempt, setDemoAttempt] = useState(0)
   // M1-3：直したデータで再実行した後、直す前の実行結果と並べて比べる
   const [beforeFix, setBeforeFix] = useState<RunSummary | null>(null)
   const [fixing, setFixing] = useState(false)
@@ -150,6 +159,8 @@ export default function WorkspacePage() {
     const id = params.get('demo')
     const pattern = params.get('pattern') as DemoPattern | null
     if (!id || (pattern !== 'ok' && pattern !== 'ng') || startedDemo.current === demoKey) return
+    // 同じデモの中で正常／品質異常を切り替えたときは、データが変わるので「データを確認」から。新しく始めたときは「作業を知る」から
+    const sameDemo = startedDemo.current.split(':')[0] === id
     startedDemo.current = demoKey
     setDemoError(null)
     startDemo(id, pattern)
@@ -166,11 +177,21 @@ export default function WorkspacePage() {
         setBeforeFix(null)
         setDemo(d)
         setMode('SAVED_WORKFLOW')
-        setScreen('edit')
+        setDemoVisited(sameDemo ? 2 : 0)
+        setScreen(sameDemo ? 'demo_data' : 'demo_intro')
       })
       .catch((e) => setDemoError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'デモを始められませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoKey])
+  }, [demoKey, demoAttempt])
+  // デモの中で進んだ段階を覚える（戻っても、進んだことのある段階は完了のまま）
+  useEffect(() => {
+    const i = demoStepIndex(screen)
+    if (demo && i !== null) setDemoVisited((v) => Math.max(v, i))
+  }, [screen, demo])
+  const retryDemo = () => {
+    startedDemo.current = ''
+    setDemoAttempt((n) => n + 1)
+  }
 
   // 業務改善デモ：/build?kaizen=monthly_report で、STEP 4 で作った作業手順（このタブに受け渡したもの）を開き、
   // 部署のExcel（架空のデータ）を割り当てる。以後の実行・品質の確認・出力・保存は、通常の作業手順と同じ
@@ -255,7 +276,8 @@ export default function WorkspacePage() {
     ran: lastRun !== null,
     outputDone: lastRun !== null && exported?.runId === lastRun.run.run_id,
   }
-  const steps = screen === 'start' ? [] : stepViews(mode ?? 'FILE_FIRST', screen, facts, method)
+  const inDemo = !!params.get('demo')
+  const steps = inDemo ? demoStepViews(screen, demoVisited) : screen === 'start' ? [] : stepViews(mode ?? 'FILE_FIRST', screen, facts, method)
 
   const start = (choices: InputChoice[]) => {
     const built = buildFromChoices(choices)
@@ -291,7 +313,15 @@ export default function WorkspacePage() {
             <Stepper
               steps={steps}
               hint={
-                screen === 'start'
+                inDemo && screen === 'demo_intro'
+                  ? 'どんな業務で、どこに課題があるかを確かめてください（架空の業務シナリオ）'
+                  : screen === 'demo_improve'
+                    ? '改善前と改善後、改善後の処理手順を確かめてください'
+                    : screen === 'demo_data'
+                      ? '使用するデータと列の構成を確かめてください'
+                      : inDemo && screen === 'edit'
+                        ? '「作業手順全体を実行する」を押すと、実際の処理と品質の確認を行います'
+                        : screen === 'start'
                   ? '始め方を選んでください（どの方法でも、同じ処理の仕組みと品質の確認を使います）'
                   : screen === 'describe'
                     ? '案件名とやりたい作業を入れて、手順の作り方を選んでください'
@@ -316,11 +346,11 @@ export default function WorkspacePage() {
                       : '列名とデータの形式、先頭の行を確認してください（必要なファイルはすべて読み込みましたか？）'
               }
             />
-            {demo && screen !== 'data' && <DemoBanner demo={demo} />}
+            {demo && screen !== 'data' && screen !== 'demo_intro' && <DemoBanner demo={demo} />}
             {kaizenRun && screen !== 'data' && <KaizenBanner />}
             {demoError && (
               <div className="shrink-0 border-b border-edge px-6 py-3">
-                <ErrorNotice error={demoError} title="デモを始められませんでした" />
+                <ErrorNotice error={demoError} title="デモを始められませんでした" onRetry={inDemo ? retryDemo : undefined} />
               </div>
             )}
             {screen === 'start' && <StartChooser onChoose={choose} />}
@@ -404,14 +434,36 @@ export default function WorkspacePage() {
                 />
               </div>
             )}
+            {screen === 'demo_intro' &&
+              (demo ? (
+                <DemoIntro demo={demo} onNext={() => setScreen('demo_improve')} />
+              ) : (
+                !demoError && (
+                  <p className="flex flex-1 items-center justify-center gap-2 text-subtle">
+                    <LoaderCircle className="size-5 animate-spin" aria-hidden />
+                    デモを準備しています…
+                  </p>
+                )
+              ))}
+            {screen === 'demo_improve' && demo && <DemoImprove demo={demo} onBack={() => setScreen('demo_intro')} onNext={() => setScreen('demo_data')} />}
+            {screen === 'demo_data' && demo && <DemoData onBack={() => setScreen('demo_improve')} onNext={() => setScreen('edit')} />}
             {screen === 'assign' && <AssignInputs key={openedKey} onDone={() => setScreen('edit')} onSkip={() => setScreen('edit')} />}
             {screen === 'edit' && (
               <FlowSteps
-                onBack={() => setScreen(origin === 'opened' ? 'assign' : 'define')}
+                onBack={() => setScreen(demo ? 'demo_data' : origin === 'opened' ? 'assign' : 'define')}
                 backLabel={
+                  demo
+                    ? '前へ：データを確認'
+                    : 
                   // ひな形から作った仮の手順は、まだデータを読み込んでいない（次に進む操作として示す）
-                  method === 'template' && !facts.dataReady ? '次へ：データを読み込む' : origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る'
+                      method === 'template' && !facts.dataReady
+                      ? '次へ：データを読み込む'
+                      : origin === 'opened'
+                        ? 'ファイルの割当に戻る'
+                        : '使う列と形式の設定に戻る'
                 }
+                // 実行済みなら、実行し直さずに結果へ進める（デモで前の段階へ戻っても、結果を消さない）
+                onShowResult={lastRun ? () => setScreen('result') : undefined}
                 onRan={(run, snap) => {
                   setBeforeFix(null) // 自分で実行し直したら、前の比較は消す（古い比較を残さない）
                   setLastRun({ run, snap })
@@ -434,6 +486,7 @@ export default function WorkspacePage() {
                 exporting={exporting}
                 exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
                 exportError={exportError}
+                review={demo?.story ? <DemoReview story={demo.story} criteria={lastRun.run.criteria} /> : undefined}
               />
             )}
           </>

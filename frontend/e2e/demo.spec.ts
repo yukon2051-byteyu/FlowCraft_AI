@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { demo } from './helpers'
+import { demo, throughDemoSteps } from './helpers'
 
 /*
  * M1-1：デモ（正常終了／品質異常）を TOP から始めて、実際の処理と判定を確かめる。
@@ -22,6 +22,10 @@ test('TOP から品質異常のデモを始めると、期間外の伝票を見�
   const card = page.getByRole('article', { name: '月次売上集計デモ' })
   await card.getByRole('link', { name: '月次売上集計デモ：異常デモを実行' }).click()
   await expect(page).toHaveURL(/\/build\?demo=monthly_sales&pattern=ng/)
+  // デモは「作業を知る」から始まる（いきなりデータの読み込みから始めない）
+  await expect(page.getByRole('list', { name: '作業の段階' }).locator('[aria-current="step"]')).toContainText('作業を知る')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('月次売上の部署別・カテゴリ別集計', { timeout: 20_000 })
+  await throughDemoSteps(page)
 
   // デモの案内と、読み込まれた作業手順（完了基準つき）・実行時に指定する値
   await expect(banner(page)).toContainText('デモ：月次売上集計デモ（品質異常）')
@@ -49,9 +53,13 @@ test('TOP から品質異常のデモを始めると、期間外の伝票を見�
 test('案内の帯から正常終了のデモに切り替えると、正常と判定され、結果を出力できる', async ({ page }) => {
   test.setTimeout(150_000)
   await page.goto('/build?demo=monthly_sales&pattern=ng')
+  await throughDemoSteps(page)
   await expect(banner(page)).toContainText('品質異常')
   await banner(page).getByRole('link', { name: '正常終了のデモに切り替える' }).click()
+  // 同じデモの中の切り替え：データが変わるので「データを確認」から（作業を知るへは戻さない）
   await expect(banner(page)).toContainText('デモ：月次売上集計デモ（正常終了）', { timeout: 20_000 })
+  await expect(page.getByRole('list', { name: '作業の段階' }).locator('[aria-current="step"]')).toContainText('データを確認')
+  await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
   await run(page)
   await expect(verdictBox(page)).toContainText('総合判定：正常')
   await expect(verdictBox(page)).toContainText('完了基準（4件）をすべて満たしています。')
@@ -79,6 +87,7 @@ for (const [title, first, evidence] of [
     test.setTimeout(150_000)
     await page.goto('/')
     await page.getByRole('article', { name: title }).getByRole('link', { name: `${title}：異常デモを実行` }).click()
+    await throughDemoSteps(page)
     await expect(banner(page)).toContainText(`デモ：${title}（品質異常）`, { timeout: 20_000 })
     await run(page)
     await expect(verdictBox(page)).toContainText('総合判定：重大')
@@ -91,6 +100,7 @@ for (const [title, first, evidence] of [
 test('品質異常の後に「直したデータで再実行する」と、自動で実行し、直す前と後を並べて比べる（M1-3）', async ({ page }) => {
   test.setTimeout(150_000)
   await page.goto('/build?demo=product_match&pattern=ng')
+  await throughDemoSteps(page)
   await expect(page.getByRole('article', { name: /^ステップ5：/ })).toBeVisible({ timeout: 20_000 })
   await run(page)
   await expect(verdictBox(page)).toContainText('総合判定：重大')
@@ -139,6 +149,7 @@ for (const [id, title] of [
       await link.focus()
       await page.keyboard.press(key)
       await expect(page).toHaveURL(new RegExp(`/build[?]demo=${id}&pattern=${pattern}$`))
+      await throughDemoSteps(page)
       await expect(banner(page)).toContainText(`デモ：${title}（${label}）`, { timeout: 20_000 })
       await run(page)
       await expect(verdictBox(page)).toContainText(verdict)
@@ -149,6 +160,7 @@ for (const [id, title] of [
 test('単発の実行で「前回のExcelと比較する」：比較用のファイルで別に実行し、今回の結果と並べて比べる（分析 B-3）', async ({ page }) => {
   test.setTimeout(150_000)
   await page.goto('/build?demo=monthly_sales&pattern=ok')
+  await throughDemoSteps(page)
   await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
   await run(page)
   const prev = page.getByRole('region', { name: '前回との比較' })

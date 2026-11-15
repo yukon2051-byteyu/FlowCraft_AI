@@ -16,6 +16,16 @@ export type DemoSummary = {
   patterns: Record<string, { label: string; description: string }>
 }
 
+/** STEP 1・2 の内容（架空の業務シナリオ・事前に用意した改善例。refs は作業手順の処理ステップ n…・完了基準 c…） */
+export type DemoStory = {
+  business_name: string
+  purpose: string
+  current_work: string[]
+  issues: string[]
+  improvements: { before: string; after: string; refs: string[] }[]
+  steps: { label: string; refs: string[] }[]
+}
+
 export type DemoStart = {
   demo_id: string
   title: string
@@ -30,6 +40,8 @@ export type DemoStart = {
   fix_note: string | null
   /** 品質異常のとき：直したデータの体験（いつも 'ok'） */
   fixed_pattern: DemoPattern | null
+  /** 業務の説明（古いサーバーでは無い） */
+  story?: DemoStory | null
 }
 
 export function listDemos(): Promise<DemoSummary[]> {

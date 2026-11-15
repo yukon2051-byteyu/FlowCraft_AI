@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { demo } from './helpers'
+import { demo, throughDemoSteps } from './helpers'
 
 /*
  * AI を使わない操作では、AI 利用パスワードを求めない（docs/ai-auth-design.md）。
@@ -30,6 +30,7 @@ test('自分のExcelで試す → 読み込み → プレビュー → 作業手
 test('デモの開始・実行・Excel 出力まで AI のパスワードを求めない', async ({ page }) => {
   test.setTimeout(120_000)
   await page.goto('/build?demo=monthly_sales&pattern=ok')
+  await throughDemoSteps(page)
   await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
   await expect(page.getByRole('status', { name: '総合判定' })).toBeVisible({ timeout: 30_000 })

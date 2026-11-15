@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, ChevronDown, CircleCheck, CircleHelp, CircleMinus, CircleX, FileOutput, LoaderCircle, RefreshCw, Save, TriangleAlert, Wrench } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
 import { fetchRun } from '../../../api/flows'
@@ -49,9 +50,11 @@ type Props = {
   onSave: () => void
   /** 今の作業手順が保存済み（変更なし）か */
   saved: boolean
+  /** デモ：改善内容の振り返り（品質ルールの結果の後に出す） */
+  review?: ReactNode
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -178,6 +181,8 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
           {fix && <FixBox fix={fix} />}
 
           {run.criteria.length > 0 && <CriteriaResults criteria={run.criteria} />}
+
+          {review}
 
           {run.flow_issues.length > 0 && (
             <section className="light-panel rounded-2xl p-5">
