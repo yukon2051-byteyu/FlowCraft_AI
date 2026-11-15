@@ -214,3 +214,21 @@ def test_API_開始し直すと_前のデモのファイルは入れ替わる(cl
     files = client.get("/api/files", headers=h).json()
     assert len(files) == 3
     assert {b["file_id"] for b in first["bindings"]}.isdisjoint({b["file_id"] for b in second["bindings"]})
+
+
+def test_改善前後の比較は_工程と作業手順から数え_判断で変わる():
+    rows = {r.item: r for r in build().comparison}
+    assert (rows["工程数"].before, rows["工程数"].after) == ("7工程", "5工程")
+    assert rows["手作業の工程"].after == "手作業のみ 0・自動＋人の確認 3・自動 2（工程）"
+    assert (rows["重複転記"].before, rows["重複転記"].after) == ("あり（1か所）", "なし")
+    assert (rows["作業時間"].before, rows["作業時間"].after, rows["作業時間"].assumed) == ("毎月90分", "毎月20分", True)
+    assert "実測ではありません" in rows["作業時間"].note
+    assert rows["元データとの合計照合"].after == "自動の検証（集計前後の売上金額が一致。重大）"
+    assert rows["品質の確認"].after == "完了基準 8件（実行のたびに自動で確認）"
+    assert rows["実行できる処理ステップ"].after.startswith("8ステップ")
+    # 廃止を採用しないと、重複転記は残る。自動化を採用しないと、合計の照合は手作業のまま
+    assert {r.item: r.after for r in build(a="reject").comparison}["重複転記"] == "あり（1か所）"
+    manual = {r.item: r.after for r in build(d="reject").comparison}
+    assert manual["元データとの合計照合"] == "手作業（変わらない）"
+    assert manual["実行できる処理ステップ"] == "なし（自動化を採用していない）"
+    assert manual["手作業の工程"] == "6工程（すべて手作業）"

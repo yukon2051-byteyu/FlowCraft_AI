@@ -25,7 +25,7 @@ import { DemoData } from '../components/workspace/demo/DemoData'
 import { DemoImprove } from '../components/workspace/demo/DemoImprove'
 import { DemoIntro } from '../components/workspace/demo/DemoIntro'
 import { DemoReview } from '../components/workspace/demo/DemoReview'
-import { handedFlow } from '../kaizen/handoff'
+import { handedFlow, saveRunResult } from '../kaizen/handoff'
 import type { DemoPattern, DemoStart } from '../api/demos'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { OpenDialog } from '../components/workspace/OpenDialog'
@@ -226,6 +226,21 @@ export default function WorkspacePage() {
       .catch((e) => setDemoError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '業務改善デモの作業手順を開けませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.get('kaizen')])
+
+  // 業務改善デモ：改善後の作業手順を実行したら、結果の要約を業務改善デモへ受け渡す（STEP 5 の比較に実際の結果として出す）
+  useEffect(() => {
+    if (!kaizenRun || !lastRun) return
+    const r = lastRun.run
+    saveRunResult({
+      flow_id: useFlowStore.getState().flow.flow_id,
+      executed_at: r.executed_at,
+      verdict: r.verdict?.verdict ?? null,
+      headline: r.verdict?.headline ?? null,
+      can_export: r.can_export,
+      criteria_total: r.criteria.length,
+      criteria_passed: r.criteria.filter((c) => c.status === 'passed').length,
+    })
+  }, [kaizenRun, lastRun])
 
   // 未保存のままブラウザを閉じる・再読み込みする前に、ブラウザの確認を出す
   useEffect(() => {

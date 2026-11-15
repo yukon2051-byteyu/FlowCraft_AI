@@ -6,6 +6,7 @@ import type { ApiErrorBody } from '../api/client'
 import { buildImprovement, diagnoseScenario, fetchScenario } from '../api/kaizen'
 import type { Diagnosis, Improvement, ScenarioResponse } from '../api/kaizen'
 import { AfterProcedure } from '../components/kaizen/AfterProcedure'
+import { KaizenCompare } from '../components/kaizen/KaizenCompare'
 import { CandidateList } from '../components/kaizen/CandidateList'
 import { DecisionList } from '../components/kaizen/DecisionList'
 import { CurrentWork } from '../components/kaizen/CurrentWork'
@@ -16,7 +17,7 @@ import { Button } from '../components/ui/Button'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { STATUS_DONE_LABEL, initialDecisions, problems } from '../kaizen/decisions'
 import type { Decisions } from '../kaizen/decisions'
-import { clearKaizenState, handOffFlow, resumeState } from '../kaizen/handoff'
+import { clearKaizenState, handOffFlow, resumeState, runResultFor } from '../kaizen/handoff'
 
 /*
  * 業務改善診断デモ（デモ①「その集計、本当に必要？」）。
@@ -30,7 +31,7 @@ import { clearKaizenState, handOffFlow, resumeState } from '../kaizen/handoff'
  * 判断は画面の中だけに持つ（読み込み直す・「最初からやり直す」で初期状態に戻る。前の判断が意図せず残らない）。
  */
 
-const READY_STEPS = 4 // 使えるSTEPの数（Phase 3 以降で増やす）
+const READY_STEPS = 5 // 使えるSTEPの数
 
 const HEADINGS = [
   (min: number) => `毎月${min}分のExcel作業。何に時間がかかっている？`,
@@ -70,7 +71,9 @@ export default function KaizenDemoPage() {
         setDiagnosis(d)
         setDecisions(resumed.decisions)
         setImprovement(resumed.improvement)
-        setStep(resumed.improvement ? resumed.step : 2)
+        // 作った作業手順を実行してから戻ってきたときは、比較（STEP 5）で実際の結果を見せる
+        const ran = runResultFor((resumed.improvement?.flow as { flow_id?: string } | null)?.flow_id)
+        setStep(resumed.improvement ? (ran ? 4 : resumed.step) : 2)
       },
       (e) => setError(toBody(e)),
     )
@@ -79,7 +82,7 @@ export default function KaizenDemoPage() {
 
   function openAndRun() {
     if (!improvement?.flow) return
-    if (!handOffFlow(improvement.flow, { step: 3, decisions, improvement })) {
+    if (!handOffFlow(improvement.flow, { step, decisions, improvement })) {
       setError({ code: 'STORAGE_UNAVAILABLE', message: '作業手順の画面へ受け渡せませんでした。', cause: 'このブラウザでは、一時的な保存（セッションストレージ）を使えません。', how_to_fix: 'プライベートモードを解除するか、別のブラウザでお試しください。', node_id: null })
       return
     }
@@ -165,6 +168,7 @@ export default function KaizenDemoPage() {
             <DecisionList candidates={diagnosis.candidates} scenario={scenario.scenario} decisions={decisions} onChange={setDecisions} />
           )}
           {scenario && step === 3 && improvement && <AfterProcedure data={improvement} scenario={scenario.scenario} />}
+          {step === 4 && improvement && <KaizenCompare data={improvement} run={runResultFor((improvement.flow as { flow_id?: string } | null)?.flow_id)} />}
         </div>
 
         <nav aria-label="STEPの移動" className="mt-8 flex flex-wrap items-center gap-3 border-t border-edge pt-6">
@@ -204,17 +208,23 @@ export default function KaizenDemoPage() {
             )}
             {step === 3 && (
               <>
-                {improvement?.flow ? (
-                  <Button variant="primary" size="lg" onClick={openAndRun}>
+                {improvement?.flow && (
+                  <Button variant="outlineDark" size="lg" onClick={openAndRun}>
                     <CirclePlay className="size-5" aria-hidden />
                     この作業手順を開いて、サンプルのExcelで実行する
                   </Button>
-                ) : (
-                  <p className="max-w-md text-right text-[0.85rem] text-subtle">自動化を採用していないため、実行できる作業手順はありません。</p>
                 )}
-                <Button variant="outlineDark" size="lg" disabled title="STEP 5（改善前後の比較）は準備中です">
-                  次へ進む（準備中）
+                <Button variant="primary" size="lg" onClick={() => setStep(4)}>
+                  次へ：改善前後を比較
                   <ArrowRight className="size-4.5" aria-hidden />
+                </Button>
+              </>
+            )}
+            {step === 4 && improvement?.flow && (
+              <>
+                <Button variant="primary" size="lg" onClick={openAndRun}>
+                  <CirclePlay className="size-5" aria-hidden />
+                  {runResultFor((improvement.flow as { flow_id?: string }).flow_id) ? 'もう一度、作業手順を開いて実行する' : 'この作業手順を開いて、サンプルのExcelで実行する'}
                 </Button>
               </>
             )}

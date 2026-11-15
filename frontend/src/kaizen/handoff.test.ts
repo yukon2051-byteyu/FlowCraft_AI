@@ -34,3 +34,15 @@ describe('業務改善デモ ⇄ 作業手順の画面 の受け渡し', () => {
     expect(handOffFlow({}, { step: 3, decisions: {}, improvement: null })).toBe(false)
   })
 })
+
+describe('作業手順の画面で実行した結果の受け渡し', () => {
+  it('同じ作業手順の結果だけを返す。やり直すと消える', async () => {
+    const { runResultFor, saveRunResult, clearKaizenState } = await import('./handoff')
+    saveRunResult({ flow_id: 'f1', executed_at: '2026-11-16T00:00:00Z', verdict: 'normal', headline: null, can_export: true, criteria_total: 8, criteria_passed: 8 })
+    expect(runResultFor('f1')?.criteria_passed).toBe(8)
+    expect(runResultFor('f2')).toBeNull()
+    expect(runResultFor(undefined)).toBeNull()
+    clearKaizenState()
+    expect(runResultFor('f1')).toBeNull()
+  })
+})

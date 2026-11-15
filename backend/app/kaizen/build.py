@@ -64,8 +64,19 @@ class Change(BaseModel):
     text: str
 
 
+class CompareRow(BaseModel):
+    """改善前後の比較の1行（指示書 STEP 5）。値は改善前の工程・改善後の工程と作業手順から数える（固定値を書かない）"""
+
+    item: str
+    before: str
+    after: str
+    assumed: bool = False  # 想定値（実測ではない）
+    note: str = ""
+
+
 class Improvement(BaseModel):
     after_steps: list[AfterStep]
+    comparison: list[CompareRow] = []
     flow: dict[str, Any] | None  # 自動化を採用しなかったときは None
     flow_note: str
     changes: list[Change]
@@ -126,6 +137,7 @@ def build_improvement(sc: Scenario, facts: list[FileFacts], diag: Diagnosis, dec
         after = _manual_after(sc, removed, adopted("simplify"), adopted("standardize"), cand_of, len(facts))
         return Improvement(
             after_steps=after,
+            comparison=_comparison(sc, after, None),
             flow=None,
             flow_note="自動化（候補" + "".join(cid("automate")) + "）を採用しなかったため、実行できる作業手順は作りません。手作業の流れだけを見直しました。",
             changes=changes,
@@ -218,6 +230,7 @@ def build_improvement(sc: Scenario, facts: list[FileFacts], diag: Diagnosis, dec
     unsupported = [_label(number[s.step_id], s) for s in sc.steps if s.action in ("transcribe", "share") and s.step_id not in removed]
     return Improvement(
         after_steps=after,
+        comparison=_comparison(sc, after, flow),
         flow=flow,
         flow_note="採用した改善案から、新しい作業手順を作りました（改善前の手順は変わりません）。処理ステップ・完了基準は、通常の作業手順と同じ画面で確認・編集・実行できます。",
         changes=changes,
@@ -226,6 +239,53 @@ def build_improvement(sc: Scenario, facts: list[FileFacts], diag: Diagnosis, dec
         kept_rules=kept_rules,
         unsupported=unsupported,
     )
+
+
+def _comparison(sc: Scenario, after: list[AfterStep], flow: dict[str, Any] | None) -> list[CompareRow]:
+    """改善前後の比較（指示書 STEP 5 の6項目と、合計の照合）。改善前は業務シナリオの工程、改善後は作った工程と作業手順から数える"""
+    by_id = {s.step_id: s for s in sc.steps}
+    # 重複転記：同じ工程の結果を2つ目以降の成果物へ書き写している工程（改善後は、その工程が残っているか）
+    sources: dict[str, list[str]] = {}
+    for s in sc.steps:
+        if s.transcribes_from:
+            sources.setdefault(s.transcribes_from, []).append(s.step_id)
+    dup_steps = {sid for ids in sources.values() for sid in ids[1:]}
+    remaining = {sid for a in after if a.mode == "manual" for sid in a.from_steps}
+    dup_after = len(dup_steps & remaining)
+    manual_before = sum(s.mode == "manual" for s in sc.steps)
+    manual_after = sum(a.mode == "manual" for a in after)
+    mixed_after = sum(a.mode == "mixed" for a in after)
+    checks_before = sum(len(s.quality_rules) for s in sc.steps)
+    criteria = (flow or {}).get("completion_criteria", {}).get("items", [])
+    nodes = (flow or {}).get("nodes", [])
+    reconcile = next(s for s in sc.steps if s.must_keep)
+    total_rules = [c["name"] for c in criteria if c["kind"] == "total_match"]
+    return [
+        CompareRow(item="工程数", before=f"{len(sc.steps)}工程", after=f"{len(after)}工程"),
+        CompareRow(
+            item="手作業の工程",
+            before=f"{manual_before}工程（すべて手作業）" if manual_before == len(sc.steps) else f"{manual_before}工程",
+            after=(
+                f"手作業のみ {manual_after}・自動＋人の確認 {mixed_after}・自動 {len(after) - manual_after - mixed_after}（工程）"
+                if len(after) != manual_after
+                else f"{manual_after}工程（すべて手作業）"
+            ),
+        ),
+        CompareRow(item="重複転記", before=f"あり（{len(dup_steps)}か所）" if dup_steps else "なし", after=f"あり（{dup_after}か所）" if dup_after else "なし"),
+        CompareRow(item="作業時間", before=f"毎月{sc.total_minutes}分", after=f"毎月{sum(a.minutes for a in after)}分", assumed=True, note="架空の設定値から計算した想定値です。実測ではありません。"),
+        CompareRow(
+            item="元データとの合計照合",
+            before=f"手作業（工程{sc.steps.index(by_id[reconcile.step_id]) + 1}：電卓で照合）",
+            after=f"自動の検証（{'・'.join(total_rules)}。重大）" if total_rules else "手作業（変わらない）",
+            note="必ず残す確認です。",
+        ),
+        CompareRow(
+            item="品質の確認",
+            before=f"目視の確認 {checks_before}件",
+            after=f"完了基準 {len(criteria)}件（実行のたびに自動で確認）" if criteria else f"目視の確認（作業手順は作らない）",
+        ),
+        CompareRow(item="実行できる処理ステップ", before="なし（手作業）", after=f"{len(nodes)}ステップ（保存して毎月再実行できる）" if nodes else "なし（自動化を採用していない）"),
+    ]
 
 
 def _manual_after(sc: Scenario, removed: set[str], simplify: bool, standardize: bool, cand_of: dict, n_files: int) -> list[AfterStep]:

@@ -94,8 +94,12 @@ export type AfterStep = {
   note: string
 }
 
+export type CompareRow = { item: string; before: string; after: string; assumed: boolean; note: string }
+
 export type Improvement = {
   after_steps: AfterStep[]
+  /** 改善前後の比較（サーバーが工程と作業手順から数える。作業時間は想定値） */
+  comparison: CompareRow[]
   /** 実行できる作業手順（通常の作業手順と同じ形）。自動化を採用しなかったときは null */
   flow: Record<string, unknown> | null
   flow_note: string

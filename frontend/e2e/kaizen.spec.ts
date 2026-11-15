@@ -6,7 +6,8 @@ import { BANNED } from './helpers'
  * Phase 2：STEP 1（現在の7工程・90分〈想定〉）→ STEP 2（改善候補 A〜D と根拠。決まった規則。AIは使っていない）。
  * Phase 3：STEP 3（採用する／保留する／採用しない。廃止は確認してから。前提の候補。理由）。
  * Phase 4：STEP 4（判断から、改善後の作業の流れと、実行できる作業手順を作る。判断を変えると手順が変わる）。
- * Phase 5：作った作業手順を作業手順の画面で開き、サンプルのExcelで実行・品質の確認・出力・保存。デモに戻れる。STEP 5 は準備中。
+ * Phase 5：作った作業手順を作業手順の画面で開き、サンプルのExcelで実行・品質の確認・出力・保存。デモに戻れる。
+ * Phase 6：STEP 5（改善前後の比較。値は作った手順から数える。作業時間は想定。実行した結果を並べる）。
  */
 
 test('現在の作業を確認し、改善候補を根拠とともに見る（AIは使っていない）', async ({ page }) => {
@@ -215,8 +216,13 @@ test('作った作業手順を開き、サンプルのExcelで実行・品質の
   await history.getByRole('button', { name: '閉じる' }).first().click()
   await expect(history).toHaveCount(0)
 
-  // 業務改善デモに戻る：判断と改善後の手順が残っている
+  // 業務改善デモに戻る：STEP 5（改善前後の比較）で、実際に実行した結果を見せる。判断と改善後の手順も残っている
   await banner.getByRole('link', { name: '業務改善デモに戻る' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('作業を減らして、必要な確認は残す。')
+  const actual = page.getByRole('region', { name: 'サンプルのExcelで実行した結果' })
+  await expect(actual).toContainText('総合判定：正常')
+  await expect(actual).toContainText('完了基準 8件のうち 8件を満たしました。正式な出力：できる')
+  await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toContainText('必要な作業だけを残して、手順を作り直しました。')
   await expect(page.getByText('7工程・90分 →')).toContainText('5工程・20分')
   // ふつうに開き直すと、初期状態から（前の判断は残らない）
@@ -230,4 +236,34 @@ test('受け渡した作業手順がないまま開くと、理由と直し方�
   await page.goto('/build?kaizen=monthly_report')
   await expect(page.getByRole('alert')).toContainText('改善後の作業手順が見つかりません。')
   await expect(page.getByRole('alert')).toContainText('業務改善デモの「改善後の手順を作成」から、もう一度開いてください。')
+})
+
+test('STEP 5 改善前後の比較：作った手順から数えた比較。作業時間は想定と明記。廃止を採用しないと重複転記が残る', async ({ page }) => {
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
+  await decision('A').getByText('採用しない').click()
+  for (const id of ['C', 'B', 'D']) await decision(id).getByText('採用する').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await page.getByRole('button', { name: '次へ：改善前後を比較' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('作業を減らして、必要な確認は残す。')
+  await expect(page.getByRole('list', { name: 'デモの進み具合' })).not.toContainText('準備中')
+
+  const table = page.getByRole('table', { name: '改善前後の比較' })
+  const row = (item: string) => table.getByRole('row', { name: new RegExp(`^${item}`) })
+  // 廃止を採用しないので、転記と共有が別の手作業として残り、工程数は減らない（作業時間は減る）
+  await expect(row('工程数')).toHaveText('工程数7工程7工程')
+  await expect(row('重複転記')).toContainText('あり（1か所）')
+  await expect(row('作業時間')).toContainText('想定')
+  await expect(row('作業時間')).toContainText('毎月90分')
+  await expect(row('作業時間')).toContainText('毎月35分')
+  await expect(row('作業時間')).toContainText('実測ではありません')
+  await expect(row('元データとの合計照合')).toContainText('自動の検証')
+  await expect(row('実行できる処理ステップ')).toContainText('8ステップ') // 廃止は手作業の工程だけを変え、処理ステップは変えない
+  // まだ実行していない：実行を勧める（結果を作り込んで見せない）
+  await expect(page.getByRole('region', { name: 'サンプルのExcelで実行した結果' })).toContainText('まだ実行していません')
+  await expect(page.getByRole('button', { name: 'この作業手順を開いて、サンプルのExcelで実行する' })).toBeVisible()
+  const text = await page.locator('main').innerText()
+  expect(text).not.toMatch(BANNED)
 })

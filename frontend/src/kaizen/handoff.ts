@@ -12,7 +12,32 @@ import type { Decisions } from './decisions'
 const FLOW_KEY = 'flowcraft.kaizen.flow'
 const STATE_KEY = 'flowcraft.kaizen.state'
 
+const RUN_KEY = 'flowcraft.kaizen.run'
+
 export type KaizenState = { step: number; decisions: Decisions; improvement: Improvement | null }
+
+/**
+ * 改善後の作業手順を、作業手順の画面でサンプルのExcelで実行した結果の要約（STEP 5 の比較に、実際の結果として出す）。
+ * 実行した作業手順（flow_id）が、今の改善後の作業手順と同じときだけ使う。
+ */
+export type KaizenRunResult = {
+  flow_id: string
+  executed_at: string
+  verdict: 'normal' | 'caution' | 'critical' | 'unverified' | null
+  headline: string | null
+  can_export: boolean
+  criteria_total: number
+  criteria_passed: number
+}
+
+export function saveRunResult(r: KaizenRunResult): void {
+  put(RUN_KEY, r)
+}
+
+export function runResultFor(flowId: string | undefined): KaizenRunResult | null {
+  const r = get<KaizenRunResult>(RUN_KEY)
+  return r && flowId && r.flow_id === flowId ? r : null
+}
 
 function put(key: string, value: unknown): boolean {
   try {
@@ -49,6 +74,7 @@ export function clearKaizenState(): void {
   try {
     sessionStorage.removeItem(FLOW_KEY)
     sessionStorage.removeItem(STATE_KEY)
+    sessionStorage.removeItem(RUN_KEY)
   } catch {
     // 消せなくても動きは止めない
   }
