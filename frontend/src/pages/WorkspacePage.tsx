@@ -16,6 +16,7 @@ import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { OutputStep } from '../components/workspace/run/OutputStep'
+import { ReviewWork } from '../components/workspace/review/ReviewWork'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
 import { HistoryDialog } from '../components/workspace/HistoryDialog'
@@ -307,6 +308,7 @@ export default function WorkspacePage() {
   const [templateError, setTemplateError] = useState<ApiErrorBody | null>(null)
   const setDescription = useFlowStore((s) => s.setDescription)
   const description = useFlowStore((s) => s.flow.description)
+  const review = useFlowStore((s) => s.review)
   const defs = useFlowStore((s) => s.flow.input_definitions)
   const bindings = useFlowStore((s) => s.bindings)
   const choose = (m: StartMode) => {
@@ -377,6 +379,8 @@ export default function WorkspacePage() {
                   ? '始め方を選んでください（どの方法でも、同じ処理の仕組みと品質の確認を使います）'
                   : screen === 'describe'
                     ? '案件名とやりたい作業を入れて、手順の作り方を選んでください'
+                    : screen === 'review'
+                      ? '今の作業を1行に1工程ずつ入力してください（業務の情報は任意です）'
                     : screen === 'output'
                       ? 'Excelに出力して、作業を終えてください（作業手順の保存は任意です）'
                     : screen === 'result'
@@ -414,6 +418,14 @@ export default function WorkspacePage() {
               <DescribeWork
                 initialName={flowName}
                 initialDescription={description}
+                // 自分の業務の見直し（Phase K-1）：業務の情報と今の工程を入力する画面へ。入力した内容は状態管理に残る
+                reviewStarted={review !== null}
+                onReview={(v) => {
+                  renameFlow(v.name)
+                  setDescription(v.description)
+                  setDescribed(true)
+                  setScreen('review')
+                }}
                 onBack={() => {
                   setParams({}, { replace: true })
                   setScreen('start')
@@ -450,6 +462,7 @@ export default function WorkspacePage() {
                 }}
               />
             )}
+            {screen === 'review' && <ReviewWork purpose={description} onBack={() => setScreen('describe')} />}
             {screen === 'describe' && templateError && (
               <div className="shrink-0 border-t border-edge px-6 py-3">
                 <ErrorNotice error={templateError} title="ひな形を読み込めませんでした" />

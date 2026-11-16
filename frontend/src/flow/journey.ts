@@ -42,13 +42,14 @@ export function stepOrder(mode: StartMode, method: BuildMethod | null = null): S
 }
 
 /** 画面（WorkspacePage の Screen）→ その画面で行っている段階 */
-export type Screen = 'start' | 'describe' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'output' | 'demo_intro' | 'demo_improve' | 'demo_data'
+export type Screen = 'start' | 'describe' | 'review' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'output' | 'demo_intro' | 'demo_improve' | 'demo_data'
 
 export function stepOfScreen(screen: Screen): StepId | null {
   switch (screen) {
     case 'start':
       return null
     case 'describe':
+    case 'review': // 今の工程から見直す（作業を伝える段階の中で行う。Phase K-1）
     case 'demo_intro':
       return 'describe'
     case 'demo_improve':
