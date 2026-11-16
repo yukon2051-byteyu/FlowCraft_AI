@@ -153,7 +153,12 @@ export function FlowSteps({
         : check.status !== 'done'
           ? '作業手順のチェックが終わるまでお待ちください'
           : null
-  const footer = footerStatus({ procedureOnly: !!onNext, check, nodeCount: flow.nodes.length, counts, stepLine, unassigned, blockers, stepBlockers })
+  // 要確認の完了基準（実行はできるが、確かめるまで未検証として扱う。重大なら正式な出力を止める）
+  const pendingCriteria = flow.completion_criteria.items.filter((c) => c.confirmation_status === 'pending' && criterionProblems(c, flow).length === 0)
+  const reviewBlocker: Blocker | null = pendingCriteria.length
+    ? { label: `要確認の完了基準が${pendingCriteria.length}件あります`, reason: '確かめるまで未検証として扱います（重大の基準なら正式な出力を止めます）', go: () => goCriterion(pendingCriteria[0].criterion_id) }
+    : null
+  const footer = footerStatus({ procedureOnly: !!onNext, check, nodeCount: flow.nodes.length, counts, stepLine, unassigned, blockers, stepBlockers, reviewBlocker })
   const stepName = (ref: string) => {
     const at = flow.nodes.findIndex((n) => n.output_reference === ref)
     return at >= 0 ? `ステップ${at + 1}の結果：${flow.nodes[at].node_name}` : '（まだ選んでいません）'
@@ -731,6 +736,7 @@ function footerStatus({
   unassigned,
   blockers,
   stepBlockers,
+  reviewBlocker,
 }: {
   procedureOnly: boolean
   check: ServerCheck
@@ -740,6 +746,7 @@ function footerStatus({
   unassigned: number
   blockers: Blocker[]
   stepBlockers: Blocker[]
+  reviewBlocker: Blocker | null
 }): FooterInfo {
   if (nodeCount === 0) return { tone: 'warning', title: '処理ステップがありません', sub: '「処理ステップを追加する」から追加してください', onFix: null }
   if (check.status === 'failed') return { tone: 'error', title: '作業手順のチェックができませんでした', sub: '時間をおいて、もう一度お試しください', onFix: null }
@@ -754,6 +761,8 @@ function footerStatus({
   }
   if (blockers.length) return { tone: 'warning', title: `実行するには、あと${blockers.length}件の設定が必要です`, sub: first(blockers), onFix: blockers[0].go }
   if (check.status !== 'done') return { tone: 'busy', title: '作業手順をチェックしています…', sub: stepLine, onFix: null }
+  // 実行はできるが、要確認の完了基準が残っている（隠さずに知らせ、確かめる場所へ案内する）
+  if (reviewBlocker) return { tone: 'warning', title: `実行できます（${reviewBlocker.label}）`, sub: reviewBlocker.reason, onFix: reviewBlocker.go }
   return { tone: 'success', title: '実行の準備ができました', sub: `${nodeCount}ステップすべて設定完了。作業手順のチェックに問題はありません`, onFix: null }
 }
 

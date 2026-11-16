@@ -1,9 +1,8 @@
-import { CircleCheck, ClipboardList, History, LayoutTemplate, ListChecks, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, CircleCheck, ClipboardList, History, Lightbulb, ListChecks, Plus, Sparkles, Trash2, TriangleAlert, X } from 'lucide-react'
 import { ItemActionButton, ItemStatusBadge } from '../ui/ItemStatusBadge'
 import { deriveStatus, statusStripe } from '../../flow/stepStatus'
 import { useEffect, useRef, useState } from 'react'
 import {
-  applyTemplate,
   columnsOf,
   CRITERION_KINDS,
   criterionProblems,
@@ -15,8 +14,9 @@ import {
   ON_FAIL_LABEL,
   refChoices,
   STANDARD_CHECKS,
-  TEMPLATES,
 } from '../../flow/criteria'
+import { suggestCriteria, suggestionsToCriteria } from '../../flow/suggest'
+import type { Suggestion } from '../../flow/suggest'
 import { OPERATOR_LABEL, operatorsFor } from '../../flow/params'
 import type { FilterOperator } from '../../flow/params'
 import { useFlowStore } from '../../flow/store'
@@ -27,7 +27,8 @@ import { ColumnChecks, ColumnSelect, Field, inputCls } from './StepSettings'
 /*
  * タスク2-4：完了基準の設定（「何を満たせば完了？」）。処理ステップ（何をする？）とは別の欄。
  * 基準は概要のカードで並べ、選んだ基準だけをカードの真下に開いて設定する（処理ステップと同じ操作）。
- * 種類は決まった一覧から選ぶ。テンプレートで推し当てられなかった対象・値は空のまま残し、不足として示す。
+ * 種類は決まった一覧から選ぶ。基準は「処理手順から基準を提案」（flow/suggest.ts。ルールで作る候補）から選んで追加するか、手で追加する。
+ * 提案は利用者が選んで追加するまで有効にしない。推し当てられない対象・値は空のまま残し、不足として示す。
  */
 
 const ON_FAIL_STYLE: Record<Criterion['on_fail'], string> = {
@@ -47,8 +48,13 @@ export function CriteriaPanel({ openId, onOpen, flashId }: { openId: string | nu
   const items = flow.completion_criteria.items
   const selectedId = openId
   const setSelectedId = onOpen
-  const [menu, setMenu] = useState<'none' | 'kind' | 'template'>('none')
+  const [menu, setMenu] = useState<'none' | 'kind' | 'suggest'>('none')
   const paramLabel = (id: string) => flow.run_parameters.find((p) => p.param_id === id)?.label ?? id
+  const setDismissed = useFlowStore((s) => s.setDismissedSuggestions)
+  const dismissed = flow.completion_criteria.dismissed_suggestions ?? []
+  const suggestions = suggestCriteria(flow)
+  // 設定状況（実行前の設定の状態。実行後の品質の判定とは別）
+  const needSetting = items.filter((c) => deriveStatus(criterionProblems(c, flow), [], c.confirmation_status !== 'pending') !== 'ready').length
 
   const add = (kind: CriterionKind) => {
     const c = newCriterion(flow, kind)
@@ -56,10 +62,10 @@ export function CriteriaPanel({ openId, onOpen, flashId }: { openId: string | nu
     setSelectedId(c.criterion_id)
     setMenu('none')
   }
-  const addTemplate = (id: (typeof TEMPLATES)[number]['id']) => {
-    const t = applyTemplate(flow, id)
+  const addSuggestions = (picked: Suggestion[]) => {
+    const t = suggestionsToCriteria(flow, picked)
     setCriteria([...items, ...t.items], t.parameters)
-    // まとめて追加したときは開かない（まず一覧で、どれが未設定かを見渡せるように）
+    // まとめて追加したときは開かない（まず一覧で、どれに確認が必要かを見渡せるように）
     setSelectedId(null)
     setMenu('none')
   }
@@ -76,17 +82,38 @@ export function CriteriaPanel({ openId, onOpen, flashId }: { openId: string | nu
   return (
     <div className="mx-auto max-w-[1100px] px-6 pb-12">
       <div className="min-w-0 space-y-4">
-        <div>
-          <h1 className="text-[1.5rem] font-bold text-white">何を満たせば完了？（完了基準）</h1>
-          <p className="mt-1 text-[0.9rem] text-subtle">処理がエラーなく終わっても、業務として正しいとは限りません。判定は正常・注意・重大・未検証の4つです。簡単な単発の作業なら、決めなくても実行できます。</p>
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[1.5rem] font-bold text-white">何を満たせば完了？</h1>
+            <p className="mt-1 text-[0.9rem] text-subtle">処理結果が正しいか確認するための基準を設定します。簡単な単発の作業なら、決めなくても実行できます。</p>
+          </div>
+          <CriteriaHistory />
         </div>
 
-        <CriteriaHistory />
+        {/* 設定状況のまとめ（実行前の設定の状態。品質の判定結果ではない） */}
+        {items.length > 0 && (
+          <p className={`flex items-center gap-2 font-bold ${needSetting ? 'text-todo' : 'text-mint'}`} role="status" aria-label="完了基準の設定状況">
+            {needSetting ? <TriangleAlert className="size-4.5" aria-hidden /> : <CircleCheck className="size-4.5" aria-hidden />}
+            {needSetting ? `${needSetting}件の基準に設定・確認が必要です` : 'すべての完了基準を設定しました'}
+            <span className="ml-auto text-[0.85rem] font-normal text-subtle">全{items.length}件</span>
+          </p>
+        )}
+
+        {/* 提案できる候補があるときだけ、控えめに案内する（操作を止めない） */}
+        {suggestions.length > 0 && menu !== 'suggest' && (
+          <div className="flex items-center gap-3 rounded-xl bg-mint/8 px-4 py-2.5 ring-1 ring-mint/30" role="note" aria-label="品質チェックの提案">
+            <Lightbulb className="size-4.5 shrink-0 text-mint" aria-hidden />
+            <p className="text-[0.92rem] text-white">この作業に合う品質チェックを{suggestions.length}件提案できます。</p>
+            <Button variant="ghostDark" size="sm" className="ml-auto" onClick={() => setMenu('suggest')}>
+              提案を見る
+            </Button>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="outlineDark" size="sm" onClick={() => setMenu(menu === 'template' ? 'none' : 'template')}>
-            <LayoutTemplate className="size-4" aria-hidden />
-            テンプレートから追加
+          <Button variant="outlineDark" size="sm" onClick={() => setMenu(menu === 'suggest' ? 'none' : 'suggest')}>
+            <Sparkles className="size-4" aria-hidden />
+            処理手順から基準を提案
           </Button>
           <Button variant="outlineDark" size="sm" onClick={() => setMenu(menu === 'kind' ? 'none' : 'kind')}>
             <Plus className="size-4" aria-hidden />
@@ -94,20 +121,15 @@ export function CriteriaPanel({ openId, onOpen, flashId }: { openId: string | nu
           </Button>
         </div>
 
-        {menu === 'template' && (
-          <section className="light-panel rounded-2xl p-4" aria-label="テンプレートを選ぶ">
-            <p className="text-[0.85rem] text-muted">作業手順の中身から、対象の列などを推し当てて追加します。推し当てられなかった項目は、空のまま残すので設定してください。</p>
-            <ul className="mt-2 grid gap-2 grid-cols-3">
-              {TEMPLATES.map((t) => (
-                <li key={t.id}>
-                  <button type="button" onClick={() => addTemplate(t.id)} className="h-full w-full rounded-xl bg-paper px-3 py-2.5 text-left ring-1 ring-line hover:ring-forest/50">
-                    <span className="block font-bold">{t.name}</span>
-                    <span className="mt-0.5 block text-[0.8rem] text-muted">{t.description}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+        {menu === 'suggest' && (
+          <SuggestPanel
+            suggestions={suggestions}
+            dismissedCount={dismissed.length}
+            onAdd={addSuggestions}
+            onDismiss={(key) => setDismissed([...dismissed, key])}
+            onRestore={() => setDismissed([])}
+            onClose={() => setMenu('none')}
+          />
         )}
         {menu === 'kind' && (
           <section className="light-panel rounded-2xl p-4" aria-label="追加する基準を選ぶ">
@@ -126,7 +148,7 @@ export function CriteriaPanel({ openId, onOpen, flashId }: { openId: string | nu
 
         {items.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-edge px-5 py-6 text-subtle">
-            まだ完了基準はありません。この場合は「標準の確認」（下）だけで判定し、結果に「業務の完了基準は設定されていません」と表示します。
+            まだ完了基準はありません。「処理手順から基準を提案」で候補を選ぶか、「基準を追加」で追加できます。決めない場合は「標準の確認」（下）だけで判定し、結果に「業務の完了基準は設定されていません」と表示します。
           </p>
         ) : (
           <ol className="space-y-2" aria-label="完了基準">
@@ -201,7 +223,11 @@ function CriterionCard({ c, problems, summary, open, flash, onToggle }: { c: Cri
           </p>
           {status !== 'ready' && (
             <p className={`mt-1 truncate text-[0.85rem] font-bold ${status === 'needs_review' ? 'text-warning-ink' : 'text-todo-ink'}`}>
-              {status === 'needs_review' ? 'ひな形から追加された基準です。内容を確認してください' : `不足：${problems[0]}${problems.length > 1 ? `（ほか${problems.length - 1}件）` : ''}`}
+              {status === 'needs_review'
+                ? c.origin === 'suggested'
+                  ? '提案から追加した基準です。仮の値（許容件数など）を確かめてください'
+                  : 'ひな形から追加された基準です。内容を確認してください'
+                : `不足：${problems[0]}${problems.length > 1 ? `（ほか${problems.length - 1}件）` : ''}`}
             </p>
           )}
         </>
@@ -217,31 +243,122 @@ function CriteriaHistory() {
   const savedSnapshot = useFlowStore((s) => s.savedSnapshot)
   // 前の保存から変えた内容（保存すると、版を上げてこの要約が記録される）
   const pending = savedSnapshot === null ? [] : diffCriteria((JSON.parse(savedSnapshot) as FlowDoc).completion_criteria?.items ?? [], cc.items)
-  const recent = [...cc.changelog].reverse().slice(0, 3)
-  if (!recent.length && !pending.length) return null
+  const recent = [...cc.changelog].reverse().slice(0, 5)
   return (
-    <section className="rounded-2xl bg-panel px-5 py-3 ring-1 ring-edge" aria-label="完了基準の変更の記録">
-      <p className="flex flex-wrap items-center gap-2 text-[0.9rem] font-bold text-white">
-        <History className="size-4 text-mint" aria-hidden />
-        完了基準の版 {cc.version}
-        {pending.length > 0 && <span className="text-[0.8rem] font-normal text-warning">（保存していない変更があります。保存すると版{cc.version + 1}として記録します）</span>}
-      </p>
-      {pending.length > 0 && (
-        <ul className="mt-1 list-disc pl-5 text-[0.82rem] text-warning" aria-label="保存していない変更">
-          {pending.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-      )}
-      {recent.length > 0 && (
-        <ul className="mt-1 space-y-0.5 text-[0.82rem] text-subtle" aria-label="これまでの変更">
-          {recent.map((c) => (
-            <li key={`${c.version}-${c.changed_at}`}>
-              版{c.version}（{new Date(c.changed_at).toLocaleString('ja-JP')}）：{c.summary}
+    <details className="group relative shrink-0 text-[0.85rem]" aria-label="完了基準の変更の記録">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-full px-3 py-1 text-subtle ring-1 ring-edge hover:text-white [&::-webkit-details-marker]:hidden">
+        <History className="size-3.5" aria-hidden />
+        完了基準：版{cc.version}
+        {pending.length > 0 && <span className="text-warning">（未保存の変更あり）</span>}
+        <ChevronDown className="size-3.5 transition group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="absolute right-0 z-10 mt-1.5 w-[26rem] rounded-xl bg-panel-hi px-4 py-3 shadow-xl ring-1 ring-edge">
+        {pending.length > 0 && (
+          <>
+            <p className="font-bold text-warning">保存すると版{cc.version + 1}として記録します</p>
+            <ul className="mt-0.5 list-disc pl-5 text-warning" aria-label="保存していない変更">
+              {pending.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {recent.length > 0 ? (
+          <ul className={`space-y-0.5 text-subtle ${pending.length ? 'mt-2' : ''}`} aria-label="これまでの変更">
+            {recent.map((c) => (
+              <li key={`${c.version}-${c.changed_at}`}>
+                版{c.version}（{new Date(c.changed_at).toLocaleString('ja-JP')}）：{c.summary}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          !pending.length && <p className="text-subtle">まだ変更の記録はありません（保存するたびに、変えた内容を記録します）。</p>
+        )}
+      </div>
+    </details>
+  )
+}
+
+/* ---------- 処理手順からの提案 ---------- */
+
+/**
+ * 提案の一覧。候補ごとに、提案の理由・自動で設定する内容・確認が必要な内容を示し、利用者が選んで追加する。
+ * 「提案しない」にした候補は作業手順のファイルに残し、次から出さない（戻すこともできる）
+ */
+function SuggestPanel({
+  suggestions,
+  dismissedCount,
+  onAdd,
+  onDismiss,
+  onRestore,
+  onClose,
+}: {
+  suggestions: Suggestion[]
+  dismissedCount: number
+  onAdd: (picked: Suggestion[]) => void
+  onDismiss: (key: string) => void
+  onRestore: () => void
+  onClose: () => void
+}) {
+  // 外した候補（初めはすべて選んだ状態。追加するのは「選択した基準を追加」を押したときだけ）
+  const [unpicked, setUnpicked] = useState<Set<string>>(new Set())
+  const picked = suggestions.filter((x) => !unpicked.has(x.key))
+  const toggle = (key: string) => {
+    const next = new Set(unpicked)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setUnpicked(next)
+  }
+  return (
+    <section className="light-panel rounded-2xl p-5" aria-label="処理手順からの提案">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold">{suggestions.length ? `現在の処理手順から、${suggestions.length}件の品質チェックを提案できます` : '今の処理手順から提案できる品質チェックはありません'}</h2>
+          <p className="mt-0.5 text-[0.85rem] text-muted">処理ステップの種類と列から、決まったルールで作った候補です（AIは使っていません）。選んで追加するまで、完了基準にはなりません。</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="提案を閉じる" className="rounded-md p-1 text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-forest">
+          <X className="size-5" />
+        </button>
+      </div>
+
+      {suggestions.length > 0 && (
+        <ul className="mt-3 space-y-2" aria-label="提案する品質チェック">
+          {suggestions.map((sg) => (
+            <li key={sg.key} className="flex items-start gap-3 rounded-xl bg-paper px-4 py-3 ring-1 ring-line">
+              <input type="checkbox" checked={!unpicked.has(sg.key)} onChange={() => toggle(sg.key)} aria-label={`「${sg.name}」を追加する`} className="mt-1 size-4 accent-[#135f50]" />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold">{sg.name}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[0.75rem] font-bold ring-1 ring-inset ${ON_FAIL_STYLE[sg.on_fail]}`}>{ON_FAIL_SHORT[sg.on_fail]}</span>
+                </p>
+                <p className="mt-0.5 text-[0.85rem] text-ink/85">{sg.reason}</p>
+                <p className="mt-1 text-[0.82rem] text-muted">自動で設定：{sg.autoSet.join('、')}</p>
+                {sg.needsUser.length > 0 && <p className="text-[0.82rem] font-bold text-warning-ink">確認が必要：{sg.needsUser.join('、')}</p>}
+              </div>
+              <button type="button" onClick={() => onDismiss(sg.key)} className="shrink-0 rounded text-[0.82rem] text-muted underline-offset-2 hover:text-ink hover:underline">
+                提案しない
+              </button>
             </li>
           ))}
         </ul>
       )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {suggestions.length > 0 && (
+          <Button variant="dark" size="sm" disabled={!picked.length} onClick={() => onAdd(picked)}>
+            <Plus className="size-4" aria-hidden />
+            選択した基準を追加（{picked.length}件）
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          提案を使わずに閉じる
+        </Button>
+        {dismissedCount > 0 && (
+          <button type="button" onClick={onRestore} className="ml-auto text-[0.82rem] text-muted underline-offset-2 hover:text-ink hover:underline">
+            「提案しない」にした候補（{dismissedCount}件）を戻す
+          </button>
+        )}
+      </div>
     </section>
   )
 }
@@ -292,7 +409,8 @@ function CriterionEditor({ c, onChange, onRemove }: { c: Criterion; onChange: (c
         {c.confirmation_status === 'pending' && (
           <div className="rounded-lg bg-warning-soft px-3 py-2.5 text-[0.85rem] text-warning-ink ring-1 ring-warning/40" role="note" aria-label="未確認のルール">
             <p>
-              ひな形から追加された基準です。<b>確かめる対象・列・期間・基準値</b>が今回の業務に合っているかを確かめてください。確かめるまで、このルールは「未検証」として扱います（重大のルールなら正式な出力を止めます）。
+              {c.origin === 'suggested' ? '提案から追加した基準です（許容件数などは仮の値です）。' : 'ひな形から追加された基準です。'}
+              <b>確かめる対象・列・期間・基準値</b>が今回の業務に合っているかを確かめてください。確かめるまで、このルールは「未検証」として扱います（重大のルールなら正式な出力を止めます）。
             </p>
             <button
               type="button"

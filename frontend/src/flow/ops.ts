@@ -33,14 +33,17 @@ export function normalizeFlow(raw: unknown): FlowDoc {
   const has11 = 'run_parameters' in f || 'completion_criteria' in f
   const has12 = (f.completion_criteria?.items ?? []).some((c) => 'rule_id' in c || 'rule_version' in c || 'copied_from' in c)
   const has13 = (f.input_definitions ?? []).some((d) => 'blank_rules' in d || (d.columns ?? []).some((c) => 'blank' in c))
+  const has14 = 'dismissed_suggestions' in (f.completion_criteria ?? {}) || (f.completion_criteria?.items ?? []).some((c) => c.origin === 'suggested')
   const old =
     f.schema_version === '1.0'
-      ? !has11 && !has12 && !has13
+      ? !has11 && !has12 && !has13 && !has14
       : f.schema_version === '1.1'
-        ? !has12 && !has13
+        ? !has12 && !has13 && !has14
         : f.schema_version === '1.2'
-          ? !has13
-          : false
+          ? !has13 && !has14
+          : f.schema_version === '1.3'
+            ? !has14
+            : false
   const version = old ? SCHEMA_VERSION : (f.schema_version ?? SCHEMA_VERSION)
   const flowId = f.flow_id ?? ''
   return {
@@ -79,6 +82,8 @@ export function normalizeFlow(raw: unknown): FlowDoc {
       // ルールの識別がない（1.1 以前の）基準には、サーバーと同じ規則で補う
       items: (f.completion_criteria?.items ?? []).map((c) => ({ ...c, rule_id: c.rule_id ?? legacyRuleId(flowId, c.criterion_id), rule_version: c.rule_version ?? 1 })),
       changelog: f.completion_criteria?.changelog ?? [],
+      // 「提案しない」とした候補（1.4）。古い版のファイルにはないので空
+      dismissed_suggestions: f.completion_criteria?.dismissed_suggestions ?? [],
     },
   }
 }

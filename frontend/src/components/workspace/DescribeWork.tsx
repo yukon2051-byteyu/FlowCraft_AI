@@ -51,6 +51,9 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
   const trimmed = name.trim()
   const nameProblem = !trimmed ? '案件名を入力してください' : trimmed.length > 100 ? '案件名は100文字以内にしてください' : null
   const needTemplate = method === 'template' && !templateId
+  // 次へ進もうとした後だけ、案件名の不足を入力欄に示す（最初から赤枠にしない）。正しく入れると消える
+  const [tried, setTried] = useState(false)
+  const nameError = tried ? nameProblem : null
 
   const chooseSkip = () => {
     setSkipChosen(true)
@@ -61,7 +64,15 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
     scrollToEl(nameRef.current)
     nameRef.current?.focus({ preventScroll: true })
   }
-  const next = () => onNext({ name: trimmed, description: description.trim(), diagnosis: 'skipped', method, templateId: method === 'template' ? templateId : null })
+  const next = () => {
+    if (nameProblem) {
+      // 空欄・空白だけの案件名では進めない。理由を入力欄の直下に出し、入力欄へ移る
+      setTried(true)
+      goName()
+      return
+    }
+    onNext({ name: trimmed, description: description.trim(), diagnosis: 'skipped', method, templateId: method === 'template' ? templateId : null })
+  }
 
   return (
     <>
@@ -75,7 +86,10 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
               <p className="mt-1 text-[0.92rem] text-ink/80">作業手順の名前と目的として保存し、次の画面へ引き継ぎます。Excelはまだ必要ありません。</p>
             </div>
             <label className="block scroll-mt-4">
-              <span className="text-[0.88rem] font-bold">案件名（作業の名前）</span>
+              <span className="flex items-center gap-2 text-[0.88rem] font-bold">
+                案件名（作業の名前）
+                <FieldBadge required />
+              </span>
               <input
                 ref={nameRef}
                 value={name}
@@ -83,12 +97,22 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
                 placeholder="例：月次売上集計"
                 maxLength={120}
                 aria-label="案件名"
-                className="mt-1 h-10 w-full scroll-mt-4 rounded-lg bg-card px-3 ring-1 ring-line focus:ring-2 focus:ring-forest focus:outline-none"
+                aria-required
+                aria-invalid={nameError ? true : undefined}
+                aria-describedby={nameError ? 'name-error' : undefined}
+                className={`mt-1 h-10 w-full scroll-mt-4 rounded-lg bg-card px-3 focus:outline-none ${nameError ? 'ring-2 ring-error' : 'ring-1 ring-line focus:ring-2 focus:ring-forest'}`}
               />
+              {nameError && (
+                <span id="name-error" role="alert" className="mt-1 block text-[0.85rem] font-bold text-error-ink">
+                  {nameError}
+                </span>
+              )}
             </label>
             <label className="block">
-              <span className="text-[0.88rem] font-bold">やりたい作業・目的</span>
-              <span className="ml-2 text-[0.8rem] text-muted">任意</span>
+              <span className="flex items-center gap-2 text-[0.88rem] font-bold">
+                やりたい作業・目的
+                <FieldBadge />
+              </span>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -172,18 +196,13 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
           開始方法を選び直す
         </Button>
         <div className="ml-auto flex items-center gap-3">
-          {nameProblem && (
-            <button type="button" onClick={goName} className="text-[0.88rem] font-bold whitespace-nowrap text-warning underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-mint">
-              {nameProblem}
-            </button>
-          )}
           {needTemplate ? (
             <Button variant="primary" onClick={() => scrollToEl(methodRef.current)}>
               ひな形を選ぶ
               <ArrowDown className="size-4" aria-hidden />
             </Button>
           ) : (
-            <Button variant="primary" disabled={nameProblem !== null || busy} onClick={next} title={nameProblem ?? undefined}>
+            <Button variant="primary" disabled={busy} onClick={next} title="案件名がないときは、押すと入力欄に理由を示します">
               {method === 'template' ? 'このひな形で進む' : '次へ：データを読み込む'}
               <ArrowRight className="size-4" aria-hidden />
             </Button>
@@ -191,6 +210,19 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
         </div>
       </div>
     </>
+  )
+}
+
+/** 入力項目の必須・任意の印（大きさ・余白・角丸をそろえる。必須は落ち着いたコーラル、任意はグレー） */
+function FieldBadge({ required = false }: { required?: boolean }) {
+  return (
+    <span
+      className={`inline-flex h-5 items-center rounded px-1.5 text-[0.72rem] leading-none font-bold ring-1 ring-inset ${
+        required ? 'bg-kaizen-soft text-kaizen-ink ring-kaizen/35' : 'bg-ink/6 text-muted ring-ink/15'
+      }`}
+    >
+      {required ? '必須' : '任意'}
+    </span>
   )
 }
 

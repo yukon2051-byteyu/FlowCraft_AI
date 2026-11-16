@@ -74,13 +74,13 @@ def codes(flow) -> list[str]:
 # ===================== 1.0 からの移行 =====================
 
 
-def test_current_version_is_13():
-    assert SCHEMA_VERSION == "1.3"
+def test_current_version_is_14():
+    assert SCHEMA_VERSION == "1.4"
 
 
 def test_10_file_is_read_as_latest_with_empty_criteria():
     flow = parse_flow(FLOW_10)
-    assert flow.schema_version == "1.3"
+    assert flow.schema_version == "1.4"
     assert flow.run_parameters == []
     assert flow.completion_criteria.items == [] and flow.completion_criteria.version == 1
     assert validate_structure(flow) == []
@@ -246,7 +246,7 @@ def test_11_file_gets_rule_identity_that_is_the_same_every_time():
     a = parse_flow(_flow_11_with_criteria())
     b = parse_flow(_flow_11_with_criteria())
     item = a.completion_criteria.items[0]
-    assert a.schema_version == "1.3"
+    assert a.schema_version == "1.4"
     assert item.rule_id == f"{FLOW_10['flow_id']}:{item.criterion_id}"
     assert item.rule_version == 1 and item.copied_from is None
     assert b.completion_criteria.items[0].rule_id == item.rule_id
@@ -298,3 +298,46 @@ def test_12_file_with_13_items_is_rejected():
         parse_flow(g)
     assert "1.3 の項目" in str(e.value.errors)
 
+
+
+# ===================== 1.3 → 1.4（自動提案で「提案しない」とした候補） =====================
+
+
+def _flow_13():
+    """1.3 の作業手順（完了基準の各項目に rule_id を持つ形）"""
+    f = flow_11()
+    f["schema_version"] = "1.3"
+    for i, item in enumerate(f["completion_criteria"]["items"]):
+        item["rule_id"] = f"r-{i}"
+    return f
+
+
+def test_13_file_is_read_as_14_without_dismissed_suggestions():
+    flow = parse_flow(_flow_13())
+    assert flow.schema_version == "1.4"
+    assert flow.completion_criteria.dismissed_suggestions == []
+
+
+def test_14_file_keeps_dismissed_suggestions_and_suggested_origin():
+    f = _flow_13()
+    f["schema_version"] = "1.4"
+    f["completion_criteria"]["dismissed_suggestions"] = ["all_matched:sales_p:"]
+    f["completion_criteria"]["items"][0]["origin"] = "suggested"
+    flow = parse_flow(f)
+    assert flow.completion_criteria.dismissed_suggestions == ["all_matched:sales_p:"]
+    assert flow.completion_criteria.items[0].origin == "suggested"
+    # 保存し直しても失われない
+    again = parse_flow(json.loads(flow.model_dump_json(by_alias=True)))
+    assert again.completion_criteria.dismissed_suggestions == ["all_matched:sales_p:"]
+
+
+@pytest.mark.parametrize("patch", ["dismissed", "origin"])
+def test_13_file_with_14_items_is_rejected(patch):
+    """1.3 のファイルに 1.4 の項目が書かれていたら、手で編集された不正なファイルとして拒否する"""
+    f = _flow_13()
+    if patch == "dismissed":
+        f["completion_criteria"]["dismissed_suggestions"] = ["x"]
+    else:
+        f["completion_criteria"]["items"][0]["origin"] = "suggested"
+    with pytest.raises(FlowSchemaError, match="1.4 の項目"):
+        parse_flow(f)

@@ -5,7 +5,7 @@
  */
 
 /** 1.1（2026-11-13）：完了基準と、実行のたびに指定する値を追加。1.0 のファイルは 1.1 として読む */
-export const SCHEMA_VERSION = '1.3'
+export const SCHEMA_VERSION = '1.4'
 
 export type ColumnType = 'string' | 'integer' | 'decimal' | 'date' | 'boolean'
 
@@ -118,7 +118,8 @@ export type Criterion = {
   params?: Record<string, unknown>
   /** 満たさないとき：critical（重大）／caution（注意）／record（記録のみ） */
   on_fail: 'critical' | 'caution' | 'record'
-  origin?: 'template' | 'manual' | 'ai'
+  /** suggested：処理手順からの自動提案を、利用者が選んで追加した（1.4） */
+  origin?: 'template' | 'manual' | 'ai' | 'suggested'
   confirmation_status?: ConfirmationStatus
   note?: string
 }
@@ -128,6 +129,8 @@ export type CompletionCriteria = {
   version: number
   items: Criterion[]
   changelog: { version: number; changed_at: string; summary: string }[]
+  /** 利用者が「提案しない」とした自動提案の候補の識別（1.4）。同じ候補を毎回出さないために残す */
+  dismissed_suggestions?: string[]
 }
 
 export type FlowDoc = {

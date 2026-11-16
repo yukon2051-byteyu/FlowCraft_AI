@@ -20,8 +20,8 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 
 # 1.1（2026-11-13）：完了基準（completion_criteria）と、実行のたびに指定する値（run_parameters）を追加。
 # 1.0 のファイルはそのまま読み込み、1.1 として扱う（追加項目は空）。docs/completion-criteria.md §3
-SCHEMA_VERSION = "1.3"
-SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2", "1.3")
+SCHEMA_VERSION = "1.4"
+SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2", "1.3", "1.4")
 
 MAX_NODES = 100
 MAX_EXPRESSION_DEPTH = 5
@@ -625,7 +625,8 @@ Tolerance = Annotated[str, BeforeValidator(_to_canonical_str), AfterValidator(_d
 
 # 満たさないとき：critical（重大）／caution（注意）／record（記録のみ。判定に使わない）
 OnFail = Literal["critical", "caution", "record"]
-CriterionOrigin = Literal["template", "manual", "ai"]
+# suggested：処理手順からの自動提案（ルールで作った候補）を、利用者が選んで追加した（1.4）
+CriterionOrigin = Literal["template", "manual", "ai", "suggested"]
 Count = Annotated[int, Field(ge=0, le=100_000_000)]
 
 
@@ -864,6 +865,8 @@ class CompletionCriteria(StrictModel):
     version: Annotated[int, Field(ge=1)] = 1
     items: Annotated[list[Criterion], Field(max_length=50)] = Field(default_factory=list)
     changelog: Annotated[list[CriteriaChange], Field(max_length=200)] = Field(default_factory=list)
+    # 利用者が「提案しない」とした自動提案の候補の識別（1.4）。同じ候補を毎回出さないために残す。判定には使わない
+    dismissed_suggestions: Annotated[list[Annotated[str, Field(min_length=1, max_length=200)]], Field(max_length=200)] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -889,8 +892,8 @@ def legacy_rule_id(flow_id: Any, criterion_id: Any) -> str:
 
 
 class FlowDefinition(StrictModel):
-    # 読み込んだ 1.0〜1.2 のファイルは 1.3 として扱う（_upgrade）。保存し直すと 1.3 になる
-    schema_version: Literal["1.3"]
+    # 読み込んだ 1.0〜1.3 のファイルは 1.4 として扱う（_upgrade）。保存し直すと 1.4 になる
+    schema_version: Literal["1.4"]
     engine_version: str
     flow_id: UUID
     flow_version: Annotated[int, Field(ge=1)]
@@ -908,11 +911,12 @@ class FlowDefinition(StrictModel):
     @model_validator(mode="before")
     @classmethod
     def _upgrade(cls, data: Any) -> Any:
-        """古い版のファイルを 1.2 として読む。古い版に新しい版の項目が書かれていたら、手で編集された不正なファイルとして拒否する。
+        """古い版のファイルを最新の版（1.4）として読む。古い版に新しい版の項目が書かれていたら、手で編集された不正なファイルとして拒否する。
 
         1.0 → 1.1：実行時に指定する値・完了基準が加わった
         1.1 → 1.2：完了基準の各項目に、品質ルールの識別（rule_id・rule_version・copied_from）が加わった
         1.2 → 1.3：入力の定義に空白の扱い（blank_rules）、列に空欄の扱い（blank）が加わった（Phase Q）
+        1.3 → 1.4：完了基準に「提案しない」とした候補（dismissed_suggestions）、基準の作られ方に suggested が加わった
         """
         if not isinstance(data, dict):
             return data
@@ -944,6 +948,13 @@ class FlowDefinition(StrictModel):
                 if bad:
                     raise ValueError("形の版 1.2 のファイルには「blank_rules」「blank」を書けません（1.3 の項目です）")
             data = {**data, "schema_version": "1.3"}
+        if data.get("schema_version") == "1.3":
+            criteria = data.get("completion_criteria")
+            if isinstance(criteria, dict):
+                items = criteria.get("items") if isinstance(criteria.get("items"), list) else []
+                if "dismissed_suggestions" in criteria or any(isinstance(i, dict) and i.get("origin") == "suggested" for i in items):
+                    raise ValueError("形の版 1.3 のファイルには「dismissed_suggestions」や作られ方「suggested」を書けません（1.4 の項目です）")
+            data = {**data, "schema_version": "1.4"}
         return data
 
 

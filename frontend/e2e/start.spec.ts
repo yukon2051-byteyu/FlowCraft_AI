@@ -42,10 +42,27 @@ test('作業起点：案件名と作業を入れると、作業手順の名前�
 
   // 処理部品を組み合わせて作る（Excelを読み込んで列を確かめながら）を選ぶ
   await page.getByRole('radiogroup', { name: '手順の作り方' }).getByRole('radio', { name: '処理部品を組み合わせて作る' }).click()
-  // 案件名がないと進めない
+  // 必須・任意の印（案件名は必須、やりたい作業・目的は任意）。最初から赤枠にはしない
+  const nameBox = page.getByRole('textbox', { name: '案件名' })
+  await expect(page.locator('label').filter({ has: nameBox })).toContainText('必須')
+  await expect(page.locator('label').filter({ has: page.getByRole('textbox', { name: 'やりたい作業・目的' }) })).toContainText('任意')
+  await expect(nameBox).not.toHaveAttribute('aria-invalid', 'true')
+  // ① 未入力のまま進もうとすると進めない：入力欄の直下に理由を出し、入力欄へ移る
   const next = page.getByRole('button', { name: '次へ：データを読み込む' })
-  await expect(next).toBeDisabled()
-  await page.getByRole('textbox', { name: '案件名' }).fill('月次売上集計')
+  await next.click()
+  await expect(page.getByRole('alert').filter({ hasText: '案件名を入力してください' })).toBeVisible()
+  await expect(nameBox).toHaveAttribute('aria-invalid', 'true')
+  await expect(nameBox).toBeFocused()
+  await expect(page.getByRole('heading', { name: 'やりたい作業を伝える' })).toBeVisible()
+  // ② 空白だけでも進めない
+  await nameBox.fill('　 ')
+  await next.click()
+  await expect(page.getByRole('alert').filter({ hasText: '案件名を入力してください' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'やりたい作業を伝える' })).toBeVisible()
+  // ③ 正しく入れると、理由の表示が消える
+  await nameBox.fill('月次売上集計')
+  await expect(page.getByRole('alert').filter({ hasText: '案件名を入力してください' })).toHaveCount(0)
+  await expect(nameBox).not.toHaveAttribute('aria-invalid', 'true')
   await page.getByRole('textbox', { name: 'やりたい作業・目的' }).fill('部署別の売上を集計し、営業会議で使う')
   await next.click()
 
@@ -100,9 +117,6 @@ test('作業起点（1366×768）：「診断せずに進む」を選ぶと、�
   const list = page.getByRole('radiogroup', { name: 'もとにするひな形' })
   // 開発中の機能は小さな印（選べない）
   await expect(page.getByText('改善診断機能は開発中です。')).toBeVisible()
-  // 案件名がないときは、短い言葉で示し、押すと入力欄へ
-  await page.getByRole('button', { name: '案件名を入力してください' }).click()
-  await expect(page.getByRole('textbox', { name: '案件名' })).toBeFocused()
   await page.getByRole('textbox', { name: '案件名' }).fill('月次売上集計')
   // 「診断せずに進む」→ 次の操作の案内と、ひな形の一覧が見える位置へ
   await page.getByRole('radiogroup', { name: '改善診断' }).getByRole('radio', { name: '診断せずに進む' }).click()

@@ -42,7 +42,7 @@ def flow(cols, required=None, blank=None, rules=None):
     if rules:
         d["blank_rules"] = rules
     return {
-        "schema_version": "1.3",
+        "schema_version": "1.4",
         "engine_version": "0.1.0",
         "flow_id": "11111111-2222-4333-8444-555555555555",
         "flow_version": 1,

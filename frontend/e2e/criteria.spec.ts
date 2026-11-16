@@ -5,7 +5,7 @@ import { buildMonthlySales, demo } from './helpers'
 
 /*
  * タスク2-4：完了基準の設定画面（何を満たせば完了？）。
- * テンプレートと手動で設定し、サーバーの検証を通り、実行すると総合判定に反映されることを確かめる。デモ用の架空データ。
+ * 処理手順からの提案と手動で設定し、サーバーの検証を通り、実行すると総合判定に反映されることを確かめる。デモ用の架空データ。
  */
 
 const panelList = (page: Page) => page.getByRole('list', { name: '完了基準' })
@@ -14,10 +14,20 @@ const verdictBox = (page: Page) => page.getByRole('region', { name: '実行の�
 
 async function openCriteria(page: Page) {
   await page.getByRole('tab', { name: /何を満たせば完了？/ }).click()
-  await expect(page.getByRole('heading', { name: '何を満たせば完了？（完了基準）' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '何を満たせば完了？' })).toBeVisible()
 }
 
-test('テンプレート「売上集計」で設定し、対象月を入れて実行すると、完了基準で判定される', async ({ page }) => {
+/** 対象月の基準を持つ、保存済みのデモの作業手順（月次売上集計）を開いて、10月分のファイルを割り当てる */
+async function openDemoFlow(page: Page) {
+  await page.goto('/build?start=saved')
+  await page.getByRole('dialog', { name: '作業手順を開く' }).getByTestId('flow-file-input').setInputFiles(demo('../flows/demo_monthly_sales.json'))
+  await page.getByTestId('assign-file-input').setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
+  const proceed = page.getByRole('button', { name: 'この割当で作業手順へ進む' })
+  await expect(proceed).toBeEnabled({ timeout: 20_000 })
+  await proceed.click()
+}
+
+test('処理手順から品質チェックを提案し、選んだものだけを追加する。仮の値を確かめると設定済みになり、実行すると完了基準で判定される', async ({ page }) => {
   test.setTimeout(150_000)
   await buildMonthlySales(page, '商品マスタ.xlsx')
   await openCriteria(page)
@@ -25,33 +35,56 @@ test('テンプレート「売上集計」で設定し、対象月を入れて�
   // 自動で行う確認（設定は不要）も一覧で示す
   await expect(page.getByRole('region', { name: '自動で行う確認' })).toContainText('集計の前後で合計と件数が一致しているか')
 
-  await page.getByRole('button', { name: 'テンプレートから追加' }).click()
-  await page.getByRole('region', { name: 'テンプレートを選ぶ' }).getByRole('button', { name: /^売上集計/ }).click()
-  const items = panelList(page).getByRole('article')
-  await expect(items).toHaveCount(5)
-  await expect(page.getByRole('tab', { name: /完了基準 5/ })).toBeVisible()
-  // 推し当てた基準は設定済み（期間は「実行するたびに指定」）
-  await expect(items.filter({ hasText: '未設定' })).toHaveCount(0)
-  await expect(items.filter({ hasText: '対象月の伝票だけ' })).toContainText('実行時に指定（対象月）')
+  // 提案できる候補があることを、操作を止めずに控えめに案内する
+  const note = page.getByRole('note', { name: '品質チェックの提案' })
+  await expect(note).toContainText('この作業に合う品質チェックを5件提案できます。')
+  await note.getByRole('button', { name: '提案を見る' }).click()
+  const panel = page.getByRole('region', { name: '処理手順からの提案' })
+  const cands = panel.getByRole('list', { name: '提案する品質チェック' }).getByRole('listitem')
+  await expect(cands).toHaveCount(5)
+  // 根拠にした処理ステップと、利用者の確認が必要なこと（許容件数を勝手に正解としない）を示す
+  await expect(cands.first()).toContainText('ステップ4「別の表から情報を付け加える」で別の表と照合しているため')
+  await expect(cands.first()).toContainText('確認が必要：許容する件数')
+  await expect(cands.filter({ hasText: '集計前後の「売上金額」の合計が一致' })).toContainText('比べる相手：集計前の「売上金額」')
 
-  // 対象月を入れるまで実行できない
-  const run = page.getByRole('button', { name: '作業手順全体を実行する' })
-  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('実行時に指定する値「対象月」')
-  await expect(run).toBeDisabled()
-  await page.getByRole('textbox', { name: '実行時に指定する値：対象月' }).fill('2026-10')
-  await expect(run).toBeEnabled({ timeout: 10_000 })
-  await run.click()
+  // 「提案しない」にした候補は消え、次からも出さない。選択を外した候補は追加しない
+  await cands.filter({ hasText: '「部署コード」に空欄がない' }).getByRole('button', { name: '提案しない' }).click()
+  await expect(cands).toHaveCount(4)
+  await panel.getByRole('checkbox', { name: '「照合に使う「商品コード」に空欄がない」を追加する' }).uncheck()
+  await panel.getByRole('button', { name: '選択した基準を追加（3件）' }).click()
+  const items = panelList(page).getByRole('article')
+  await expect(items).toHaveCount(3)
+  await expect(page.getByRole('tab', { name: /完了基準 3/ })).toBeVisible()
+
+  // 仮の値を入れた照合の基準は「要確認」（確かめるまで未検証）。設定状況のまとめに件数を集める
+  const summary = page.getByRole('status', { name: '完了基準の設定状況' })
+  await expect(summary).toContainText('2件の基準に設定・確認が必要です')
+  await expect(summary).toContainText('全3件')
+  // 選択を外した候補は、まだ提案できる（「提案しない」にしたものは出ない）
+  await expect(note).toContainText('1件提案できます')
+
+  await expect(items.filter({ hasText: '照合できない行が0件（ステップ4）' })).toContainText('提案から追加した基準です。仮の値（許容件数など）を確かめてください')
+  // 実行はできるが、要確認の基準が残っていることを画面下部で隠さずに知らせ、その基準へ移動できる
+  const footer = page.getByRole('status', { name: '作業手順のチェック' })
+  await expect(footer).toContainText('実行できます（要確認の完了基準が2件あります）')
+  await footer.getByRole('button', { name: '修正箇所を見る →' }).click()
+  await expect(panelList(page).getByRole('article', { name: '完了基準：照合できない行が0件（ステップ4）' })).toHaveAttribute('aria-expanded', 'true')
+  await editor(page, '照合できない行が0件（ステップ4）').getByRole('button', { name: '内容を確かめた（設定済みにする）' }).click()
+  await panelList(page).getByRole('button', { name: '完了基準「照合できない行が0件（ステップ5）」：内容を確認' }).click()
+  await editor(page, '照合できない行が0件（ステップ5）').getByRole('button', { name: '内容を確かめた（設定済みにする）' }).click()
+  await expect(footer).toContainText('実行の準備ができました')
+  await expect(summary).toContainText('すべての完了基準を設定しました')
+
+  // 実行すると、追加した完了基準で判定される
+  await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
   await expect(verdictBox(page)).toContainText('総合判定：正常', { timeout: 30_000 })
   await expect(verdictBox(page)).toContainText('（完了基準と標準の確認）')
-  await expect(verdictBox(page)).toContainText('完了基準（5件）をすべて満たしています。')
+  await expect(verdictBox(page)).toContainText('完了基準（3件）をすべて満たしています。')
 })
 
 test('別の月を指定すると、対象期間の基準を満たさず「重大」になる', async ({ page }) => {
   test.setTimeout(150_000)
-  await buildMonthlySales(page, '商品マスタ.xlsx')
-  await openCriteria(page)
-  await page.getByRole('button', { name: 'テンプレートから追加' }).click()
-  await page.getByRole('region', { name: 'テンプレートを選ぶ' }).getByRole('button', { name: /^売上集計/ }).click()
+  await openDemoFlow(page)
   await page.getByRole('textbox', { name: '実行時に指定する値：対象月' }).fill('2026-11')
   await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
   await expect(verdictBox(page)).toContainText('総合判定：重大', { timeout: 30_000 })
@@ -59,7 +92,7 @@ test('別の月を指定すると、対象期間の基準を満たさず「重�
 
   // 完了基準の判定と根拠（2-5）：重大で満たさないものが先頭。根拠の値と、該当する例を示す
   const results = page.getByRole('region', { name: '完了基準の判定' }).getByRole('listitem')
-  await expect(results).toHaveCount(5)
+  await expect(results).toHaveCount(4)
   const first = results.first()
   await expect(first).toHaveAttribute('aria-label', '完了基準：対象月の伝票だけ')
   await expect(first).toContainText('満たしていない（重大）')
@@ -108,7 +141,7 @@ test('手動で基準を追加・設定し、未設定の間は実行できな�
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
   await expect(dialog.getByRole('status')).toContainText('保存しました')
   const saved = JSON.parse(await readFile((await download.path())!, 'utf-8'))
-  expect(saved.schema_version).toBe('1.3')
+  expect(saved.schema_version).toBe('1.4')
   expect(saved.completion_criteria.items).toEqual([
     expect.objectContaining({ name: '部署は4つ', kind: 'row_count', params: { min: 4, max: 4 }, on_fail: 'caution', origin: 'manual', rule_version: 1 }),
   ])
@@ -127,14 +160,12 @@ test('手動で基準を追加・設定し、未設定の間は実行できな�
 
 test('基準を削除すると一覧から消え、使われなくなった「実行時に指定する値」も消える', async ({ page }) => {
   test.setTimeout(150_000)
-  await buildMonthlySales(page, '商品マスタ.xlsx')
+  await openDemoFlow(page)
   await openCriteria(page)
-  await page.getByRole('button', { name: 'テンプレートから追加' }).click()
-  await page.getByRole('region', { name: 'テンプレートを選ぶ' }).getByRole('button', { name: /^売上集計/ }).click()
   await expect(page.getByRole('textbox', { name: '実行時に指定する値：対象月' })).toBeVisible()
   await panelList(page).getByRole('article', { name: '完了基準：対象月の伝票だけ' }).click()
   await editor(page, '対象月の伝票だけ').getByRole('button', { name: 'この基準を削除' }).click()
-  await expect(panelList(page).getByRole('article')).toHaveCount(4)
+  await expect(panelList(page).getByRole('article')).toHaveCount(3)
   await expect(page.getByRole('textbox', { name: '実行時に指定する値：対象月' })).toHaveCount(0)
 })
 
@@ -168,12 +199,15 @@ test('完了基準を変えて保存すると版が上がり、変更の記録�
 
   // 重さを変えると（件数の基準の初期値は「注意」）、保存していない変更として示し、保存すると版2
   await named.getByRole('radio', { name: '重大（止める）' }).check()
-  const history = page.getByRole('region', { name: '完了基準の変更の記録' })
+  const history = page.getByRole('group', { name: '完了基準の変更の記録' })
+  await expect(history).toContainText('完了基準：版1（未保存の変更あり）')
+  await history.getByText('完了基準：版1').click()
   await expect(history.getByRole('list', { name: '保存していない変更' })).toContainText('「部署は4つ」：満たさないときを注意→重大に')
   const second = await save()
   expect(second.json.completion_criteria.version).toBe(2)
   expect(second.json.completion_criteria.changelog.at(-1)).toMatchObject({ version: 2, summary: '「部署は4つ」：満たさないときを注意→重大に' })
-  await expect(history).toContainText('完了基準の版 2')
+  await expect(history).toContainText('完了基準：版2')
+  await expect(history.getByRole('list', { name: 'これまでの変更' })).toContainText('版2')
 
   // 別のブラウザでファイルを開いて再実行 → 記録が残り、同じ判定
   const other = await browser.newPage()
@@ -184,7 +218,7 @@ test('完了基準を変えて保存すると版が上がり、変更の記録�
   await expect(other.getByRole('button', { name: 'この割当で作業手順へ進む' })).toBeEnabled({ timeout: 30_000 })
   await other.getByRole('button', { name: 'この割当で作業手順へ進む' }).click()
   await other.getByRole('tab', { name: /何を満たせば完了？/ }).click()
-  await expect(other.getByRole('region', { name: '完了基準の変更の記録' })).toContainText('版2')
+  await expect(other.getByRole('group', { name: '完了基準の変更の記録' })).toContainText('完了基準：版2')
   await other.getByRole('button', { name: '作業手順全体を実行する' }).click()
   await expect(verdictBox(other)).toContainText('総合判定：正常', { timeout: 30_000 })
   await expect(verdictBox(other)).toContainText('完了基準（1件）をすべて満たしています。')

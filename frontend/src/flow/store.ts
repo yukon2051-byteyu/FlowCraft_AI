@@ -79,6 +79,8 @@ type FlowState = {
   commitSave: (meta?: { flow_name?: string; description?: string }) => FlowDoc
   /** 完了基準を置き換える（追加・変更・削除）。使われなくなった「実行時に指定する値」は消す */
   setCriteria: (items: Criterion[], addParameters?: RunParameter[]) => void
+  /** 自動提案の候補を「提案しない」にする（作業手順のファイルに残す。1.4）。keys を空にすると、提案しないにした候補をすべて戻す */
+  setDismissedSuggestions: (keys: string[]) => void
 }
 
 /** 未保存の変更があるか */
@@ -215,6 +217,9 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       const params = [...s.flow.run_parameters, ...addParameters.filter((p) => !known.has(p.param_id))]
       return { flow: { ...s.flow, completion_criteria: { ...s.flow.completion_criteria, items }, run_parameters: pruneRunParameters(params, items) } }
     }),
+
+  setDismissedSuggestions: (keys) =>
+    set((s) => ({ flow: { ...s.flow, completion_criteria: { ...s.flow.completion_criteria, dismissed_suggestions: [...new Set(keys)] } } })),
 
   commitSave: (meta) => {
     const s = get()
