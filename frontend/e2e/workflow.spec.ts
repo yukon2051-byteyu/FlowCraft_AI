@@ -34,7 +34,9 @@ test('作業起点：ひな形から仮の手順を作り、データを読み�
   await expect(page.getByRole('banner')).toContainText('部署別売上（10月）')
   await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
   expect(await stepTexts(page)).toEqual(['作業を伝える', '2手順を確認する', '3データを読み込む', '4実行・品質確認', '5出力・保存'])
-  await expect(page.getByText(/ファイルを割り当てていない入力が3つあります/)).toBeVisible()
+  // STEP 2 では実行ボタンを出さない。主要ボタンは右端の「次へ：データを読み込む」だけ（実行は STEP 4）
+  await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toHaveCount(0)
+  await expect(page.getByText('STEP 2 / 5')).toBeVisible()
 
   // データを読み込み、ひな形の列と照合する（読込後の最終確認）
   await page.getByRole('button', { name: '次へ：データを読み込む' }).click()
@@ -51,15 +53,15 @@ test('作業起点：ひな形から仮の手順を作り、データを読み�
   await expect(verdictBox(page)).toContainText('総合判定：未検証')
   await expect(conclusion(page).getByLabel('正式な出力')).toContainText('停止')
 
-  // ルールを1つずつ確かめて「確認済み」にすると、正常になり出力できる
+  // ルールを1つずつ開いて確かめ「設定済み」にすると、正常になり出力できる
   await page.getByRole('button', { name: '作業手順に戻る' }).click()
   await page.getByRole('tab', { name: /完了基準/ }).click()
-  const items = page.getByRole('list', { name: '完了基準' }).getByRole('button')
+  const items = page.getByRole('list', { name: '完了基準' }).getByRole('article')
   const n = await items.count()
   expect(n).toBeGreaterThan(0)
   for (let i = 0; i < n; i++) {
     await items.nth(i).click()
-    await page.getByRole('button', { name: '内容を確かめた（確認済みにする）' }).click()
+    await page.getByRole('button', { name: '内容を確かめた（設定済みにする）' }).click()
   }
   await expect(page.getByRole('list', { name: '完了基準' })).not.toContainText('未確認')
   await page.getByRole('tab', { name: /処理ステップ|作業手順/ }).first().click()

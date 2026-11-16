@@ -44,3 +44,20 @@ export function nextToFix(list: ItemStatus[], from = -1): number {
   for (let i = 0; i <= Math.min(from, list.length - 1); i++) if (bad(list[i])) return i
   return -1
 }
+
+/** 状態ごとの操作の言葉（処理ステップ・完了基準で共通。状態の表示とは別にボタンで示す） */
+export const ACTION_LABEL: Record<ItemStatus, string> = {
+  ready: '詳細・編集',
+  needs_setting: '設定する',
+  needs_review: '内容を確認',
+  error: '修正する',
+}
+
+/** カード左端の色帯（未設定・エラー・要確認のカードを見つけやすくする。設定完了は目立たせない） */
+const STRIPE: Record<ItemStatus, string> = {
+  needs_setting: 'border-l-todo',
+  error: 'border-l-error',
+  needs_review: 'border-l-warning',
+  ready: 'border-l-transparent',
+}
+export const statusStripe = (s: ItemStatus) => `border-l-4 ${STRIPE[s]}`

@@ -6,14 +6,14 @@ import { readFile } from 'node:fs/promises'
  * デモ用の架空データを使い、合計は manifest.json の正解値（10月の売上合計 20,818,240円）と照合する。
  */
 
-import { BANNED, buildMonthlySales, card, panel } from './helpers'
+import { BANNED, buildMonthlySales, card, panel, openStep } from './helpers'
 
 test('ステップの処理前後を確かめ、全体を実行すると、正解値どおりの集計結果になる', async ({ page }) => {
   test.setTimeout(120_000)
   await buildMonthlySales(page, '商品マスタ.xlsx')
 
   // ステップ4の処理前後のデータ（テスト実行）
-  await card(page, 4).getByRole('heading').click()
+  await openStep(page, 4)
   await panel(page, 4).getByRole('tab', { name: '処理前後のデータ' }).click()
   await panel(page, 4).getByRole('button', { name: 'このステップまで実行して確かめる' }).click()
   await expect(panel(page, 4).getByLabel('件数の変化')).toContainText('240行 ＋ 30行')
@@ -58,7 +58,7 @@ test('マスタに重複があると、照合のステップで止まり、理�
   await buildMonthlySales(page, '商品マスタ_重複あり.xlsx')
 
   // 後ろのステップのテスト実行：止まったステップへ案内する
-  await card(page, 6).getByRole('heading').click()
+  await openStep(page, 6)
   await panel(page, 6).getByRole('tab', { name: '処理前後のデータ' }).click()
   await panel(page, 6).getByRole('button', { name: 'このステップまで実行して確かめる' }).click()
   await expect(panel(page, 6)).toContainText('ステップ4「別の表から情報を付け加える」で問題が見つかったため', { timeout: 20_000 })

@@ -64,6 +64,10 @@
   --color-error-ink: #af3838;
   --color-error-soft: #fbe7e7;
   --color-idle: #8a918f; /* 無効・未設定 */
+  /* 未設定（設定が必要）：オレンジ。要確認（アンバー）・エラー（赤）と見分けるため */
+  --color-todo: #e0782f;
+  --color-todo-ink: #9c4710;
+  --color-todo-soft: #fdeadb;
 
   --font-sans: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
 }
@@ -122,4 +126,18 @@ h2,
 h3,
 p {
   word-break: auto-phrase;
+}
+
+/* 「修正箇所を見る」で移動したカードを、少しの間だけ強調する */
+@keyframes flash-ring {
+  0%,
+  40% {
+    box-shadow: 0 0 0 5px var(--color-warning);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.flash-ring {
+  animation: flash-ring 1.8s ease-out 1;
 }

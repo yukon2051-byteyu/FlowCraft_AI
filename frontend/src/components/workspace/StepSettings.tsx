@@ -7,6 +7,7 @@ import {
   AGG_LABEL,
   aggTypes,
   CALC_LABEL,
+  describeOperand,
   DATE_FORMATS,
   HOW_LABEL,
   OPERATOR_LABEL,
@@ -39,8 +40,6 @@ import type {
 import { useFlowStore } from '../../flow/store'
 import type { ColumnType, FlowNode } from '../../flow/types'
 import { Button } from '../ui/Button'
-import { ItemStatusBadge } from '../ui/ItemStatusBadge'
-import { deriveStatus } from '../../flow/stepStatus'
 import { StepPreview } from './run/StepPreview'
 
 type Props = {
@@ -125,16 +124,11 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
   }
 
   return (
-    <section className="light-panel rounded-2xl shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)]" aria-label={`ステップ${index + 1}の設定`}>
-      <div className="border-b border-line px-5 pt-4 pb-3">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0">
-            <p className="text-[0.82rem] font-bold text-muted">ステップ{index + 1}の設定</p>
-            <p className="text-[0.78rem] text-muted">{info.name}（{info.technical}）</p>
-          </div>
-          <ItemStatusBadge status={deriveStatus(problems, serverProblems, confirmed)} className="ml-auto" />
-        </div>
-        <label className="mt-2 flex flex-col gap-1">
+    <section className="light-panel rounded-b-2xl border-t border-line shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] ring-2 ring-mint" aria-label={`ステップ${index + 1}の設定`}>
+      <div className="border-b border-line px-5 pt-3 pb-3 pl-[3.75rem]">
+        {/* 状態はカードの見出しに出しているので、ここでは繰り返さない */}
+        <p className="text-[0.78rem] text-muted">処理の種類：{info.name}（{info.technical}）</p>
+        <label className="mt-1.5 flex flex-col gap-1">
           <span className="text-[0.8rem] font-bold text-muted">ステップの名前</span>
           <input
             value={node.node_name}
@@ -171,7 +165,7 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
         </div>
       ) : (
         <>
-      <div className="space-y-4 px-5 py-4">{form}</div>
+      <div className="max-w-3xl space-y-4 px-5 py-4">{form}</div>
 
       <div className="border-t border-line px-5 py-3">
         {all.length > 0 ? (
@@ -468,7 +462,7 @@ function JoinForm({ p, left, right, names, set }: { p: JoinParams; left: Col[]; 
         </ul>
       </Field>
       <Field label="名前が重なった列に付ける文字">
-        <input value={p.right_suffix} onChange={(e) => patch({ right_suffix: e.target.value })} maxLength={20} aria-label="名前が重なった列に付ける文字" className={`${inputCls} w-32`} />
+        <input value={p.right_suffix ?? '_右'} onChange={(e) => patch({ right_suffix: e.target.value })} maxLength={20} aria-label="名前が重なった列に付ける文字" className={`${inputCls} w-32`} />
       </Field>
     </>
   )
@@ -601,8 +595,14 @@ function OperandInput({ o, cols, side, set }: { o: Operand; cols: Col[]; side: s
       >
         <option value="column">列</option>
         <option value="constant">数値</option>
+        {o.kind === 'operation' && <option value="operation">式</option>}
       </select>
-      {o.kind === 'column' ? (
+      {o.kind === 'operation' ? (
+        // 入れ子の式（用意した作業手順にある）は画面では組み立てられないので、内容だけを示す。列・数値に置き換えることはできる
+        <span className="min-w-0 flex-1 truncate rounded-lg bg-ink/5 px-2 py-1 text-[0.9rem]" title="この式は画面では変更できません（このまま実行できます）" aria-label={`${side}側の式`}>
+          {describeOperand(o)}
+        </span>
+      ) : o.kind === 'column' ? (
         <ColumnSelect value={o.column} cols={cols} allow={NUMERIC_TYPES} label={`${side}側の列`} onChange={(column) => set({ kind: 'column', column })} />
       ) : (
         <input value={o.value} onChange={(e) => set({ kind: 'constant', value: e.target.value })} aria-label={`${side}側の数値`} placeholder="例：1.1" className={`${inputCls} min-w-0 flex-1`} />

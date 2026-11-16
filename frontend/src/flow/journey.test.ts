@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { demoStepIndex, demoStepViews, modeFromParam, START_PARAM, stepOrder, stepViews } from './journey'
+import { demoStepIndex, demoStepViews, modeFromParam, positionOf, START_PARAM, stepOrder, stepViews } from './journey'
 import type { Facts } from './journey'
 
 const none: Facts = { described: false, dataReady: false, procedureReady: false, ran: false, outputDone: false }
@@ -49,6 +49,18 @@ describe('段階の表示', () => {
     const v = stepViews('FILE_FIRST', 'edit', { ...none, dataReady: true })
     expect(v.map((s) => s.state)).toEqual(['done', 'skipped', 'current', 'todo', 'todo'])
     expect(v[1].reason).toContain('開発中')
+  })
+
+  it('手順の画面：データを読み込み済みで全ステップが設定完了なら、今の段階は「実行・品質確認」', () => {
+    const ready = { ...none, described: true, dataReady: true, procedureReady: true }
+    expect(states(stepViews('WORK_FIRST', 'edit', ready))).toEqual(['作業を伝える:done', '手順を確認する:done', 'データを読み込む:done', '実行・品質確認:current', '出力・保存:todo'])
+    // データを読み込む前（STEP 2）は「手順を確認する」のまま
+    expect(stepViews('WORK_FIRST', 'edit', { ...ready, dataReady: false }).find((s) => s.state === 'current')?.id).toBe('procedure')
+  })
+
+  it('現在の位置を「STEP n / 5」で示す。今の段階がなければ出さない', () => {
+    expect(positionOf(stepViews('WORK_FIRST', 'edit', { ...none, described: true }))).toBe('STEP 2 / 5')
+    expect(positionOf([])).toBeUndefined()
   })
 
   it('実行・出力を終えたら完了になる', () => {

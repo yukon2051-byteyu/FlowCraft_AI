@@ -1,7 +1,7 @@
-import { CircleAlert, CircleCheck, ClipboardList, History, LayoutTemplate, ListChecks, Plus, Trash2, X } from 'lucide-react'
-import { ItemStatusBadge } from '../ui/ItemStatusBadge'
-import { deriveStatus } from '../../flow/stepStatus'
-import { useState } from 'react'
+import { CircleCheck, ClipboardList, History, LayoutTemplate, ListChecks, Plus, Trash2, X } from 'lucide-react'
+import { ItemActionButton, ItemStatusBadge } from '../ui/ItemStatusBadge'
+import { deriveStatus, statusStripe } from '../../flow/stepStatus'
+import { useEffect, useRef, useState } from 'react'
 import {
   applyTemplate,
   columnsOf,
@@ -26,7 +26,7 @@ import { ColumnChecks, ColumnSelect, Field, inputCls } from './StepSettings'
 
 /*
  * タスク2-4：完了基準の設定（「何を満たせば完了？」）。処理ステップ（何をする？）とは別の欄。
- * 左：基準の一覧・テンプレート・自動で行う確認 ／ 右：選んだ基準の設定
+ * 基準は概要のカードで並べ、選んだ基準だけをカードの真下に開いて設定する（処理ステップと同じ操作）。
  * 種類は決まった一覧から選ぶ。テンプレートで推し当てられなかった対象・値は空のまま残し、不足として示す。
  */
 
@@ -41,13 +41,13 @@ const ON_FAIL_SHORT: Record<Criterion['on_fail'], string> = {
   record: '記録のみ',
 }
 
-export function CriteriaPanel() {
+export function CriteriaPanel({ openId, onOpen, flashId }: { openId: string | null; onOpen: (id: string | null) => void; flashId: string | null }) {
   const flow = useFlowStore((s) => s.flow)
   const setCriteria = useFlowStore((s) => s.setCriteria)
   const items = flow.completion_criteria.items
-  const [selectedId, setSelectedId] = useState<string | null>(items[0]?.criterion_id ?? null)
+  const selectedId = openId
+  const setSelectedId = onOpen
   const [menu, setMenu] = useState<'none' | 'kind' | 'template'>('none')
-  const selected = items.find((c) => c.criterion_id === selectedId) ?? null
   const paramLabel = (id: string) => flow.run_parameters.find((p) => p.param_id === id)?.label ?? id
 
   const add = (kind: CriterionKind) => {
@@ -59,7 +59,8 @@ export function CriteriaPanel() {
   const addTemplate = (id: (typeof TEMPLATES)[number]['id']) => {
     const t = applyTemplate(flow, id)
     setCriteria([...items, ...t.items], t.parameters)
-    setSelectedId(t.items[0]?.criterion_id ?? selectedId)
+    // まとめて追加したときは開かない（まず一覧で、どれが未設定かを見渡せるように）
+    setSelectedId(null)
     setMenu('none')
   }
   const update = (c: Criterion, addParameters?: RunParameter[]) =>
@@ -73,14 +74,11 @@ export function CriteriaPanel() {
   }
 
   return (
-    <div className="mx-auto grid max-w-[1400px] items-start gap-6 px-6 pb-6 lg:grid-cols-[minmax(0,1fr)_27rem]">
+    <div className="mx-auto max-w-[1100px] px-6 pb-12">
       <div className="min-w-0 space-y-4">
         <div>
           <h1 className="text-[1.5rem] font-bold text-white">何を満たせば完了？（完了基準）</h1>
-          <p className="mt-1 max-w-3xl text-subtle">
-            処理がエラーなく終わっても、業務として正しく完了したとは限りません。結果が満たすべき条件を決めておくと、実行のたびにプログラムで確かめ、正常・注意・重大・未検証で判定します。
-            簡単な単発の作業なら、決めなくても実行できます。
-          </p>
+          <p className="mt-1 text-[0.9rem] text-subtle">処理がエラーなく終わっても、業務として正しいとは限りません。判定は正常・注意・重大・未検証の4つです。簡単な単発の作業なら、決めなくても実行できます。</p>
         </div>
 
         <CriteriaHistory />
@@ -134,36 +132,18 @@ export function CriteriaPanel() {
           <ol className="space-y-2" aria-label="完了基準">
             {items.map((c) => {
               const problems = criterionProblems(c, flow)
+              const open = c.criterion_id === selectedId
               return (
                 <li key={c.criterion_id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(c.criterion_id)}
-                    aria-label={`完了基準：${c.name}`}
-                    className={`light-panel w-full rounded-2xl px-4 py-3 text-left ${c.criterion_id === selectedId ? 'ring-2 ring-mint' : ''}`}
-                  >
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-ink">{c.name}</span>
-                      {c.name !== CRITERION_KINDS[c.kind].label && <span className="text-[0.8rem] text-muted">{CRITERION_KINDS[c.kind].label}</span>}
-                      <span className={`ml-auto rounded-full px-2 py-0.5 text-[0.75rem] font-bold ring-1 ring-inset ${ON_FAIL_STYLE[c.on_fail]}`}>{ON_FAIL_SHORT[c.on_fail]}</span>
-                      <ItemStatusBadge kind="criterion" status={deriveStatus(problems, [], c.confirmation_status !== 'pending')} />
-                    </span>
-                    <span className="mt-1 block text-[0.85rem] text-ink/80">{describeCriterion(c, flow, paramLabel)}</span>
-                    {problems.length > 0 ? (
-                      <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-warning-ink">
-                        <CircleAlert className="size-3.5" aria-hidden />
-                        {problems[0]}
-                        {problems.length > 1 ? ` ほか${problems.length - 1}件` : ''}
-                      </span>
-                    ) : (
-                      c.confirmation_status === 'pending' && (
-                        <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-muted">
-                          <CircleAlert className="size-3.5" aria-hidden />
-                          ひな形・複製から写したルールです。内容を確かめてください
-                        </span>
-                      )
-                    )}
-                  </button>
+                  <CriterionCard
+                    c={c}
+                    problems={problems}
+                    summary={describeCriterion(c, flow, paramLabel)}
+                    open={open}
+                    flash={flashId === c.criterion_id}
+                    onToggle={() => setSelectedId(open ? null : c.criterion_id)}
+                  />
+                  {open && <CriterionEditor key={c.criterion_id} c={c} onChange={update} onRemove={() => remove(c.criterion_id)} />}
                 </li>
               )
             })}
@@ -183,14 +163,50 @@ export function CriteriaPanel() {
         </section>
       </div>
 
-      <div className="lg:sticky lg:top-0 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto lg:rounded-2xl">
-        {selected ? (
-          <CriterionEditor key={selected.criterion_id} c={selected} onChange={update} onRemove={() => remove(selected.criterion_id)} />
-        ) : (
-          <p className="rounded-2xl bg-panel px-6 py-10 text-center text-subtle ring-1 ring-edge">完了基準を選ぶと、ここで設定できます。</p>
-        )}
-      </div>
     </div>
+  )
+}
+
+/**
+ * 完了基準の概要カード。状態（未設定・要確認・設定済み）と、状態に合わせた操作ボタンを右端に出す。
+ * 閉じているときは、何を確かめるかと、直すこと（不足の理由）を1行ずつだけ出す。
+ */
+function CriterionCard({ c, problems, summary, open, flash, onToggle }: { c: Criterion; problems: string[]; summary: string; open: boolean; flash: boolean; onToggle: () => void }) {
+  const status = deriveStatus(problems, [], c.confirmation_status !== 'pending')
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (open) ref.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  }, [open])
+  return (
+    <article
+      ref={ref}
+      onClick={onToggle}
+      aria-label={`完了基準：${c.name}`}
+      aria-expanded={open}
+      className={`light-panel scroll-mt-3 cursor-pointer px-4 ${statusStripe(status)} ${flash ? 'flash-ring' : ''} ${open ? 'rounded-t-2xl py-3.5 ring-2 ring-mint' : 'rounded-2xl py-3 hover:ring-1 hover:ring-mint/60'}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 truncate font-bold text-ink">{c.name}</span>
+        {c.name !== CRITERION_KINDS[c.kind].label && <span className="shrink-0 text-[0.8rem] text-muted">{CRITERION_KINDS[c.kind].label}</span>}
+        <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[0.75rem] font-bold ring-1 ring-inset ${ON_FAIL_STYLE[c.on_fail]}`} title="満たさなかったときの扱い">
+          {ON_FAIL_SHORT[c.on_fail]}
+        </span>
+        <ItemStatusBadge kind="criterion" status={status} className="w-[5.4rem] justify-center" />
+        <ItemActionButton status={status} expanded={open} onClick={onToggle} name={`完了基準「${c.name}」`} />
+      </div>
+      {!open && (
+        <>
+          <p className="mt-1 truncate text-[0.85rem] text-ink/80" title={summary}>
+            {summary}
+          </p>
+          {status !== 'ready' && (
+            <p className={`mt-1 truncate text-[0.85rem] font-bold ${status === 'needs_review' ? 'text-warning-ink' : 'text-todo-ink'}`}>
+              {status === 'needs_review' ? 'ひな形から追加された基準です。内容を確認してください' : `不足：${problems[0]}${problems.length > 1 ? `（ほか${problems.length - 1}件）` : ''}`}
+            </p>
+          )}
+        </>
+      )}
+    </article>
   )
 }
 
@@ -255,11 +271,10 @@ function CriterionEditor({ c, onChange, onRemove }: { c: Criterion; onChange: (c
           : undefined
 
   return (
-    <section className="light-panel rounded-2xl" aria-label={`完了基準「${c.name}」の設定`}>
+    <section className="light-panel rounded-b-2xl border-t border-line ring-2 ring-mint" aria-label={`完了基準「${c.name}」の設定`}>
       <div className="flex items-start gap-2 border-b border-line px-5 pt-4 pb-3">
         <ClipboardList className="mt-1 size-5 text-forest" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-[0.8rem] text-muted">{info.label}</p>
           <p className="text-[0.82rem] text-muted">{info.help}</p>
         </div>
         <button
@@ -272,12 +287,12 @@ function CriterionEditor({ c, onChange, onRemove }: { c: Criterion; onChange: (c
           <Trash2 className="size-4" aria-hidden />
         </button>
       </div>
-      <div className="space-y-4 px-5 py-4">
+      <div className="max-w-3xl space-y-4 px-5 py-4">
         {/* ひな形・複製から写したルール：対象の列・期間・基準値を確かめるまで、評価では未検証（重大なら正式な出力を止める） */}
         {c.confirmation_status === 'pending' && (
           <div className="rounded-lg bg-warning-soft px-3 py-2.5 text-[0.85rem] text-warning-ink ring-1 ring-warning/40" role="note" aria-label="未確認のルール">
             <p>
-              ひな形・複製から写したルールです。<b>確かめる対象・列・期間・基準値</b>が今回の業務に合っているかを確かめてください。確認するまで、このルールは「未検証」として扱います（重大のルールなら正式な出力を止めます）。
+              ひな形から追加された基準です。<b>確かめる対象・列・期間・基準値</b>が今回の業務に合っているかを確かめてください。確かめるまで、このルールは「未検証」として扱います（重大のルールなら正式な出力を止めます）。
             </p>
             <button
               type="button"
@@ -286,7 +301,7 @@ function CriterionEditor({ c, onChange, onRemove }: { c: Criterion; onChange: (c
               className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-lg bg-forest px-3 text-[0.85rem] font-bold text-white hover:bg-[#0f4f43] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CircleCheck className="size-4" aria-hidden />
-              内容を確かめた（確認済みにする）
+              内容を確かめた（設定済みにする）
             </button>
           </div>
         )}

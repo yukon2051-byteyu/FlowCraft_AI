@@ -1,8 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Play, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { COLUMN_TYPE_LABEL } from '../../api/files'
 import { ApiError } from '../../api/client'
 import type { ApiErrorBody } from '../../api/client'
 import { fieldOf, runAndRecord, stepIndexOf, validateFlow } from '../../api/flows'
@@ -20,8 +19,8 @@ import type { FlowNode, NodeType } from '../../flow/types'
 import { isAvailable } from '../../content/featureStatus'
 import { Button } from '../ui/Button'
 import { DevBadge } from '../ui/DevBadge'
-import { ItemStatusBadge } from '../ui/ItemStatusBadge'
-import { deriveStatus } from '../../flow/stepStatus'
+import { ItemActionButton, ItemStatusBadge } from '../ui/ItemStatusBadge'
+import { countStatus, deriveStatus, statusStripe } from '../../flow/stepStatus'
 import type { ItemStatus } from '../../flow/stepStatus'
 
 /**
@@ -34,11 +33,21 @@ const RUN_PARAM_PLACEHOLDER: Record<string, string> = { month: '2026-10', date: 
 
 export function FlowSteps({
   onBack,
+  onNext,
+  position,
   onRan,
   backLabel = '使う列と形式の設定に戻る',
   onShowResult,
 }: {
-  onBack: () => void
+  /** 前の画面へ戻る（補助操作）。手順の確認だけを行う画面（onNext あり）では渡さない */
+  onBack?: () => void
+  /**
+   * 手順の確認だけを行う画面（データをまだ読み込んでいない STEP 2）で、次のデータの読み込みへ進む。
+   * 渡したときは、主要ボタンを「次へ：データを読み込む」だけにし、実行ボタンは出さない（実行は STEP 4 で行う）
+   */
+  onNext?: () => void
+  /** 現在の位置（例：STEP 2 / 5）。主要ボタンの横に小さく出す */
+  position?: string
   onRan: (run: RunSummary, snap: string) => void
   /** 戻るボタンの文言（保存した作業手順を開いたときは「ファイルの割当に戻る」） */
   backLabel?: string
@@ -75,35 +84,76 @@ export function FlowSteps({
     onSuccess: (run) => onRan(run, contentSnapshot(flow)),
     onError: (e) => setRunError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: '実行できませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null }),
   })
-  // 全体を実行できない理由（押せないボタンの近くに表示する）
-  const notConfirmed = flow.nodes.filter((n) => n.confirmation_status !== 'confirmed').length
-  const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
   const [view, setView] = useState<'steps' | 'criteria'>('steps')
   const runValues = useFlowStore((s) => s.runValues)
   const setRunValues = useFlowStore((s) => s.setRunValues)
-  // 完了基準の設定が終わっていない（未検証にしかならない基準があると、実行の意味が薄れるため止める）
-  const criteriaUnset = flow.completion_criteria.items.filter((c) => criterionProblems(c, flow).length > 0).length
+  // 開いている完了基準（画面下部の「修正箇所を見る」からも開けるように、ここで持つ）
+  const [openCriterion, setOpenCriterion] = useState<string | null>(null)
+  // 「修正箇所を見る」で移動したカードを、少しの間だけ強調する
+  const [flashId, setFlashId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!flashId) return
+    const t = setTimeout(() => setFlashId(null), 1800)
+    return () => clearTimeout(t)
+  }, [flashId])
+  const goStep = (id: string) => {
+    setView('steps')
+    selectNode(id)
+    setFlashId(id)
+  }
+  const goCriterion = (id: string) => {
+    setView('criteria')
+    setOpenCriterion(id)
+    setFlashId(id)
+  }
+
+  // 処理ステップの状態（カードの表示と同じ判定）
+  const reasonsOf = (n: FlowNode, i: number) => [...problems[n.node_id], ...serverProblems(n, i)]
+  const statuses = flow.nodes.map((n, i) => deriveStatus(problems[n.node_id], serverProblems(n, i), n.confirmation_status === 'confirmed'))
+  const counts = countStatus(statuses)
+  const stepLine = `${flow.nodes.length}ステップ中${counts.ready}ステップ設定完了`
+  // 直す必要があるステップ（未設定・エラーを先に、要確認を後に）
+  const stepBlockers: Blocker[] = [
+    ...flow.nodes.flatMap((n, i) =>
+      statuses[i] === 'needs_setting' || statuses[i] === 'error' ? [{ label: `ステップ${i + 1}「${n.node_name}」`, reason: `不足：${reasonsOf(n, i)[0]}`, go: () => goStep(n.node_id) }] : [],
+    ),
+    ...flow.nodes.flatMap((n, i) =>
+      statuses[i] === 'needs_review' ? [{ label: `ステップ${i + 1}「${n.node_name}」`, reason: '内容を確かめて、設定完了にしてください', go: () => goStep(n.node_id) }] : [],
+    ),
+  ]
+  // 完了基準の設定が終わっていない（サーバーも実行を止める）。重大の基準を先に直してもらう
+  const rank = { critical: 0, caution: 1, record: 2 } as const
+  const criteriaBlockers: Blocker[] = flow.completion_criteria.items
+    .map((c) => ({ c, problems: criterionProblems(c, flow) }))
+    .filter((x) => x.problems.length > 0)
+    .sort((a, b) => rank[a.c.on_fail] - rank[b.c.on_fail])
+    .map(({ c, problems: ps }) => ({ label: `完了基準「${c.name}」`, reason: `不足：${ps[0]}`, go: () => goCriterion(c.criterion_id) }))
   const missingValues = flow.run_parameters.filter((p) => p.required !== false && !(runValues[p.param_id] ?? '').trim())
   // ファイルを割り当てていない入力（保存した作業手順を、割り当てずに開いたとき）
   const unassigned = flow.input_definitions.filter((d) => !bindings[d.input_id]).length
+  // 実行を止めている理由。直す順（ファイル → 完了基準 → 処理ステップ → 実行時の値 → 全体のチェック）
+  const blockers: Blocker[] = [
+    ...(unassigned
+      ? [{ label: 'ファイルの割当', reason: `ファイルを割り当てていない入力が${unassigned}つあります（「${backLabel.replace(/に戻る$/, '')}」で割り当てます）`, go: onBack ?? null }]
+      : []),
+    ...criteriaBlockers,
+    ...stepBlockers,
+    ...missingValues.map((p) => ({
+      label: `実行時に指定する値「${p.label}」`,
+      reason: '画面右下の入力欄に入力してください',
+      go: () => document.getElementById(`run-param-${p.param_id}`)?.focus(),
+    })),
+    ...(check.status === 'done' ? check.general.map((g) => ({ label: '作業手順のチェック', reason: g, go: null })) : []),
+  ]
   const runBlocker =
     flow.nodes.length === 0
       ? '処理ステップがありません'
-      : unassigned
-        ? `ファイルを割り当てていない入力が${unassigned}つあります（「${backLabel.replace(/に戻る$/, '')}」で割り当ててください）`
-        : criteriaUnset
-          ? `設定が終わっていない完了基準が${criteriaUnset}つあります（「何を満たせば完了？」で設定してください）`
-        : missingValues.length
-          ? `実行時に指定する値（${missingValues.map((p) => p.label).join('・')}）を入力してください`
-        : notConfirmed
-        ? `要確認のステップが${notConfirmed}個あるため、まだ実行できません`
+      : blockers.length
+        ? `${blockers[0].label}　${blockers[0].reason}`
         : check.status !== 'done'
           ? '作業手順のチェックが終わるまでお待ちください'
-          : serverCount
-            ? '作業手順のチェックで見つかった問題を直してください'
-            : null
-  const selectedIndex = flow.nodes.findIndex((n) => n.node_id === selectedId)
-  const selected = selectedIndex >= 0 ? flow.nodes[selectedIndex] : null
+          : null
+  const footer = footerStatus({ procedureOnly: !!onNext, check, nodeCount: flow.nodes.length, counts, stepLine, unassigned, blockers, stepBlockers })
   const stepName = (ref: string) => {
     const at = flow.nodes.findIndex((n) => n.output_reference === ref)
     return at >= 0 ? `ステップ${at + 1}の結果：${flow.nodes[at].node_name}` : '（まだ選んでいません）'
@@ -113,7 +163,7 @@ export function FlowSteps({
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* 「何をする？」（処理ステップ）と「何を満たせば完了？」（完了基準）は別の欄（docs/completion-criteria.md §1） */}
-        <div className="mx-auto flex max-w-[1400px] gap-1 px-6 pt-5" role="tablist" aria-label="作業手順の内容">
+        <div className="mx-auto flex max-w-[1100px] gap-1 px-6 pt-5" role="tablist" aria-label="作業手順の内容">
           {(
             [
               ['steps', `何をする？（処理ステップ ${flow.nodes.length}）`],
@@ -131,18 +181,21 @@ export function FlowSteps({
               {label}
             </button>
           ))}
+          <p className="ml-3 self-center text-[0.88rem] text-subtle">
+            {view === 'steps' ? 'Excel・CSVに対して行う処理を、上から順に設定します' : '処理結果が業務上正しいかを判断する基準です。実行のたびに自動で確かめます'}
+          </p>
         </div>
         {view === 'criteria' ? (
           <div className="pt-5">
-            <CriteriaPanel />
+            <CriteriaPanel openId={openCriterion} onOpen={setOpenCriterion} flashId={flashId} />
           </div>
         ) : (
-        <div className="mx-auto grid max-w-[1400px] items-start gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_27rem]">
+        <div className="mx-auto max-w-[1100px] px-6 pt-6 pb-12">
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-start gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-[1.5rem] font-bold text-white">作業手順</h1>
-              <p className="mt-1 text-subtle">処理ステップは上から順に実行されます。各ステップは、それより上のステップの結果だけを使えます。</p>
+              <p className="mt-1 text-[0.9rem] text-subtle">各ステップは、それより上のステップの結果だけを使えます。</p>
             </div>
             {/* 自動化の途中から、作業の見直し（AI業務改善診断）へ切り替える入口。作った手順はそのまま残す */}
             <div className="flex items-center gap-2">
@@ -167,15 +220,29 @@ export function FlowSteps({
                   index={i}
                   nodes={flow.nodes}
                   labels={labels}
-                  definitionColumns={flow.input_definitions.find((d) => d.input_id === node.parameters.input_id)?.columns}
                   summary={summarize(node)}
-                  problemCount={problems[node.node_id].length + serverProblems(node, i).length}
-                  status={deriveStatus(problems[node.node_id], serverProblems(node, i), node.confirmation_status === 'confirmed')}
+                  reasons={reasonsOf(node, i)}
+                  status={statuses[i]}
+                  flash={flashId === node.node_id}
                   selected={node.node_id === selectedId}
                   onSelect={() => selectNode(node.node_id)}
+                  onCollapse={() => selectNode(null)}
                   onAddBelow={() => setAddAt(addAt === node.node_id ? null : node.node_id)}
                   canAddBelow={node.node_type !== 'output'}
                 />
+                {/* 選んだステップだけ、カードの真下に設定を開く（20〜30ステップでも一覧が長くなりすぎないように） */}
+                {node.node_id === selectedId && (
+                  <StepSettings
+                    key={node.node_id}
+                    node={node}
+                    index={i}
+                    inputs={inputsOf(node)}
+                    inputNames={node.input_references.map(stepName)}
+                    problems={problems[node.node_id]}
+                    serverProblems={serverProblems(node, i)}
+                    definitionColumns={flow.input_definitions.find((d) => d.input_id === node.parameters.input_id)?.columns}
+                  />
+                )}
                 {addAt === node.node_id && <AddMenu hasOutput={hasOutput} onPick={add} onClose={() => setAddAt(null)} />}
               </li>
             ))}
@@ -193,67 +260,55 @@ export function FlowSteps({
           )}
         </div>
 
-        {/* 選んだステップの設定 */}
-        {/* 設定が長いときは、この欄の中だけをスクロールする（画面の上下の帯の高さを除く） */}
-        <div className="lg:sticky lg:top-0 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto lg:rounded-2xl">
-          {selected ? (
-            <StepSettings
-              key={selected.node_id}
-              node={selected}
-              index={selectedIndex}
-              inputs={inputsOf(selected)}
-              inputNames={selected.input_references.map(stepName)}
-              problems={problems[selected.node_id]}
-              serverProblems={serverProblems(selected, selectedIndex)}
-              definitionColumns={flow.input_definitions.find((d) => d.input_id === selected.parameters.input_id)?.columns}
-            />
-          ) : (
-            <p className="rounded-2xl bg-panel px-6 py-10 text-center text-subtle ring-1 ring-edge">ステップを選ぶと、ここで設定できます。</p>
-          )}
-        </div>
         </div>
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
-        {/* 「次へ：」で始まるとき（ひな形から作った仮の手順で、まだデータを読み込んでいない）は、先へ進む操作として目立たせる */}
-        {backLabel.startsWith('次へ：') ? (
-          <Button variant="primary" size="sm" onClick={onBack}>
-            {backLabel}
-            <ArrowRight className="size-4" aria-hidden />
-          </Button>
-        ) : (
-          <Button variant="ghostDark" size="sm" onClick={onBack}>
+      {/* 画面下部：左に今の状態、右に主要ボタン（1画面につき主要な操作は1つ） */}
+      <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-2.5">
+        {onBack && (
+          <Button variant="ghostDark" size="sm" onClick={onBack} className="shrink-0">
             <ArrowLeft className="size-4" aria-hidden />
             {backLabel}
           </Button>
         )}
-        <CheckSummary check={check} nodes={flow.nodes} problems={problems} />
-        <div className="flex items-center gap-3">
-          {/* 実行するたびに指定する値（例：対象月）。完了基準の評価に使う */}
-          {flow.run_parameters.map((p) => (
-            <label key={p.param_id} className="flex items-center gap-1.5 text-[0.85rem] text-subtle">
-              {p.label}
-              <input
-                value={runValues[p.param_id] ?? ''}
-                onChange={(e) => setRunValues({ ...runValues, [p.param_id]: e.target.value })}
-                placeholder={RUN_PARAM_PLACEHOLDER[p.type]}
-                aria-label={`実行時に指定する値：${p.label}`}
-                className="h-8 w-32 rounded-lg bg-panel-hi px-2 text-white ring-1 ring-edge focus:ring-2 focus:ring-mint focus:outline-none"
-              />
-            </label>
-          ))}
-          {runBlocker && <span className="text-[0.82rem] text-subtle">{runBlocker}</span>}
-          {onShowResult && (
-            <Button variant="outlineDark" size="sm" onClick={onShowResult} title="実行し直さずに、前回の実行結果を表示します">
-              結果を見る（再実行しない）
-              <ArrowRight className="size-4" aria-hidden />
-            </Button>
+        <FooterStatus {...footer} />
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          {onNext ? (
+            <>
+              {position && <span className="text-[0.82rem] text-subtle">{position}</span>}
+              <Button variant="primary" onClick={onNext}>
+                次へ：データを読み込む
+                <ArrowRight className="size-4" aria-hidden />
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* 実行するたびに指定する値（例：対象月）。完了基準の評価に使う */}
+              {flow.run_parameters.map((p) => (
+                <label key={p.param_id} className="flex items-center gap-1.5 text-[0.85rem] whitespace-nowrap text-subtle">
+                  {p.label}
+                  <input
+                    value={runValues[p.param_id] ?? ''}
+                    onChange={(e) => setRunValues({ ...runValues, [p.param_id]: e.target.value })}
+                    placeholder={RUN_PARAM_PLACEHOLDER[p.type]}
+                    id={`run-param-${p.param_id}`}
+                    aria-label={`実行時に指定する値：${p.label}`}
+                    className="h-8 w-32 rounded-lg bg-panel-hi px-2 text-white ring-1 ring-edge focus:ring-2 focus:ring-mint focus:outline-none"
+                  />
+                </label>
+              ))}
+              {onShowResult && (
+                <Button variant="ghostDark" size="sm" onClick={onShowResult} title="実行し直さずに、前回の実行結果を表示します">
+                  結果を見る（再実行しない）
+                </Button>
+              )}
+              <Button variant="primary" disabled={runBlocker !== null || runMutation.isPending} onClick={() => runMutation.mutate()} title={runBlocker ?? undefined}>
+                {runMutation.isPending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
+                作業手順全体を実行する
+              </Button>
+            </>
           )}
-          <Button variant="primary" size="sm" disabled={runBlocker !== null || runMutation.isPending} onClick={() => runMutation.mutate()} title={runBlocker ?? undefined}>
-            {runMutation.isPending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
-            作業手順全体を実行する
-          </Button>
         </div>
       </div>
       {runError && (
@@ -270,17 +325,20 @@ type CardProps = {
   index: number
   nodes: FlowNode[]
   labels: Record<string, string>
-  definitionColumns?: { name: string; type: keyof typeof COLUMN_TYPE_LABEL; required?: boolean }[]
   summary: string | null
-  problemCount: number
+  /** 設定の不足・チェックの指摘（閉じたカードには1つ目だけを短く出す） */
+  reasons: string[]
   status: ItemStatus
+  /** 「修正箇所を見る」で移動してきた直後（少しの間だけ強調する） */
+  flash: boolean
   selected: boolean
   onSelect: () => void
+  onCollapse: () => void
   onAddBelow: () => void
   canAddBelow: boolean
 }
 
-function StepCard({ node, index, nodes, labels, definitionColumns, summary, problemCount, status, selected, onSelect, onAddBelow, canAddBelow }: CardProps) {
+function StepCard({ node, index, nodes, labels, summary, reasons, status, flash, selected, onSelect, onCollapse, onAddBelow, canAddBelow }: CardProps) {
   const moveNode = useFlowStore((s) => s.moveNode)
   const removeNode = useFlowStore((s) => s.removeNode)
   const setNodeInputs = useFlowStore((s) => s.setNodeInputs)
@@ -290,6 +348,11 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
   const error = failure && failure.nodes === nodes ? failure.message : null
   const setError = (message: string | null) => setFailure(message ? { message, nodes } : null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // 開いたときは、カードの頭から設定欄が見えるように動かす
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  }, [selected])
 
   const info = STEP_TYPES[node.node_type]
   const users = usedBy(nodes, index)
@@ -304,16 +367,18 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
 
   return (
     <article
-      onClick={onSelect}
+      ref={ref}
+      onClick={selected ? undefined : onSelect}
       aria-label={`ステップ${n}：${node.node_name}`}
-      className={`light-panel rounded-2xl px-5 py-4 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.9)] ${selected ? 'ring-2 ring-mint' : ''}`}
+      aria-expanded={selected}
+      className={`light-panel scroll-mt-3 pr-4 pl-4 ${statusStripe(status)} ${flash ? 'flash-ring' : ''} ${selected ? 'rounded-t-2xl py-3.5 ring-2 ring-mint' : 'cursor-pointer rounded-2xl py-3 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.9)] hover:ring-1 hover:ring-mint/60'}`}
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="grid size-7 place-items-center rounded-full bg-ink text-[0.85rem] font-bold text-white">{n}</span>
-        <h2 className="font-bold text-ink">{node.node_name}</h2>
-        {node.node_name !== info.name && <span className="text-[0.82rem] text-muted">{info.name}</span>}
-        <ItemStatusBadge status={status} className="ml-auto" />
-        <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+      {/* 見出しの行：押すと開閉する（移動・追加・削除のボタンは開閉しない） */}
+      <div className={`flex items-center gap-3 ${selected ? 'cursor-pointer' : ''}`} onClick={selected ? onCollapse : undefined}>
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-ink text-[0.85rem] font-bold text-white">{n}</span>
+        <h2 className="min-w-0 truncate font-bold text-ink">{node.node_name}</h2>
+        {node.node_name !== info.name && <span className="shrink-0 text-[0.82rem] text-muted">{info.name}</span>}
+        <div className="ml-auto flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
           <IconButton label={`ステップ${n}を上へ移動`} disabled={index === 0} onClick={() => run(moveNode(node.node_id, index - 1))}>
             <ArrowUp className="size-4" />
           </IconButton>
@@ -329,8 +394,37 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
             <Trash2 className="size-4" />
           </IconButton>
         </div>
+        <ItemStatusBadge status={status} className="ml-2 w-[5.4rem] justify-center" />
+        <ItemActionButton status={status} expanded={selected} onClick={selected ? onCollapse : onSelect} name={`ステップ${n}`} />
       </div>
 
+      {/* 閉じているときは概要だけ（処理内容・データの流れ・直すことを1行ずつ） */}
+      {!selected && (
+        <div className="pl-10">
+          {summary && (
+            <p className="mt-1 truncate text-[0.9rem] text-ink" title={summary}>
+              <span className="font-bold">処理内容：</span>
+              {summary}
+            </p>
+          )}
+          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[0.85rem] text-muted">
+            <span className="truncate">{describeInputs(nodes, index, labels).join('・')}</span>
+            {node.node_type !== 'output' && (
+              <>
+                <CornerDownRight className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{users.length ? `この結果を使うステップ：${users.map((u) => `ステップ${u}`).join('・')}` : 'この結果は、まだどのステップでも使っていません'}</span>
+              </>
+            )}
+          </p>
+          {status !== 'ready' && (
+            <p className={`mt-1 truncate text-[0.85rem] font-bold ${status === 'needs_review' ? 'text-warning-ink' : status === 'error' ? 'text-error-ink' : 'text-todo-ink'}`}>
+              {status === 'needs_review' ? '設定に不足はありません。内容を確かめて、設定完了にしてください' : `不足：${reasons[0]}${reasons.length > 1 ? `（ほか${reasons.length - 1}件）` : ''}`}
+            </p>
+          )}
+        </div>
+      )}
+      {selected && (
+        <div className="pl-10">
       {/* 使うデータ */}
       <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
         {node.node_type === 'load' ? (
@@ -340,23 +434,10 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
         )}
       </div>
 
-      {definitionColumns && (
-        <p className="mt-2 text-[0.88rem] text-ink/85">
-          <span className="font-bold">使う列（{definitionColumns.length}列）：</span>
-          {definitionColumns.map((c) => `${c.name}（${COLUMN_TYPE_LABEL[c.type]}${c.required ? '・必ずある' : ''}）`).join('、')}
-        </p>
-      )}
-
       {summary && (
         <p className="mt-2 text-[0.9rem] text-ink">
           <span className="font-bold">処理内容：</span>
           {summary}
-        </p>
-      )}
-      {problemCount > 0 && (
-        <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-warning-ink">
-          <TriangleAlert className="size-4" aria-hidden />
-          設定が必要なことが{problemCount}件あります（選ぶと右側に表示）
         </p>
       )}
 
@@ -365,6 +446,8 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
           <CornerDownRight className="size-4" aria-hidden />
           {users.length ? `この結果を使うステップ：${users.map((u) => `ステップ${u}`).join('・')}` : 'この結果は、まだどのステップでも使っていません'}
         </p>
+      )}
+        </div>
       )}
 
       {error && (
@@ -534,36 +617,79 @@ function useServerCheck(flow: FlowDoc): ServerCheck {
   return { status, byIndex, byNode, general }
 }
 
-function CheckSummary({ check, nodes, problems }: { check: ServerCheck; nodes: FlowNode[]; problems: Record<string, string[]> }) {
-  const needSetting = nodes.filter((n) => problems[n.node_id].length > 0).length
-  const unconfirmed = nodes.filter((n) => n.confirmation_status !== 'confirmed').length
-  const serverCount = Object.values(check.byIndex).flat().length + Object.values(check.byNode).flat().length + check.general.length
-  let tone = 'text-subtle'
-  let icon = <LoaderCircle className="size-4 animate-spin" aria-hidden />
-  let text = '作業手順をチェックしています…'
-  if (check.status === 'failed') {
-    tone = 'text-error'
-    icon = <TriangleAlert className="size-4" aria-hidden />
-    text = '作業手順のチェックができませんでした。時間をおいて、もう一度お試しください'
-  } else if (check.status === 'done') {
-    if (needSetting > 0) {
-      tone = 'text-warning'
-      icon = <TriangleAlert className="size-4" aria-hidden />
-      text = `要設定のステップが${needSetting}個あります`
-    } else if (serverCount > 0) {
-      tone = 'text-error'
-      icon = <TriangleAlert className="size-4" aria-hidden />
-      text = `作業手順のチェックで問題が${serverCount}件見つかりました${check.general.length ? `：${check.general[0]}` : ''}`
-    } else {
-      tone = 'text-success'
-      icon = <CircleCheck className="size-4" aria-hidden />
-      text = unconfirmed ? `作業手順の形に問題はありません（要確認のステップ：${unconfirmed}個）` : '作業手順の形に問題はありません。すべてのステップが設定完了です'
-    }
+type Tone = 'success' | 'warning' | 'error' | 'busy'
+/** 実行（または次へ進むこと）を止めている理由1件と、その場所へ移動する操作 */
+type Blocker = { label: string; reason: string; go: (() => void) | null }
+type FooterInfo = { tone: Tone; title: string; sub: string; onFix: (() => void) | null }
+
+/**
+ * 画面下部に出す今の状態（見出し1行＋補足1行）。補足には、いちばん先に直すこと1件だけを短く出す。
+ * 手順の確認だけの画面（procedureOnly）では、不足があっても次のデータの読み込みへ進める（読み込んだ後でも直せるため）。
+ */
+function footerStatus({
+  procedureOnly,
+  check,
+  nodeCount,
+  counts,
+  stepLine,
+  unassigned,
+  blockers,
+  stepBlockers,
+}: {
+  procedureOnly: boolean
+  check: ServerCheck
+  nodeCount: number
+  counts: Record<ItemStatus, number>
+  stepLine: string
+  unassigned: number
+  blockers: Blocker[]
+  stepBlockers: Blocker[]
+}): FooterInfo {
+  if (nodeCount === 0) return { tone: 'warning', title: '処理ステップがありません', sub: '「処理ステップを追加する」から追加してください', onFix: null }
+  if (check.status === 'failed') return { tone: 'error', title: '作業手順のチェックができませんでした', sub: '時間をおいて、もう一度お試しください', onFix: null }
+  const first = (list: Blocker[]) => `${list[0].label}　${list[0].reason}`
+  if (procedureOnly) {
+    const needSetting = counts.needs_setting + counts.error
+    if (needSetting) return { tone: 'warning', title: `設定が必要なステップが${needSetting}件あります`, sub: `${first(stepBlockers)}（データを読み込んだ後でも設定できます）`, onFix: stepBlockers[0].go }
+    if (check.status === 'done' && check.general.length) return { tone: 'error', title: '作業手順のチェックで問題があります', sub: check.general[0], onFix: null }
+    if (counts.needs_review) return { tone: 'warning', title: `確認が必要なステップが${counts.needs_review}件あります`, sub: `${stepLine}。データを読み込んだ後でも確認できます`, onFix: stepBlockers[0].go }
+    if (check.status !== 'done') return { tone: 'busy', title: '作業手順をチェックしています…', sub: stepLine, onFix: null }
+    return { tone: 'success', title: '手順の設定は完了しました', sub: `次に、処理するExcel・CSVを割り当てます（未割り当て：${unassigned}件）`, onFix: null }
   }
+  if (blockers.length) return { tone: 'warning', title: `実行するには、あと${blockers.length}件の設定が必要です`, sub: first(blockers), onFix: blockers[0].go }
+  if (check.status !== 'done') return { tone: 'busy', title: '作業手順をチェックしています…', sub: stepLine, onFix: null }
+  return { tone: 'success', title: '実行の準備ができました', sub: `${nodeCount}ステップすべて設定完了。作業手順のチェックに問題はありません`, onFix: null }
+}
+
+const TONE_STYLE: Record<Tone, { cls: string; icon: ReactNode }> = {
+  success: { cls: 'text-mint', icon: <CircleCheck className="size-4.5" aria-hidden /> },
+  warning: { cls: 'text-warning', icon: <TriangleAlert className="size-4.5" aria-hidden /> },
+  error: { cls: 'text-error', icon: <TriangleAlert className="size-4.5" aria-hidden /> },
+  busy: { cls: 'text-subtle', icon: <LoaderCircle className="size-4.5 animate-spin" aria-hidden /> },
+}
+
+function FooterStatus({ tone, title, sub, onFix }: FooterInfo) {
+  const t = TONE_STYLE[tone]
   return (
-    <p className={`ml-auto flex items-center gap-1.5 text-[0.88rem] ${tone}`} role="status" aria-label="作業手順のチェック">
-      {icon}
-      {text}
-    </p>
+    <div className="flex min-w-0 flex-1 items-start gap-2" role="status" aria-label="作業手順のチェック">
+      <span className={`mt-0.5 shrink-0 ${t.cls}`}>{t.icon}</span>
+      <div className="min-w-0">
+        <p className="flex items-center gap-3 font-bold text-white">
+          <span className="truncate">{title}</span>
+          {onFix && (
+            <button
+              type="button"
+              onClick={onFix}
+              className="shrink-0 rounded text-[0.85rem] font-bold text-mint underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-mint"
+            >
+              修正箇所を見る →
+            </button>
+          )}
+        </p>
+        <p className="truncate text-[0.82rem] text-subtle" title={sub}>
+          {sub}
+        </p>
+      </div>
+    </div>
   )
 }

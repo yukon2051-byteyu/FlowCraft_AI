@@ -100,6 +100,23 @@ describe('設定の不足・誤り', () => {
     expect(paramProblems(ok, [cols.in1, cols.in2])).toEqual([])
   })
 
+  it('結合：重なった列に付ける文字は、書いていなければ既定（_右）を使い不足としない。空欄にしたときだけ不足', () => {
+    const { right_suffix: _omit, ...rest } = defaultParams('join') as Record<string, unknown>
+    void _omit
+    const keys = [{ left: '数量', right: '単価' }]
+    expect(paramProblems(node('j', 'join', ['in1', 'in2'], 'r', { ...rest, keys }), [cols.in1, cols.in2])).toEqual([])
+    expect(paramProblems(node('j', 'join', ['in1', 'in2'], 'r', { ...rest, keys, right_suffix: ' ' }), [cols.in1, cols.in2])).toEqual(['名前が重なった列に付ける文字を入力してください'])
+  })
+
+  it('計算：入れ子の式（(数量＋売上金額)−数量）も、中の列を確かめて不足としない。中の列がなければ不足', () => {
+    const calc = (left: unknown) =>
+      node('c', 'calculate', ['in1'], 'r', { ...defaultParams('calculate'), output_column: '差', expression: { kind: 'operation', op: 'subtract', left, right: { kind: 'column', column: '数量' } } })
+    const nested = { kind: 'operation', op: 'add', left: { kind: 'column', column: '数量' }, right: { kind: 'column', column: '売上金額' } }
+    expect(paramProblems(calc(nested), [cols.in1])).toEqual([])
+    expect(summarize(calc(nested))).toBe('「差」＝ （数量 ＋ 売上金額） － 数量')
+    expect(paramProblems(calc({ ...nested, right: { kind: 'column', column: 'ない列' } }), [cols.in1])).toEqual(['列「ない列」がありません'])
+  })
+
   it('集計：文字の列は合計できない／結果の列名の重なり', () => {
     const a = node('a', 'aggregate', ['in1'], 'r', {
       group_by: ['商品コード'],

@@ -28,7 +28,8 @@ describe('作る画面の状態管理', () => {
   it('開いた直後は保存済み。変更すると未保存になり、保存すると保存済みに戻る', () => {
     store().openFlow(DEMO)
     expect(selectIsDirty(store())).toBe(false)
-    expect(store().selectedNodeId).toBe('n1')
+    // 開いた直後は、どのステップも開かない（一覧で全体を見渡せるように）
+    expect(store().selectedNodeId).toBeNull()
 
     store().renameFlow('月次売上集計（営業部）')
     expect(selectIsDirty(store())).toBe(true)

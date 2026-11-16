@@ -115,7 +115,7 @@ test('割り当てずに開くと、作業手順は見られるが、実行は�
   await openDialog(page).getByRole('listitem').filter({ hasText: '月次売上集計' }).getByRole('button', { name: '開く' }).click()
   await page.getByRole('button', { name: 'ファイルを割り当てずに作業手順を見る' }).click()
   await expect(card(page, 7)).toBeVisible()
-  await expect(page.getByText('ファイルを割り当てていない入力が3つあります（「ファイルの割当」で割り当ててください）')).toBeVisible()
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('ファイルを割り当てていない入力が3つあります（「ファイルの割当」で割り当てます）')
   await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toBeDisabled()
 })
 

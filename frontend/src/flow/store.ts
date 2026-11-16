@@ -117,11 +117,11 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   // 開いた直後は「保存済み」の状態（変更していないので、未保存の警告を出さない）
   openFlow: (raw) => {
     const flow = normalizeFlow(raw)
-    set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: snapshot(flow), exportedSnapshot: null, runValues: {} })
+    set({ flow, bindings: {}, selectedNodeId: null, savedSnapshot: snapshot(flow), exportedSnapshot: null, runValues: {} })
   },
 
   duplicateAsNew: (meta) => set((s) => ({ flow: copyFlow(s.flow, meta), savedSnapshot: null, exportedSnapshot: null })),
-  startNewFlow: (flow) => set({ flow, bindings: {}, selectedNodeId: flow.nodes[0]?.node_id ?? null, savedSnapshot: null, exportedSnapshot: null, runValues: {} }),
+  startNewFlow: (flow) => set({ flow, bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null, runValues: {} }),
 
   renameFlow: (name) => set((s) => ({ flow: { ...s.flow, flow_name: name } })),
   setDescription: (text) => set((s) => ({ flow: { ...s.flow, description: text } })),
@@ -134,7 +134,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       return {
         flow: { ...s.flow, input_definitions: defs, nodes },
         bindings: Object.fromEntries(bindings.map((b) => [b.input_id, b])),
-        selectedNodeId: nodes[0]?.node_id ?? null,
+        selectedNodeId: null,
       }
     }),
 

@@ -27,7 +27,7 @@ test('テンプレート「売上集計」で設定し、対象月を入れて�
 
   await page.getByRole('button', { name: 'テンプレートから追加' }).click()
   await page.getByRole('region', { name: 'テンプレートを選ぶ' }).getByRole('button', { name: /^売上集計/ }).click()
-  const items = panelList(page).getByRole('listitem')
+  const items = panelList(page).getByRole('article')
   await expect(items).toHaveCount(5)
   await expect(page.getByRole('tab', { name: /完了基準 5/ })).toBeVisible()
   // 推し当てた基準は設定済み（期間は「実行するたびに指定」）
@@ -36,7 +36,7 @@ test('テンプレート「売上集計」で設定し、対象月を入れて�
 
   // 対象月を入れるまで実行できない
   const run = page.getByRole('button', { name: '作業手順全体を実行する' })
-  await expect(page.getByText('実行時に指定する値（対象月）を入力してください')).toBeVisible()
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('実行時に指定する値「対象月」')
   await expect(run).toBeDisabled()
   await page.getByRole('textbox', { name: '実行時に指定する値：対象月' }).fill('2026-10')
   await expect(run).toBeEnabled({ timeout: 10_000 })
@@ -82,7 +82,8 @@ test('手動で基準を追加・設定し、未設定の間は実行できな�
   await page.getByRole('region', { name: '追加する基準を選ぶ' }).getByRole('button', { name: /^件数が範囲内にある/ }).click()
   const ed = editor(page, '件数が範囲内にある')
   await expect(ed.getByRole('list', { name: '設定が必要なこと' })).toContainText('最小・最大のどちらかを入れてください')
-  await expect(page.getByText(/設定が終わっていない完了基準が1つあります/)).toBeVisible()
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('実行するには、あと1件の設定が必要です')
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('完了基準「件数が範囲内にある」')
   await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toBeDisabled()
 
   await ed.getByRole('textbox', { name: '基準の名前' }).fill('部署は4つ')
@@ -95,7 +96,7 @@ test('手動で基準を追加・設定し、未設定の間は実行できな�
   await named.getByRole('spinbutton', { name: '最大の件数' }).fill('4')
   await named.getByRole('radio', { name: '注意（確認してから出力）' }).check()
   await expect(named.getByRole('list', { name: '設定が必要なこと' })).toHaveCount(0)
-  await expect(panelList(page).getByRole('listitem')).toContainText('設定済み')
+  await expect(panelList(page).getByRole('article')).toContainText('設定済み')
 
   // 保存したファイルに完了基準が入り、サーバーの検証を通る
   await page.getByRole('banner').getByRole('button', { name: '作業手順を保存' }).click()
@@ -128,9 +129,9 @@ test('基準を削除すると一覧から消え、使われなくなった「�
   await page.getByRole('button', { name: 'テンプレートから追加' }).click()
   await page.getByRole('region', { name: 'テンプレートを選ぶ' }).getByRole('button', { name: /^売上集計/ }).click()
   await expect(page.getByRole('textbox', { name: '実行時に指定する値：対象月' })).toBeVisible()
-  await panelList(page).getByRole('button', { name: '完了基準：対象月の伝票だけ' }).click()
+  await panelList(page).getByRole('article', { name: '完了基準：対象月の伝票だけ' }).click()
   await editor(page, '対象月の伝票だけ').getByRole('button', { name: 'この基準を削除' }).click()
-  await expect(panelList(page).getByRole('listitem')).toHaveCount(4)
+  await expect(panelList(page).getByRole('article')).toHaveCount(4)
   await expect(page.getByRole('textbox', { name: '実行時に指定する値：対象月' })).toHaveCount(0)
 })
 

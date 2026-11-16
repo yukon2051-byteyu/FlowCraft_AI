@@ -7,7 +7,7 @@ import { SampleWorkspace } from '../components/workspace/SampleWorkspace'
 import { Stepper } from '../components/workspace/Stepper'
 import { StartChooser } from '../components/workspace/StartChooser'
 import { DescribeWork } from '../components/workspace/DescribeWork'
-import { demoStepIndex, demoStepViews, modeFromParam, START_PARAM, stepViews } from '../flow/journey'
+import { demoStepIndex, demoStepViews, modeFromParam, positionOf, START_PARAM, stepViews } from '../flow/journey'
 import { fetchTemplate } from '../api/templates'
 import { copyFlow } from '../flow/copy'
 import type { BuildMethod, Facts, Screen, StartMode } from '../flow/journey'
@@ -505,18 +505,16 @@ export default function WorkspacePage() {
             {screen === 'assign' && <AssignInputs key={openedKey} onDone={() => setScreen('edit')} onSkip={() => setScreen('edit')} />}
             {screen === 'edit' && (
               <FlowSteps
-                onBack={() => setScreen(demo ? 'demo_data' : origin === 'opened' ? 'assign' : 'define')}
-                backLabel={
-                  demo
-                    ? '前へ：データを確認'
-                    : 
-                  // ひな形から作った仮の手順は、まだデータを読み込んでいない（次に進む操作として示す）
-                      method === 'template' && !facts.dataReady
-                      ? '次へ：データを読み込む'
-                      : origin === 'opened'
-                        ? 'ファイルの割当に戻る'
-                        : '使う列と形式の設定に戻る'
-                }
+                // ひな形から作った仮の手順は、まだデータを読み込んでいない（STEP 2）。主要ボタンは「次へ：データを読み込む」だけにする
+                {...(!demo && method === 'template' && !facts.dataReady
+                  ? {
+                      onNext: () => setScreen(origin === 'opened' ? 'assign' : 'define'),
+                      position: positionOf(steps),
+                    }
+                  : {
+                      onBack: () => setScreen(demo ? 'demo_data' : origin === 'opened' ? 'assign' : 'define'),
+                      backLabel: demo ? '前へ：データを確認' : origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る',
+                    })}
                 // 実行済みなら、実行し直さずに結果へ進める（デモで前の段階へ戻っても、結果を消さない）
                 onShowResult={lastRun ? () => setScreen('result') : undefined}
                 onRan={(run, snap) => {

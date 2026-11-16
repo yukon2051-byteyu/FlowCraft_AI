@@ -84,7 +84,8 @@ export type StepView = { id: StepId; label: string; state: 'done' | 'current' | 
 
 /** 段階ごとの表示（順番は開始方法で決まる。完了は事実から1つずつ決める） */
 export function stepViews(mode: StartMode, screen: Screen, facts: Facts, method: BuildMethod | null = null): StepView[] {
-  const current = stepOfScreen(screen)
+  // 手順の画面は、データを読み込み済みで全ステップが設定完了なら「実行・品質確認」を行う画面になる（実行ボタンがある）
+  const current = screen === 'edit' && facts.dataReady && facts.procedureReady ? 'run' : stepOfScreen(screen)
   return stepOrder(mode, method).map((id) => {
     const label = STEP_LABEL[id]
     if (id === 'describe' && mode === 'SAVED_WORKFLOW') return { id, label, state: 'skipped', reason: '保存した手順を使うため、作業の説明は不要です' }
@@ -95,6 +96,12 @@ export function stepViews(mode: StartMode, screen: Screen, facts: Facts, method:
     const done = { describe: facts.described, data: facts.dataReady, procedure: facts.procedureReady, run: facts.ran, output: facts.outputDone }[id]
     return { id, label, state: done ? 'done' : 'todo' }
   })
+}
+
+/** 現在の段階の位置（例：「STEP 2 / 5」）。現在の段階がなければ undefined */
+export function positionOf(views: StepView[]): string | undefined {
+  const at = views.findIndex((v) => v.state === 'current')
+  return at >= 0 ? `STEP ${at + 1} / ${views.length}` : undefined
 }
 
 /*

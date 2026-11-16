@@ -37,7 +37,8 @@ export type Rounding = 'half_up' | 'down' | 'up' | 'half_even'
 export type Aggregation = { function: AggFunction; column: string | null; output_column: string; scale: number | null; rounding: Rounding }
 export type AggregateParams = { group_by: string[]; aggregations: Aggregation[] }
 export type CalcOp = 'add' | 'subtract' | 'multiply' | 'divide' | 'ratio_percent'
-export type Operand = { kind: 'column'; column: string } | { kind: 'constant'; value: string }
+/** 計算式の値。列・数値のほか、入れ子の式（例：(前月末在庫＋入庫合計)−出庫合計）もある（サーバーと同じ形） */
+export type Operand = { kind: 'column'; column: string } | { kind: 'constant'; value: string } | { kind: 'operation'; op: CalcOp; left: Operand; right: Operand }
 export type CalculateParams = {
   output_column: string
   expression: { kind: 'operation'; op: CalcOp; left: Operand; right: Operand }
@@ -382,7 +383,8 @@ export function paramProblems(node: FlowNode, inputs: (Col[] | null)[]): string[
         if (!t) out.push(`金額を確かめる列「${c}」がありません`)
         else if (!NUMERIC.includes(t)) out.push(`金額を確かめる列「${c}」は数値ではありません`)
       })
-      if (!jp.right_suffix?.trim()) out.push('名前が重なった列に付ける文字を入力してください')
+      // 書いていなければサーバーと同じく既定の「_右」を使う。空欄にしたときだけ不足とする
+      if (jp.right_suffix !== undefined && !jp.right_suffix.trim()) out.push('名前が重なった列に付ける文字を入力してください')
       break
     }
     case 'concat': {
@@ -417,14 +419,20 @@ export function paramProblems(node: FlowNode, inputs: (Col[] | null)[]): string[
       const cp = p as unknown as CalculateParams
       if (!cp.output_column?.trim()) out.push('計算結果の列名を入力してください')
       else if (has(cp.output_column)) out.push(`列「${cp.output_column}」はすでにあります。別の名前にしてください`)
-      for (const [side, o] of [['左', cp.expression?.left], ['右', cp.expression?.right]] as const) {
-        if (!o) continue
-        if (o.kind === 'column') {
+      // 入れ子の式は、中の値を同じ決まりで確かめる
+      const checkOperand = (o: Operand | undefined, side: string) => {
+        if (!o) return
+        if (o.kind === 'operation') {
+          checkOperand(o.left, side)
+          checkOperand(o.right, side)
+        } else if (o.kind === 'column') {
           if (!o.column) out.push(`計算式の${side}側の列を選んでください`)
           else if (!has(o.column)) out.push(`列「${o.column}」がありません`)
           else if (!NUMERIC.includes(typeOf(o.column)!)) out.push(`列「${o.column}」は数値ではないため計算に使えません`)
         } else if (!NUMBER.test(o.value)) out.push(`計算式の${side}側の値は、数値（半角）で入力してください`)
       }
+      checkOperand(cp.expression?.left, '左')
+      checkOperand(cp.expression?.right, '右')
       break
     }
     case 'output': {
@@ -552,7 +560,7 @@ export function summarize(node: FlowNode): string | null {
     }
     case 'calculate': {
       const cp = p as unknown as CalculateParams
-      const side = (o: Operand) => (o.kind === 'column' ? o.column || '？' : o.value)
+      const side = (o: Operand) => describeOperand(o)
       return cp.output_column ? `「${cp.output_column}」＝ ${side(cp.expression.left)} ${CALC_LABEL[cp.expression.op].split(' ')[0]} ${side(cp.expression.right)}` : null
     }
     case 'output': {
@@ -592,4 +600,11 @@ export function summarize(node: FlowNode): string | null {
     default:
       return null
   }
+}
+
+/** 計算式の値を業務の言葉で（入れ子の式はかっこで囲む） */
+export function describeOperand(o: Operand): string {
+  if (o.kind === 'column') return o.column || '？'
+  if (o.kind === 'constant') return o.value
+  return `（${describeOperand(o.left)} ${CALC_LABEL[o.op].split(' ')[0]} ${describeOperand(o.right)}）`
 }

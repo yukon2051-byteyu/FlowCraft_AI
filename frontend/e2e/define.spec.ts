@@ -51,8 +51,8 @@ test('読み込んだファイルから、使う列と形式を決めて作業�
   await expect(startButton).toBeEnabled()
   await startButton.click()
 
-  // 読み込みのステップが3つ、確認済みで並ぶ
-  const steps = page.getByRole('list', { name: '処理ステップ' }).getByRole('listitem')
+  // 読み込みのステップが3つ、設定完了で並ぶ
+  const steps = page.getByRole('list', { name: '処理ステップ' }).getByRole('article')
   await expect(steps).toHaveCount(3)
   await expect(steps.nth(0)).toContainText('売上実績を読み込む')
   await expect(steps.nth(0)).toContainText('設定完了')

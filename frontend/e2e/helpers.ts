@@ -14,6 +14,13 @@ export const BANNED = /ノード|フロー|Phase|確定|真偽値|プレビュ�
 export const card = (page: Page, n: number) => page.getByRole('article', { name: new RegExp(`^ステップ${n}：`) })
 export const panel = (page: Page, n: number) => page.getByRole('region', { name: `ステップ${n}の設定` })
 
+/** ステップのカードを開く（開いていれば何もしない） */
+export async function openStep(page: Page, n: number) {
+  const c = card(page, n)
+  if ((await c.getAttribute('aria-expanded')) !== 'true') await c.getByRole('heading').click()
+  await expect(c).toHaveAttribute('aria-expanded', 'true')
+}
+
 export async function addAtEnd(page: Page, name: string) {
   await page.getByRole('button', { name: '処理ステップを追加する' }).click()
   await page.getByRole('region', { name: '追加する処理を選ぶ' }).getByRole('button', { name: new RegExp(`^${name}`) }).click()

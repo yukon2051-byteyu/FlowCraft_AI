@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { openStep } from './helpers'
 
 /*
  * タスク1-4：処理内容の設定フォーム（よく使う9種）のE2Eテスト。
@@ -34,7 +35,7 @@ test('よく使う9種の処理を画面から設定し、作業手順のチェ�
   await page.getByRole('button', { name: 'この内容で作業手順を作り始める' }).click()
 
   // 1 読み込む：使う列を表示（変更は前の画面で）
-  await card(page, 1).getByRole('heading').click()
+  await openStep(page, 1)
   await expect(panel(page, 1)).toContainText('使う列（8列）')
 
   // 4 情報を付け加える（売上 ＋ 商品マスタ）
@@ -118,13 +119,14 @@ test('よく使う9種の処理を画面から設定し、作業手順のチェ�
 
   // すべて確認済みになり、作業手順のチェック（サーバー）も通る
   const status = page.getByRole('status', { name: '作業手順のチェック' })
-  await expect(status).toHaveText('作業手順の形に問題はありません。すべてのステップが設定完了です', { timeout: 10_000 })
+  await expect(status).toContainText('実行の準備ができました', { timeout: 10_000 })
 
   // 確認済みのステップの設定を変えると、もう一度確認が必要になる
-  await card(page, 6).getByRole('heading').click()
+  await openStep(page, 6)
   await panel(page, 6).getByRole('textbox', { name: '条件1の値' }).fill('2')
   await expect(card(page, 6)).toContainText('要確認')
-  await expect(status).toContainText('要確認のステップ：1個', { timeout: 10_000 })
+  await expect(status).toContainText('実行するには、あと1件の設定が必要です', { timeout: 10_000 })
+  await expect(status).toContainText('内容を確かめて、設定完了にしてください')
 
   const texts = (await page.locator('body').innerText()).split('\n')
   expect(texts.filter((t) => BANNED.test(t))).toEqual([])
@@ -183,7 +185,7 @@ test('残りの6種（並べ替え・列を消す・同じ値の列・形式・�
   await addAtEnd(page, 'Excelに出力する')
   await confirm(page, 8)
 
-  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toHaveText('作業手順の形に問題はありません。すべてのステップが設定完了です', { timeout: 10_000 })
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('実行の準備ができました', { timeout: 10_000 })
   const texts = (await page.locator('body').innerText()).split('\n')
   expect(texts.filter((t) => BANNED.test(t))).toEqual([])
 })
