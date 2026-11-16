@@ -74,6 +74,8 @@ class StartResponse(BaseModel):
     pattern_label: str
     description: str
     guide: str
+    # STEP 1「このデモで体験できること」（正常・異常で変わる）
+    experience: str
     flow: dict[str, Any]
     bindings: list[BindingOut]
     run_parameters: dict[str, str]
@@ -133,6 +135,7 @@ def start_demo(demo_id: str, req: StartRequest, session: Session = Depends(curre
         pattern_label=pattern.label,
         description=pattern.description,
         guide=pattern.guide,
+        experience=pattern.experience,
         flow=demo.flow(),
         bindings=bindings,
         run_parameters=dict(pattern.run_parameters),

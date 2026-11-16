@@ -35,6 +35,7 @@ export function FlowSteps({
   onBack,
   onNext,
   position,
+  leading,
   onRan,
   backLabel = '使う列と形式の設定に戻る',
   onShowResult,
@@ -48,6 +49,8 @@ export function FlowSteps({
   onNext?: () => void
   /** 現在の位置（例：STEP 2 / 5）。主要ボタンの横に小さく出す */
   position?: string
+  /** 画面下部の左端に置く操作（デモの「デモ選択へ戻る」など）。戻るボタンとは区切りで分ける */
+  leading?: ReactNode
   onRan: (run: RunSummary, snap: string) => void
   /** 戻るボタンの文言（保存した作業手順を開いたときは「ファイルの割当に戻る」） */
   backLabel?: string
@@ -272,6 +275,8 @@ export function FlowSteps({
 
       {/* 画面下部：左に今の状態、右に主要ボタン（1画面につき主要な操作は1つ） */}
       <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-2.5">
+        {leading}
+        {leading && onBack && <span className="h-6 w-px shrink-0 bg-edge" aria-hidden />}
         {onBack && (
           <Button variant="ghostDark" size="sm" onClick={onBack} className="shrink-0">
             <ArrowLeft className="size-4" aria-hidden />

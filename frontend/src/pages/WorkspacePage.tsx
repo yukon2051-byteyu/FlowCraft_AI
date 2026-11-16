@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, House, LoaderCircle } from 'lucide-react'
+import { ArrowLeft, House, LoaderCircle } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
@@ -16,6 +16,7 @@ import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { OutputStep } from '../components/workspace/run/OutputStep'
+import { BackToDemos } from '../components/demo/BackToDemos'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
 import { HistoryDialog } from '../components/workspace/HistoryDialog'
@@ -523,6 +524,8 @@ export default function WorkspacePage() {
                       onBack: () => setScreen(demo ? 'demo_data' : origin === 'opened' ? 'assign' : 'define'),
                       backLabel: demo ? '前へ：データを確認' : origin === 'opened' ? 'ファイルの割当に戻る' : '使う列と形式の設定に戻る',
                     })}
+                // デモでは、どの段階からでもデモ選択へ戻れる（すべてのデモで共通の部品）
+                leading={demo ? <BackToDemos /> : undefined}
                 // 実行済みなら、実行し直さずに結果へ進める（デモで前の段階へ戻っても、結果を消さない）
                 onShowResult={lastRun ? () => setScreen('result') : undefined}
                 onRan={(run, snap) => {
@@ -554,19 +557,17 @@ export default function WorkspacePage() {
                 onNext={demo ? undefined : () => setScreen('output')}
                 footer={
                   demo ? (
-                    // デモの終わり：TOPページに戻る（主）・作業手順に戻る（副）・別のデモを試す（補助）
-                    <nav aria-label="デモの終了" className="flex shrink-0 items-center gap-3 border-t border-edge bg-nav px-6 py-3">
-                      <Button to="/" variant="primary">
-                        <House className="size-4" aria-hidden />
-                        TOPページに戻る
-                      </Button>
-                      <Button variant="outlineDark" size="sm" onClick={() => setScreen('edit')}>
+                    // デモの終わり：左端「別のデモを試す」（デモ選択へ。共通の部品）｜「作業手順に戻る」（前の段階）…右端に主要な操作「TOPページに戻る」
+                    <nav aria-label="デモの終了" className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
+                      <BackToDemos label="別のデモを試す" />
+                      <span className="h-6 w-px bg-edge" aria-hidden />
+                      <Button variant="ghostDark" size="sm" onClick={() => setScreen('edit')}>
                         <ArrowLeft className="size-4" aria-hidden />
                         作業手順に戻る
                       </Button>
-                      <Button to="/#demo" variant="ghostDark" size="sm" className="ml-auto">
-                        別のデモを試す
-                        <ArrowRight className="size-4" aria-hidden />
+                      <Button to="/" variant="primary" className="ml-auto">
+                        <House className="size-4" aria-hidden />
+                        TOPページに戻る
                       </Button>
                     </nav>
                   ) : undefined

@@ -1,3 +1,4 @@
+import { BackToDemos } from '../components/demo/BackToDemos'
 import { ArrowLeft, ArrowRight, CirclePlay, House, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
@@ -141,6 +142,8 @@ export default function KaizenDemoPage() {
   const states: KaizenStepState[] = [0, 1, 2, 3, 4].map((i) => (i === step ? 'current' : i < step ? 'done' : i >= READY_STEPS ? 'soon' : 'todo'))
   const minutes = scenario?.total_minutes ?? 0
   const decisionIssues = diagnosis ? problems(diagnosis.candidates, decisions) : []
+  // デモ選択へ戻るときに失われるもの：判断・理由・確認の問いへの答え（入れていなければ確認せずに戻る）
+  const decided = Object.values(decisions).some((d) => d.status !== null || d.confirm !== null || Object.values(d.reasons).some((r) => r.trim()))
   const statusLabel = Object.fromEntries(Object.entries(decisions).map(([id, d]) => [id, STATUS_DONE_LABEL[d.status ?? 'none']]))
 
   return (
@@ -185,25 +188,30 @@ export default function KaizenDemoPage() {
         </div>
 
         {step === 4 ? (
-          // デモの終わり：TOPページに戻る（主）・前のSTEPへ戻る（副）・最初からやり直す（補助）。3つを同じ強さにしない
+          // デモの終わり：左端「別のデモを試す」（デモ選択へ。すべてのデモで共通の部品）｜前のSTEPへ戻る・最初からやり直す … 右端に主要な操作「TOPページに戻る」
           <nav aria-label="デモの終了" className="mt-8 flex flex-wrap items-center gap-3 border-t border-edge pt-6">
-            <Button variant="primary" size="lg" onClick={finish}>
-              <House className="size-5" aria-hidden />
-              TOPページに戻る
-            </Button>
-            <Button variant="outlineDark" onClick={() => setStep(3)}>
+            <BackToDemos label="別のデモを試す" dirty={false} onLeave={clearKaizenState} />
+            <span className="h-6 w-px bg-edge" aria-hidden />
+            <Button variant="ghostDark" size="sm" onClick={() => setStep(3)}>
               <ArrowLeft className="size-4" aria-hidden />
               前のSTEPへ戻る
             </Button>
-            <Button variant="ghostDark" size="sm" onClick={restart} className="ml-auto">
+            <Button variant="ghostDark" size="sm" onClick={restart}>
               <RotateCcw className="size-4" aria-hidden />
               最初からやり直す
+            </Button>
+            <Button variant="primary" size="lg" onClick={finish} className="ml-auto">
+              <House className="size-5" aria-hidden />
+              TOPページに戻る
             </Button>
           </nav>
         ) : (
         <nav aria-label="STEPの移動" className="mt-8 flex flex-wrap items-center gap-3 border-t border-edge pt-6">
+          {/* どのSTEPからでもデモ選択へ戻れる（すべてのデモで共通の部品）。同じデモの前のSTEPへ戻る操作とは区切りで分ける */}
+          <BackToDemos dirty={decided} onLeave={clearKaizenState} />
+          {step > 0 && <span className="h-6 w-px bg-edge" aria-hidden />}
           {step > 0 && (
-            <Button variant="outlineDark" onClick={() => setStep(step - 1)}>
+            <Button variant="ghostDark" size="sm" onClick={() => setStep(step - 1)}>
               <ArrowLeft className="size-4" aria-hidden />
               前のSTEPへ戻る
             </Button>

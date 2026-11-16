@@ -33,6 +33,8 @@ export type DemoStart = {
   pattern_label: string
   description: string
   guide: string
+  /** STEP 1「このデモで体験できること」（正常・異常で変わる。古いサーバーでは無い） */
+  experience?: string
   flow: unknown
   bindings: Omit<Binding, 'column_mapping'>[]
   run_parameters: Record<string, string>

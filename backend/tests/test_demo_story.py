@@ -42,3 +42,16 @@ def test_開始のAPIは説明を返す():
         body = c.post("/api/demos/product_match/start", headers=h, json={"pattern": "ng"}).json()
         assert body["story"]["business_name"] == "売上データの商品マスタ照合"
         assert body["story"]["steps"][-1] == {"label": "Excelに出力する", "refs": ["n5"]}
+        # STEP 1「このデモで体験できること」（品質異常のデモでは、正式な出力が止まることを伝える）
+        assert "照合できない商品コードを原因" in body["experience"]
+
+
+@pytest.mark.parametrize("demo_id", list(DEMOS))
+def test_体験できることは_正常と異常で書き分け_実際にできることだけを書く(demo_id):
+    """正常：Excelに出力できる／異常：正式な出力が止まり、直したデータで再実行できる（どれも実装済みの機能）"""
+    patterns = DEMOS[demo_id].patterns
+    assert "Excelに出力できます" in patterns["ok"].experience
+    assert "正式な出力を止め" in patterns["ng"].experience or "正式な出力は止まり" in patterns["ng"].experience
+    assert "直したデータで再実行できます" in patterns["ng"].experience
+    for p in patterns.values():
+        assert 0 < len(p.experience) <= 90  # 帯に1〜2行で収まる長さ

@@ -29,7 +29,8 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router'
 import { AI_NOTE, HANDLING_SUMMARY, UNSUPPORTED_NOTE } from '../content/dataHandling'
 import { isAvailable } from '../content/featureStatus'
 import type { FeatureKey } from '../content/featureStatus'
@@ -47,6 +48,13 @@ import { DevBadge } from '../components/ui/DevBadge'
  * 未実装の機能には「開発中」を表示する（content/featureStatus.ts で一元管理）。
  */
 export default function TopPage() {
+  // ほかの画面から「/#demo」などで戻ってきたとき、その欄まで動かす（デモ選択へ戻る・別のデモを試す）
+  const { hash } = useLocation()
+  useEffect(() => {
+    const el = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null
+    // 別の画面から来たときは、なめらかに流さず、すぐにその欄を表示する（長い距離を数秒かけて動かさない）
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+  }, [hash])
   return (
     <div className="min-h-screen overflow-x-clip bg-canvas">
       <SiteHeader />

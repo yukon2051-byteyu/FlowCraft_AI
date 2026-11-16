@@ -22,10 +22,15 @@ test('月次売上（品質異常）：業務を知る → 改善を確認 → �
   await expect(page.getByText('架空の業務シナリオ（デモ用の架空データ）')).toBeVisible()
   await expect(page.getByRole('region', { name: '今の作業（手作業）' })).toContainText('商品マスタを見ながら、商品名・カテゴリを転記する')
   await expect(page.getByRole('region', { name: '困っていること' })).toContainText('商品コードの照合漏れに気づきにくい')
-  await expect(page.getByRole('region', { name: '今回の体験' })).toContainText('品質異常')
+  // このデモで体験できること：品質異常のデモでは、正式な出力が止まるところまで（正常のデモとは書き分ける）
+  const exp = page.getByRole('region', { name: 'このデモで体験できること' })
+  await expect(exp).toContainText('品質ルールが混入を見つけて、正式な出力を止めるところまで確かめます')
+  await expect(exp).toContainText('今回のデータ（品質異常）：10月分のファイルに、11月の伝票が混ざっています。')
+  // デモ名も示す（何のデモか）
+  await expect(page.locator('header').filter({ hasText: '月次売上集計デモ' }).first()).toBeVisible()
 
   // STEP 2：手順と改善を確認（説明は実際の作業手順の処理ステップ・品質ルールと対応している）
-  await page.getByRole('button', { name: '次へ：作業手順を見る' }).click()
+  await page.getByRole('button', { name: '次へ：作業手順と改善案を見る' }).click()
   await expect(current(page)).toContainText('手順と改善を確認')
   await expect(page.getByText('事前に用意した改善例です（AIの提案ではありません）')).toBeVisible()
   const compare = page.getByRole('table', { name: '改善前と改善後' })
@@ -90,7 +95,7 @@ for (const [id, name, files] of [
     test.setTimeout(150_000)
     await page.goto(`/build?demo=${id}&pattern=ok`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(name, { timeout: 20_000 })
-    await page.getByRole('button', { name: '次へ：作業手順を見る' }).click()
+    await page.getByRole('button', { name: '次へ：作業手順と改善案を見る' }).click()
     await expect(page.getByRole('table', { name: '改善前と改善後' }).locator('tbody tr')).toHaveCount(4)
     await page.getByRole('button', { name: '次へ：使用するデータを見る' }).click()
     await expect(page.getByRole('list', { name: '使用するファイル' }).getByRole('listitem')).toHaveCount(files)
@@ -184,10 +189,10 @@ test('デモの完了画面：完了のまとめ（処理と品質を分けて�
   // 表の近くから Excel に出力できる（上の結論の欄と同じ処理）
   const [download] = await Promise.all([page.waitForEvent('download'), out.getByRole('button', { name: 'Excelに出力する' }).click()])
   expect(download.suggestedFilename()).toContain('_結果_')
-  // 終わりの操作：TOPページに戻る（主）・作業手順に戻る（副）・別のデモを試す（補助）
+  // 終わりの操作：左端に別のデモを試す（デモ選択へ）・作業手順に戻る … 右端に TOPページに戻る（主）
   const end = page.getByRole('navigation', { name: 'デモの終了' })
   await expect(end.getByRole('link', { name: 'TOPページに戻る' })).toHaveAttribute('href', '/')
-  await expect(end.getByRole('link', { name: '別のデモを試す' })).toHaveAttribute('href', '/#demo')
+  await expect(end.getByRole('button', { name: '別のデモを試す' })).toBeVisible()
   await end.getByRole('button', { name: '作業手順に戻る' }).click()
   await expect(page.getByRole('button', { name: '結果を見る（再実行しない）' })).toBeVisible()
   await page.getByRole('button', { name: '結果を見る（再実行しない）' }).click()

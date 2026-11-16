@@ -66,7 +66,7 @@ export async function buildMonthlySales(page: Page, master: string) {
 
 /** デモは「作業を知る」から始まる。STEP 1〜3（作業を知る・手順と改善・データ）を進めて、STEP 4（実行・品質確認）へ */
 export async function throughDemoSteps(page: Page) {
-  await page.getByRole('button', { name: '次へ：作業手順を見る' }).click({ timeout: 20_000 })
+  await page.getByRole('button', { name: '次へ：作業手順と改善案を見る' }).click({ timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：使用するデータを見る' }).click()
   await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
   await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toBeVisible()
