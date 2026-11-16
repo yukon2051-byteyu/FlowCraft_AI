@@ -20,8 +20,8 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 
 # 1.1（2026-11-13）：完了基準（completion_criteria）と、実行のたびに指定する値（run_parameters）を追加。
 # 1.0 のファイルはそのまま読み込み、1.1 として扱う（追加項目は空）。docs/completion-criteria.md §3
-SCHEMA_VERSION = "1.4"
-SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2", "1.3", "1.4")
+SCHEMA_VERSION = "1.5"
+SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2", "1.3", "1.4", "1.5")
 
 MAX_NODES = 100
 MAX_EXPRESSION_DEPTH = 5
@@ -891,9 +891,39 @@ def legacy_rule_id(flow_id: Any, criterion_id: Any) -> str:
     return f"{flow_id}:{criterion_id}"
 
 
+# ---------------------------------------------------------------------------
+# 改善の記録（1.5）：AI業務改善診断での回答と、提案への判断・理由。次の診断で同じことを聞かない・同じ提案を繰り返さないために残す
+# 処理の実行や判定には使わない
+# ---------------------------------------------------------------------------
+
+MAX_DIAGNOSIS_RECORDS = 20
+
+
+class RecordedAnswer(StrictModel):
+    question: Annotated[str, Field(min_length=1, max_length=300)]
+    answer: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class RecordedDecision(StrictModel):
+    direction: Literal["eliminate", "simplify", "standardize", "automate"]
+    title: Annotated[str, Field(min_length=1, max_length=400)]
+    change: Annotated[str, Field(max_length=400)] = ""
+    # adopt：採用する／hold：保留する／reject：採用しない（判断しなかった提案は残さない）
+    decision: Literal["adopt", "hold", "reject"]
+    reason: Annotated[str, Field(max_length=300)] = ""
+    # 手順に反映できるか（提案のときの見立て）
+    fit: Literal["yes", "partial", "no"] = "no"
+
+
+class DiagnosisRecord(StrictModel):
+    diagnosed_at: datetime
+    answers: Annotated[list[RecordedAnswer], Field(max_length=10)] = Field(default_factory=list)
+    decisions: Annotated[list[RecordedDecision], Field(max_length=10)] = Field(default_factory=list)
+
+
 class FlowDefinition(StrictModel):
-    # 読み込んだ 1.0〜1.3 のファイルは 1.4 として扱う（_upgrade）。保存し直すと 1.4 になる
-    schema_version: Literal["1.4"]
+    # 読み込んだ 1.0〜1.4 のファイルは 1.5 として扱う（_upgrade）。保存し直すと 1.5 になる
+    schema_version: Literal["1.5"]
     engine_version: str
     flow_id: UUID
     flow_version: Annotated[int, Field(ge=1)]
@@ -907,16 +937,19 @@ class FlowDefinition(StrictModel):
     validation_rules: ValidationRules = Field(default_factory=ValidationRules)
     run_parameters: Annotated[list[RunParameter], Field(max_length=20)] = Field(default_factory=list)
     completion_criteria: CompletionCriteria = Field(default_factory=CompletionCriteria)
+    # 改善の記録（1.5）。古い順。多くても20回分（それより古いものは画面で消してから保存する）
+    improvement_log: Annotated[list[DiagnosisRecord], Field(max_length=MAX_DIAGNOSIS_RECORDS)] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
     def _upgrade(cls, data: Any) -> Any:
-        """古い版のファイルを最新の版（1.4）として読む。古い版に新しい版の項目が書かれていたら、手で編集された不正なファイルとして拒否する。
+        """古い版のファイルを最新の版（1.5）として読む。古い版に新しい版の項目が書かれていたら、手で編集された不正なファイルとして拒否する。
 
         1.0 → 1.1：実行時に指定する値・完了基準が加わった
         1.1 → 1.2：完了基準の各項目に、品質ルールの識別（rule_id・rule_version・copied_from）が加わった
         1.2 → 1.3：入力の定義に空白の扱い（blank_rules）、列に空欄の扱い（blank）が加わった（Phase Q）
         1.3 → 1.4：完了基準に「提案しない」とした候補（dismissed_suggestions）、基準の作られ方に suggested が加わった
+        1.4 → 1.5：改善の記録（improvement_log：AI業務改善診断での回答と、提案への判断・理由）が加わった
         """
         if not isinstance(data, dict):
             return data
@@ -955,6 +988,10 @@ class FlowDefinition(StrictModel):
                 if "dismissed_suggestions" in criteria or any(isinstance(i, dict) and i.get("origin") == "suggested" for i in items):
                     raise ValueError("形の版 1.3 のファイルには「dismissed_suggestions」や作られ方「suggested」を書けません（1.4 の項目です）")
             data = {**data, "schema_version": "1.4"}
+        if data.get("schema_version") == "1.4":
+            if "improvement_log" in data:
+                raise ValueError("形の版 1.4 のファイルには「improvement_log」を書けません（1.5 の項目です）")
+            data = {**data, "schema_version": "1.5"}
         return data
 
 

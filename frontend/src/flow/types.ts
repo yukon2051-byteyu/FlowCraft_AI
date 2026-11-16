@@ -5,7 +5,7 @@
  */
 
 /** 1.1（2026-11-13）：完了基準と、実行のたびに指定する値を追加。1.0 のファイルは 1.1 として読む */
-export const SCHEMA_VERSION = '1.4'
+export const SCHEMA_VERSION = '1.5'
 
 export type ColumnType = 'string' | 'integer' | 'decimal' | 'date' | 'boolean'
 
@@ -133,6 +133,21 @@ export type CompletionCriteria = {
   dismissed_suggestions?: string[]
 }
 
+/** 改善の記録（1.5）：AI業務改善診断での回答と、提案への判断・理由。次の診断で同じことを聞かない・同じ提案を繰り返さないために残す */
+export type DiagnosisRecord = {
+  diagnosed_at: string
+  answers: { question: string; answer: string }[]
+  /** 判断した提案だけ（判断しなかった提案は残さない） */
+  decisions: {
+    direction: 'eliminate' | 'simplify' | 'standardize' | 'automate'
+    title: string
+    change: string
+    decision: 'adopt' | 'hold' | 'reject'
+    reason: string
+    fit: 'yes' | 'partial' | 'no'
+  }[]
+}
+
 export type FlowDoc = {
   schema_version: string
   engine_version: string
@@ -148,6 +163,8 @@ export type FlowDoc = {
   validation_rules?: Record<string, unknown>
   run_parameters: RunParameter[]
   completion_criteria: CompletionCriteria
+  /** 改善の記録（1.5）。古い順。多くても20回分 */
+  improvement_log?: DiagnosisRecord[]
 }
 
 /** 入力の割当（実行データ）。作業手順のファイルには保存しない（設計書 §5.2）。 */

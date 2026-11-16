@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from app.ai.client import fixed_response
-from app.ai.context import NODE_LABEL, ContextRequest, build_context
+from app.ai.context import NODE_LABEL, ContextRequest, normalize_question, answered_questions, build_context
 from app.ai.guard import AiContext, run_ai
 
 MAX_FIRST_QUESTIONS = 3
@@ -42,6 +42,7 @@ class QuestionsResponse(BaseModel):
     fingerprint: str
     cached: bool  # 前回の結果を返した（AIは呼んでいない）
     mode: str  # fixed（固定応答）／live（実際のAI）
+    skipped: int = 0  # 前回までの診断で回答済みのため、聞かなかった質問の数（A-6）
 
 
 SYSTEM_QUESTIONS = """あなたは業務改善の専門家です。利用者の業務を、廃止→簡素化→標準化→自動化の順に見直す手伝いをします。
@@ -54,6 +55,7 @@ SYSTEM_QUESTIONS = """あなたは業務改善の専門家です。利用者の�
 - 各質問に「なぜ聞くか」を1文で添える（例：「使われていない資料なら、作らずに済む可能性があるため」）。回答の例を2〜3個添える。
 - 個人情報（氏名・連絡先など）を聞かない。
 - 材料の「足りない情報」に書かれたものは、ないものとして扱う（あると決めつけない）。
+- 材料の「前回までの診断」で回答済みのことは、もう一度聞かない。前回の回答から変わったかを確かめる必要があるときだけ、前回の回答を示して聞く。
 - 利用者は業務の担当者で、専門用語に詳しくない。やさしい日本語で書く。
 - understanding には、材料から把握したことを1〜2文で書く（推測は推測と分かる書き方にする）。"""
 
@@ -85,14 +87,25 @@ def _fixed_questions(_: str) -> dict:
 def ask_questions(ctx: AiContext, req: ContextRequest) -> QuestionsResponse:
     material = build_context(ctx.session, req)
     key = f"questions:{material.fingerprint}"
-    cached = ctx.session.ai_cache.get(key)
-    if isinstance(cached, QuestionsOut):
-        return QuestionsResponse(understanding=cached.understanding, questions=cached.questions[:MAX_FIRST_QUESTIONS], fingerprint=material.fingerprint, cached=True, mode=ctx.settings.ai_status)
-    result = run_ai(ctx, "diagnosis_questions", SYSTEM_QUESTIONS, "# 材料\n\n" + material.text, QuestionsOut, max_tokens=4000)
-    out = result.data
-    ctx.session.ai_cache[key] = out
+    hit = ctx.session.ai_cache.get(key)
+    cached = isinstance(hit, QuestionsOut)
+    if cached:
+        out: QuestionsOut = hit
+    else:
+        out = run_ai(ctx, "diagnosis_questions", SYSTEM_QUESTIONS, "# 材料\n\n" + material.text, QuestionsOut, max_tokens=4000).data
+        ctx.session.ai_cache[key] = out
+    # 前回までの診断で回答した質問と同じものは聞かない（AIへの指示に加えて、ここでも確かめる）
+    done = answered_questions(req.flow)
+    fresh = [q for q in out.questions if normalize_question(q.question) not in done]
     # 初回は3問まで（AIが多く返しても、利用者に一度に見せるのは3問まで）
-    return QuestionsResponse(understanding=out.understanding, questions=out.questions[:MAX_FIRST_QUESTIONS], fingerprint=material.fingerprint, cached=False, mode=ctx.settings.ai_status)
+    return QuestionsResponse(
+        understanding=out.understanding,
+        questions=fresh[:MAX_FIRST_QUESTIONS],
+        fingerprint=material.fingerprint,
+        cached=cached,
+        mode=ctx.settings.ai_status,
+        skipped=len(out.questions) - len(fresh),
+    )
 
 
 
@@ -217,6 +230,7 @@ SYSTEM_PROPOSALS = """あなたは業務改善の専門家です。材料（業�
   使える部品は、下の一覧にあるものだけ（ないものは書かない）。template_id はもとにできるひな形があるときだけ。部品で足りない部分や人が行う作業は note に書く。
   廃止・簡素化の提案でも、残る作業を手順にできるなら部品を書く。手順にできない提案を、できるように書かない。
 - 材料の「足りない情報」に書かれたものは、ないものとして扱う。足りないために言い切れないことは note に書く。
+- 材料の「前回までの診断」で「採用しない」とした提案は、同じ内容で出さない（理由が解消したと材料や回答から言えるときだけ、そのことを根拠に書いて出す）。「採用」とした提案は繰り返さない。「保留」の提案は、出し直してよい。
 - 利用者は業務の担当者。やさしい日本語で、1項目は短く書く。"""
 
 

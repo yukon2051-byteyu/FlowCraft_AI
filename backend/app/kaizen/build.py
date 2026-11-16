@@ -469,7 +469,7 @@ def _build_flow(
         + "反映していない：" + ("、".join(f"候補{c.candidate_id}「{c.title}」＝{word[decisions[c.candidate_id].status or 'reject']}{why(c)}" for c in others) or "なし")
     )
     flow = {
-        "schema_version": "1.4",
+        "schema_version": "1.5",
         "engine_version": ENGINE_VERSION,
         "flow_id": flow_id,
         "flow_version": 1,

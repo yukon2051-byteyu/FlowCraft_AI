@@ -148,7 +148,7 @@ test('手動で基準を追加・設定する。未設定の「注意」の基�
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
   await expect(dialog.getByRole('status')).toContainText('保存しました')
   const saved = JSON.parse(await readFile((await download.path())!, 'utf-8'))
-  expect(saved.schema_version).toBe('1.4')
+  expect(saved.schema_version).toBe('1.5')
   expect(saved.completion_criteria.items).toEqual([
     expect.objectContaining({ name: '部署は4つ', kind: 'row_count', params: { min: 4, max: 4 }, on_fail: 'caution', origin: 'manual', rule_version: 1 }),
   ])

@@ -5,8 +5,9 @@ import type { ReactNode } from 'react'
 import { askDiagnosisProposals, askDiagnosisQuestions, buildDiagnosisContext } from '../../../api/ai'
 import type { ContextRequest, ProposalsResponse, QuestionsResponse } from '../../../api/ai'
 import { BuildLine, ProposalList } from './ProposalList'
-import { makePlan } from '../../../flow/aiPlan'
+import { makePlan, makeRecord } from '../../../flow/aiPlan'
 import type { AdoptedImprovement, Decision, ImprovementPlan } from '../../../flow/aiPlan'
+import type { DiagnosisRecord } from '../../../flow/types'
 import { listFiles } from '../../../api/files'
 import { useFlowStore } from '../../../flow/store'
 import { useAiAction } from '../../ai/useAiAction'
@@ -20,10 +21,12 @@ import { ErrorNotice } from '../../ui/ErrorNotice'
  * - 質問は初回3問まで。データからは分からない業務の背景だけ。各質問に「なぜ聞くか」。回答は任意
  * - AIを使えないとき（設定なし・上限・応答を確かめられない）は理由を示し、AIを使わずに手順を作る道を示す（簡易診断へ切り替えない）
  * - AIの提案から処理ステップを自動で組み立てない。ひな形があればそれを選んだ状態で、手順の画面で利用者が確かめながら作る
+ * - 回答と判断・理由は、改善の記録（作業手順ファイル 1.5）に残す（A-6）。次の診断では送る情報に入り、同じ質問をしない
+ * - 作った手順から見直すとき（existing）は、今の手順を置き換えない。判断を記録して手順の画面に戻る
  */
 
 /** 手順の作り方：ひな形から作る／処理部品を組み合わせて作る（データを読み込んでから）／作り方を選び直す */
-export type BuildChoice = { kind: 'template'; templateId: string } | { kind: 'parts' } | { kind: 'choose' }
+export type BuildChoice = { kind: 'template'; templateId: string } | { kind: 'parts' } | { kind: 'choose' } | { kind: 'return' }
 /** 診断の段階（上部の「次の操作」の案内に使う） */
 export type DiagnosisStage = 'context' | 'questions' | 'proposals' | 'plan'
 
@@ -37,17 +40,20 @@ export function AiDiagnosis({
   onBuild,
   building = false,
   onStage,
+  existing = false,
 }: {
   name: string
   purpose: string
   onBack: () => void
   onSkip: () => void
-  /** ④ 反映の計画を確かめて、手順を作る */
-  onBuild: (plan: ImprovementPlan, how: BuildChoice) => void
+  /** ④ 反映の計画を確かめて、手順を作る（record：改善の記録に加える1回分） */
+  onBuild: (plan: ImprovementPlan, how: BuildChoice, record: DiagnosisRecord) => void
   /** ひな形を読み込んでいる */
   building?: boolean
   /** 段階が変わったとき */
   onStage?: (stage: DiagnosisStage) => void
+  /** 作った作業手順から見直す（手順は置き換えず、判断を記録して手順の画面に戻る） */
+  existing?: boolean
 }) {
   const flow = useFlowStore((s) => s.flow)
   const bindings = useFlowStore((s) => s.bindings)
@@ -60,7 +66,8 @@ export function AiDiagnosis({
     return {
       name,
       purpose,
-      flow: flow.nodes.length || flow.completion_criteria.items.length ? flow : null,
+      // 改善の記録（前回までの診断）があれば、手順がまだなくても送る
+      flow: flow.nodes.length || flow.completion_criteria.items.length || flow.improvement_log?.length ? flow : null,
       files: bound.length
         ? bound.map((b) => ({ file_id: b.file_id, sheet: b.sheet, header_row: b.header_row, label: label(b.input_id) }))
         : (files.data ?? []).map((f) => ({ file_id: f.file_id, label: f.filename })),
@@ -97,6 +104,16 @@ export function AiDiagnosis({
   const error = ai.error ?? ai2.error
   const count = (k: Decision['status']) => Object.values(decisions).filter((d) => d.status === k).length
   const undecided = (proposals?.proposals.length ?? 0) - count('adopt') - count('hold') - count('reject')
+  const build = (how: BuildChoice) =>
+    onBuild(
+      plan,
+      how,
+      makeRecord(
+        (questions?.questions ?? []).map((q, i) => ({ question: q.question, answer: answers[i] ?? '' })),
+        proposals?.proposals ?? [],
+        decisions,
+      ),
+    )
 
   return (
     <>
@@ -186,6 +203,15 @@ export function AiDiagnosis({
                 <span className="mr-2 font-bold text-mint">AIが把握したこと</span>
                 {questions.understanding}
               </p>
+              {questions.skipped > 0 && (
+                <p className="flex items-start gap-1.5 rounded-xl bg-mint-soft/10 px-4 py-2.5 text-[0.88rem] text-white/85 ring-1 ring-mint/30" role="note" aria-label="前回の回答">
+                  <Info className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+                  前回までの診断で答えた質問（{questions.skipped}問）は、もう一度聞きません。前回の回答は、AIに送る情報に入っています。
+                </p>
+              )}
+              {questions.questions.length === 0 && (
+                <p className="rounded-xl bg-panel px-4 py-3 text-[0.92rem] text-subtle ring-1 ring-edge">追加の質問はありません。このまま改善案を作れます。</p>
+              )}
               <ol className="space-y-3" aria-label="AIからの質問">
                 {questions.questions.map((q, i) => (
                   <li key={q.question} className="light-panel rounded-2xl px-5 py-4">
@@ -240,7 +266,7 @@ export function AiDiagnosis({
             </>
           )}
 
-          {stage === 'plan' && <PlanView plan={plan} undecided={undecided} held={count('hold')} />}
+          {stage === 'plan' && <PlanView plan={plan} undecided={undecided} held={count('hold')} existing={existing} />}
         </div>
       </div>
 
@@ -252,15 +278,23 @@ export function AiDiagnosis({
           className="shrink-0"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          {stage === 'plan' ? '改善提案に戻る' : stage === 'proposals' ? '質問に戻る' : stage === 'questions' ? '送る情報に戻る' : '作業を伝える画面に戻る'}
+          {stage === 'plan'
+            ? '改善提案に戻る'
+            : stage === 'proposals'
+              ? '質問に戻る'
+              : stage === 'questions'
+                ? '送る情報に戻る'
+                : existing
+                  ? '作業手順に戻る'
+                  : '作業を伝える画面に戻る'}
         </Button>
-        {stage !== 'plan' && (
+        {stage !== 'plan' && !(existing && stage === 'context') && (
           <Button variant="ghostDark" size="sm" onClick={onSkip} className="shrink-0">
-            AIを使わずに手順を作る
+            {existing ? 'AIを使わずに作業手順に戻る' : 'AIを使わずに手順を作る'}
           </Button>
         )}
-        {stage === 'plan' && plan.template && (
-          <Button variant="ghostDark" size="sm" onClick={() => onBuild(plan, { kind: 'parts' })} disabled={building} className="shrink-0">
+        {stage === 'plan' && plan.template && !existing && (
+          <Button variant="ghostDark" size="sm" onClick={() => build({ kind: 'parts' })} disabled={building} className="shrink-0">
             ひな形を使わずに処理部品で作る
           </Button>
         )}
@@ -274,12 +308,16 @@ export function AiDiagnosis({
             <Button
               variant="primary"
               disabled={building}
-              onClick={() => onBuild(plan, plan.template ? { kind: 'template', templateId: plan.template.id } : plan.buildable.length ? { kind: 'parts' } : { kind: 'choose' })}
+              onClick={() =>
+                build(existing ? { kind: 'return' } : plan.template ? { kind: 'template', templateId: plan.template.id } : plan.buildable.length ? { kind: 'parts' } : { kind: 'choose' })
+              }
             >
               {building && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
               {building
                 ? 'ひな形を読み込んでいます…'
-                : plan.template
+                : existing
+                  ? '判断を記録して作業手順に戻る'
+                  : plan.template
                   ? `ひな形「${plan.template.title}」で手順を作る`
                   : plan.buildable.length
                     ? '処理部品を組み合わせて手順を作る'
@@ -311,12 +349,13 @@ export function AiDiagnosis({
 }
 
 /** ④ 反映の計画：手順に反映できるもの／人が行う作業として残るもの */
-function PlanView({ plan, undecided, held }: { plan: ImprovementPlan; undecided: number; held: number }) {
+function PlanView({ plan, undecided, held, existing }: { plan: ImprovementPlan; undecided: number; held: number; existing: boolean }) {
   const others = [held && `保留${held}件`, undecided && `未判断${undecided}件`].filter(Boolean).join('・')
   if (!plan.adopted.length)
     return (
       <p className="rounded-xl bg-panel px-4 py-3 text-[0.92rem] text-subtle ring-1 ring-edge" aria-label="採用した改善">
-        採用した提案はありません{others && `（${others}は反映しません）`}。手順の作り方を選んで進めます。採用する提案があれば「改善提案に戻る」で選び直してください。
+        採用した提案はありません{others && `（${others}は反映しません）`}。{existing ? '判断は記録して、作業手順に戻ります。' : '手順の作り方を選んで進めます。'}
+        採用する提案があれば「改善提案に戻る」で選び直してください。
       </p>
     )
   return (
@@ -339,7 +378,9 @@ function PlanView({ plan, undecided, held }: { plan: ImprovementPlan; undecided:
       </div>
       <ul className="space-y-1 rounded-xl bg-panel px-4 py-3 text-[0.88rem] text-subtle ring-1 ring-edge" aria-label="手順の作り方">
         <li>
-          {plan.template
+          {existing
+            ? '今の作業手順は、そのまま残します（ひな形で置き換えません）。採用した改善は、手順の画面で処理ステップや完了基準を直して反映します。'
+            : plan.template
             ? `もとにするひな形：「${plan.template.title}」（反映できる提案で挙げられたひな形）。選んだ状態で手順の画面へ進みます。`
             : plan.buildable.length
               ? 'もとにできるひな形はありません。データを読み込んでから、処理部品を組み合わせて作ります。'
@@ -347,6 +388,7 @@ function PlanView({ plan, undecided, held }: { plan: ImprovementPlan; undecided:
         </li>
         <li>採用した改善は、手順の画面の上部に一覧で表示します（作りながら確かめられます）。</li>
         {others && <li>{others}の提案は反映しません。</li>}
+        <li>回答と判断（理由を含む）は、作業手順に「改善の記録」として残します。次の診断では、同じことを聞きません（作業手順を保存すると残ります）。</li>
       </ul>
     </>
   )

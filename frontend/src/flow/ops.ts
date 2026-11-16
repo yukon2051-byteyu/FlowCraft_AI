@@ -34,16 +34,19 @@ export function normalizeFlow(raw: unknown): FlowDoc {
   const has12 = (f.completion_criteria?.items ?? []).some((c) => 'rule_id' in c || 'rule_version' in c || 'copied_from' in c)
   const has13 = (f.input_definitions ?? []).some((d) => 'blank_rules' in d || (d.columns ?? []).some((c) => 'blank' in c))
   const has14 = 'dismissed_suggestions' in (f.completion_criteria ?? {}) || (f.completion_criteria?.items ?? []).some((c) => c.origin === 'suggested')
+  const has15 = 'improvement_log' in f
   const old =
     f.schema_version === '1.0'
-      ? !has11 && !has12 && !has13 && !has14
+      ? !has11 && !has12 && !has13 && !has14 && !has15
       : f.schema_version === '1.1'
-        ? !has12 && !has13 && !has14
+        ? !has12 && !has13 && !has14 && !has15
         : f.schema_version === '1.2'
-          ? !has13 && !has14
+          ? !has13 && !has14 && !has15
           : f.schema_version === '1.3'
-            ? !has14
-            : false
+            ? !has14 && !has15
+            : f.schema_version === '1.4'
+              ? !has15
+              : false
   const version = old ? SCHEMA_VERSION : (f.schema_version ?? SCHEMA_VERSION)
   const flowId = f.flow_id ?? ''
   return {
@@ -85,6 +88,8 @@ export function normalizeFlow(raw: unknown): FlowDoc {
       // 「提案しない」とした候補（1.4）。古い版のファイルにはないので空
       dismissed_suggestions: f.completion_criteria?.dismissed_suggestions ?? [],
     },
+    // 改善の記録（1.5）。古い版のファイルにはないので空
+    improvement_log: f.improvement_log ?? [],
   }
 }
 

@@ -74,13 +74,13 @@ def codes(flow) -> list[str]:
 # ===================== 1.0 からの移行 =====================
 
 
-def test_current_version_is_14():
-    assert SCHEMA_VERSION == "1.4"
+def test_current_version_is_15():
+    assert SCHEMA_VERSION == "1.5"
 
 
 def test_10_file_is_read_as_latest_with_empty_criteria():
     flow = parse_flow(FLOW_10)
-    assert flow.schema_version == "1.4"
+    assert flow.schema_version == "1.5"
     assert flow.run_parameters == []
     assert flow.completion_criteria.items == [] and flow.completion_criteria.version == 1
     assert validate_structure(flow) == []
@@ -246,7 +246,7 @@ def test_11_file_gets_rule_identity_that_is_the_same_every_time():
     a = parse_flow(_flow_11_with_criteria())
     b = parse_flow(_flow_11_with_criteria())
     item = a.completion_criteria.items[0]
-    assert a.schema_version == "1.4"
+    assert a.schema_version == "1.5"
     assert item.rule_id == f"{FLOW_10['flow_id']}:{item.criterion_id}"
     assert item.rule_version == 1 and item.copied_from is None
     assert b.completion_criteria.items[0].rule_id == item.rule_id
@@ -312,9 +312,9 @@ def _flow_13():
     return f
 
 
-def test_13_file_is_read_as_14_without_dismissed_suggestions():
+def test_13_file_is_read_as_latest_without_dismissed_suggestions():
     flow = parse_flow(_flow_13())
-    assert flow.schema_version == "1.4"
+    assert flow.schema_version == "1.5"
     assert flow.completion_criteria.dismissed_suggestions == []
 
 
@@ -341,3 +341,75 @@ def test_13_file_with_14_items_is_rejected(patch):
         f["completion_criteria"]["items"][0]["origin"] = "suggested"
     with pytest.raises(FlowSchemaError, match="1.4 の項目"):
         parse_flow(f)
+
+
+# ===================== 1.4 → 1.5（改善の記録） =====================
+
+RECORD = {
+    "diagnosed_at": "2026-11-17T10:00:00+09:00",
+    "answers": [{"question": "資料は誰が使いますか？", "answer": "部長が会議で使う"}],
+    "decisions": [
+        {"direction": "eliminate", "title": "転記をやめる", "change": "転記をやめる", "decision": "reject", "reason": "監査で必要な資料のため", "fit": "no"},
+        {"direction": "automate", "title": "集計を手順にする", "decision": "adopt", "fit": "yes"},
+    ],
+}
+
+
+def _flow_14():
+    f = _flow_13()
+    f["schema_version"] = "1.4"
+    return f
+
+
+def test_14_file_is_read_as_15_with_empty_improvement_log():
+    flow = parse_flow(_flow_14())
+    assert flow.schema_version == "1.5"
+    assert flow.improvement_log == []
+
+
+def test_15_file_keeps_improvement_log_after_saving_again():
+    f = _flow_14()
+    f["schema_version"] = "1.5"
+    f["improvement_log"] = [RECORD]
+    flow = parse_flow(f)
+    again = parse_flow(json.loads(flow.model_dump_json(by_alias=True)))
+    rec = again.improvement_log[0]
+    assert rec.answers[0].answer == "部長が会議で使う"
+    assert [(d.decision, d.reason) for d in rec.decisions] == [("reject", "監査で必要な資料のため"), ("adopt", "")]
+    assert validate_structure(again) == []  # 記録は処理の検証に影響しない
+
+
+def test_14_file_with_15_items_is_rejected():
+    f = _flow_14()
+    f["improvement_log"] = []
+    with pytest.raises(FlowSchemaError, match="1.5 の項目"):
+        parse_flow(f)
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        lambda r: r["decisions"][0].update(decision="undecided"),  # 判断しなかった提案は残さない
+        lambda r: r["answers"][0].update(answer=""),  # 空の回答は残さない
+        lambda r: r["decisions"][0].update(reason="あ" * 301),
+        lambda r: r.update(decisions=[r["decisions"][1]] * 11),
+    ],
+)
+def test_invalid_improvement_log_is_rejected(patch):
+    f = _flow_14()
+    f["schema_version"] = "1.5"
+    rec = copy.deepcopy(RECORD)
+    patch(rec)
+    f["improvement_log"] = [rec]
+    with pytest.raises(FlowSchemaError):
+        parse_flow(f)
+
+
+def test_improvement_log_keeps_at_most_20_records():
+    f = _flow_14()
+    f["schema_version"] = "1.5"
+    f["improvement_log"] = [RECORD] * 21
+    with pytest.raises(FlowSchemaError):
+        parse_flow(f)
+    f["improvement_log"] = [RECORD] * 20
+    assert len(parse_flow(f).improvement_log) == 20

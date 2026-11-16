@@ -41,6 +41,7 @@ export function FlowSteps({
   backLabel = '使う列と形式の設定に戻る',
   onShowResult,
   banner,
+  onReview,
 }: {
   /** 前の画面へ戻る（補助操作）。手順の確認だけを行う画面（onNext あり）では渡さない */
   onBack?: () => void
@@ -60,6 +61,8 @@ export function FlowSteps({
   onShowResult?: () => void
   /** 切り替えカードの上に出す表示（AI業務改善診断で採用した改善の一覧など） */
   banner?: ReactNode
+  /** 作業の見直し（AI業務改善診断）へ進む。AIを使えるときだけ渡す（渡さなければ押せない） */
+  onReview?: () => void
 }) {
   const flow = useFlowStore((s) => s.flow)
   const selectedId = useFlowStore((s) => s.selectedNodeId)
@@ -233,13 +236,14 @@ export function FlowSteps({
               <Button
                 variant="outlineDark"
                 size="sm"
-                disabled={!isAvailable('kaizen')}
-                title={isAvailable('kaizen') ? undefined : 'AI業務改善診断は開発中です。使えるようになっても、作った手順はそのまま残ります'}
+                onClick={onReview}
+                disabled={!onReview}
+                title={onReview ? 'AIで業務を見直します。作った手順はそのまま残ります' : 'AI業務改善診断は、AIを使える環境でだけ使えます。作った手順はそのまま残ります'}
               >
                 <ScanSearch className="size-4" aria-hidden />
                 この作業を見直す
               </Button>
-              <DevBadge feature="kaizen" />
+              {!onReview && !isAvailable('kaizen') && <DevBadge feature="kaizen" />}
             </div>
           </div>
 

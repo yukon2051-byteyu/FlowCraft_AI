@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page, Route } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 /*
  * A-3：AI業務改善診断の入口・送る情報の確認・AI使用パスワード・質問（回答は任意）。
@@ -174,6 +175,67 @@ test('送る情報を確かめ、パスワードを入れると押し直さず�
   await expect(adopted).not.toContainText('列名をそろえる') // 閉じられる
 })
 
+test('回答と判断・理由を作業手順に残し、作った手順から見直すと前回の診断を送り、答えた質問は聞かない。手順は置き換えず、保存すると記録が残る', async ({ page }) => {
+  // 2回目の質問は、前回答えた質問をサーバーが取り除いた形で返す（取り除く処理はサーバーのテストで確かめる）
+  const asked: { flow: { improvement_log?: unknown[] } | null }[] = []
+  await mockAi(page, async (r) => {
+    asked.push(r.request().postDataJSON())
+    return r.fulfill({ json: asked.length === 1 ? QUESTIONS : { ...QUESTIONS, questions: QUESTIONS.questions.slice(1), skipped: 1 } })
+  })
+  await openAi(page)
+  await page.getByRole('button', { name: 'この内容でAIに質問を作ってもらう' }).click()
+  await page.getByRole('list', { name: 'AIからの質問' }).getByRole('button', { name: '使っているか分からない' }).click()
+  await page.getByRole('button', { name: '回答して改善案を作る' }).click()
+  await page.getByRole('radiogroup', { name: '提案1の判断' }).getByRole('radio', { name: '採用しない' }).click()
+  await page.getByRole('textbox', { name: '提案1の判断の理由' }).fill('監査で必要な資料のため')
+  await page.getByRole('radiogroup', { name: '提案2の判断' }).getByRole('radio', { name: '採用する' }).click()
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  await expect(page.getByLabel('手順の作り方')).toContainText('回答と判断（理由を含む）は、作業手順に「改善の記録」として残します')
+  await page.getByRole('button', { name: 'ひな形「月次売上集計」で手順を作る' }).click()
+  await expect(page.getByRole('heading', { name: '作業手順', exact: true })).toBeVisible()
+  const steps = page.getByRole('list', { name: '処理ステップ' }).locator(':scope > li')
+  const before = await steps.count()
+
+  // 作った手順から見直す：送る情報に前回の診断（回答・判断・理由）が入る
+  await page.getByRole('button', { name: 'この作業を見直す' }).click()
+  const sent = page.getByRole('region', { name: 'AIに送る情報' })
+  await expect(sent).toContainText('前回までの診断（全1回のうち、新しい順に1回分）')
+  await expect(sent).toContainText('の回答：役員会の資料は、誰が何に使っていますか？ → 使っているか分からない')
+  await expect(sent).toContainText('の判断：採用しない「役員会資料への転記をやめる」（理由：監査で必要な資料のため）')
+  await expect(sent).toContainText('の判断：採用「集計と確認を作業手順にする」')
+  await expect(page.getByRole('button', { name: '作業手順に戻る' })).toBeVisible()
+  await page.getByRole('button', { name: 'この内容でAIに質問を作ってもらう' }).click()
+  expect(asked[1].flow?.improvement_log).toHaveLength(1)
+  await expect(page.getByRole('note', { name: '前回の回答' })).toContainText('前回までの診断で答えた質問（1問）は、もう一度聞きません。')
+  await expect(page.getByRole('list', { name: 'AIからの質問' }).getByRole('listitem')).toHaveCount(1)
+  await page.getByRole('button', { name: '回答して改善案を作る' }).click()
+  await page.getByRole('radiogroup', { name: '提案3の判断' }).getByRole('radio', { name: '保留する' }).click()
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  // 今の手順は置き換えない（ひな形で作り直さない）
+  await expect(page.getByLabel('採用した改善')).toContainText('判断は記録して、作業手順に戻ります。')
+  await expect(page.getByRole('button', { name: 'ひな形を使わずに処理部品で作る' })).toHaveCount(0)
+  await page.getByRole('button', { name: '判断を記録して作業手順に戻る' }).click()
+  await expect(page.getByRole('heading', { name: '作業手順', exact: true })).toBeVisible()
+  await expect(steps).toHaveCount(before)
+
+  // 保存したファイル（1.5）に、2回分の改善の記録が残り、サーバーの検証を通る
+  await page.getByRole('banner').getByRole('button', { name: '作業手順を保存' }).click()
+  const dialog = page.getByRole('dialog', { name: '作業手順を保存' })
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
+  await expect(dialog.getByRole('status')).toContainText('保存しました')
+  const saved = JSON.parse(await readFile((await download.path())!, 'utf-8'))
+  expect(saved.schema_version).toBe('1.5')
+  expect(saved.improvement_log).toHaveLength(2)
+  expect(saved.improvement_log[0]).toMatchObject({
+    answers: [{ question: '役員会の資料は、誰が何に使っていますか？', answer: '使っているか分からない' }],
+    decisions: [
+      { direction: 'eliminate', title: '役員会資料への転記をやめる', decision: 'reject', reason: '監査で必要な資料のため', fit: 'no' },
+      { direction: 'automate', title: '集計と確認を作業手順にする', decision: 'adopt', reason: '', fit: 'yes' },
+    ],
+  })
+  expect(saved.improvement_log[1]).toMatchObject({ answers: [], decisions: [{ title: '列名をそろえる', decision: 'hold', fit: 'partial' }] })
+})
+
 test('ひな形のない改善だけを採用したら、処理部品で作る（データの読み込みへ進む）。採用した改善は手順の画面に出る', async ({ page }) => {
   await mockAi(page, (r) => r.fulfill({ json: QUESTIONS })) // 認証済みとして扱う
   await openAi(page)
@@ -181,7 +243,7 @@ test('ひな形のない改善だけを採用したら、処理部品で作る�
   await page.getByRole('button', { name: '回答して改善案を作る' }).click()
   await page.getByRole('radiogroup', { name: '提案3の判断' }).getByRole('radio', { name: '採用する' }).click()
   await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
-  await expect(page.getByText('手順に反映できる改善と、人が行う作業を確かめて、手順を作ってください')).toBeVisible()
+  await expect(page.getByText('手順に反映できる改善と、人が行う作業として残るものを確かめてください')).toBeVisible()
   await expect(page.getByLabel('手順の作り方')).toContainText('もとにできるひな形はありません。データを読み込んでから、処理部品を組み合わせて作ります。')
   await expect(page.getByRole('button', { name: 'ひな形を使わずに処理部品で作る' })).toHaveCount(0) // ひな形がないので出さない
   await page.getByRole('button', { name: '処理部品を組み合わせて手順を作る' }).click()

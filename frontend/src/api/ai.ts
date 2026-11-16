@@ -62,6 +62,8 @@ export type QuestionsResponse = {
   fingerprint: string
   /** 前回の結果を返した（AIは呼んでいない） */
   cached: boolean
+  /** 前回までの診断で回答済みのため、聞かなかった質問の数（A-6） */
+  skipped: number
   mode: 'fixed' | 'live'
 }
 

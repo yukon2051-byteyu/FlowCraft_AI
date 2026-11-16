@@ -68,7 +68,7 @@ const AI_STAGE_HINT: Record<DiagnosisStage, string> = {
   context: 'AIに送る情報を確かめてから、AIに質問を作ってもらってください（回答は任意です）',
   questions: '分かる質問に答えて、改善案を作ってもらってください（空欄のままでも進めます）',
   proposals: '提案ごとに、採用・保留・採用しないを選んでください（理由は任意です）',
-  plan: '手順に反映できる改善と、人が行う作業を確かめて、手順を作ってください',
+  plan: '手順に反映できる改善と、人が行う作業として残るものを確かめてください',
 }
 
 /** 選んだファイル・シート・見出し行が同じなら、決めた内容を残す（変わったら最初から決め直す） */
@@ -328,12 +328,18 @@ export default function WorkspacePage() {
   // AI業務改善診断で採用した改善（手順の画面に一覧で出す）。別の作り方を始めたら消す
   const [aiPlan, setAiPlan] = useState<ImprovementPlan | null>(null)
   const [aiStage, setAiStage] = useState<DiagnosisStage>('context')
+  // 作った作業手順から見直している（手順は置き換えず、判断を記録して手順の画面に戻る）
+  const [aiFromFlow, setAiFromFlow] = useState(false)
+  const recordDiagnosis = useFlowStore((s) => s.recordDiagnosis)
+  const aiSelectable = aiStatus === 'fixed' || (aiStatus === 'live' && isAvailable('kaizen'))
   // ひな形から「仮の手順」を作る（新しい手順ID・品質ルールは未確認）。データを読み込んだ後、列を照合して確定する
   const startFromTemplate = async (templateId: string, name: string, desc: string) => {
     setTemplateError(null)
     setTemplateBusy(true)
     try {
-      startNewFlow(copyFlow(await fetchTemplate(templateId), { name, description: desc }))
+      // 改善の記録（AI業務改善診断の回答と判断）は、この業務についてのものなので引き継ぐ
+      const log = useFlowStore.getState().flow.improvement_log ?? []
+      startNewFlow({ ...copyFlow(await fetchTemplate(templateId), { name, description: desc }), improvement_log: log })
       setDemo(null)
       setKaizenRun(false)
       setLastRun(null)
@@ -460,8 +466,9 @@ export default function WorkspacePage() {
                 initialName={flowName}
                 initialDescription={description}
                 // AIで業務を改善する：固定応答（開発・テスト）か、実際のAIがあり機能が完成しているときだけ選べる
-                ai={aiStatus === 'fixed' || (aiStatus === 'live' && isAvailable('kaizen')) ? 'selectable' : aiStatus === 'off' ? 'off' : 'dev'}
+                ai={aiSelectable ? 'selectable' : aiStatus === 'off' ? 'off' : 'dev'}
                 onAi={(v) => {
+                  setAiFromFlow(false)
                   renameFlow(v.name)
                   setDescription(v.description)
                   setDescribed(true)
@@ -491,11 +498,19 @@ export default function WorkspacePage() {
               <AiDiagnosis
                 name={flowName}
                 purpose={description}
-                onBack={() => setScreen('describe')}
-                onSkip={() => setScreen('describe')}
+                onBack={() => setScreen(aiFromFlow ? 'edit' : 'describe')}
+                onSkip={() => setScreen(aiFromFlow ? 'edit' : 'describe')}
                 building={templateBusy}
                 onStage={setAiStage}
-                onBuild={async (plan, how) => {
+                existing={aiFromFlow}
+                onBuild={async (plan, how, record) => {
+                  // 回答と判断・理由を、改善の記録に残す（作業手順を保存すると、ファイルに残る）
+                  recordDiagnosis(record)
+                  if (how.kind === 'return') {
+                    if (plan.adopted.length) setAiPlan(plan)
+                    setScreen('edit')
+                    return
+                  }
                   if (how.kind === 'choose') {
                     setAiPlan(null)
                     setScreen('describe')
@@ -589,6 +604,15 @@ export default function WorkspacePage() {
                 // デモでは、どの段階からでもデモ選択へ戻れる（すべてのデモで共通の部品）
                 leading={demo ? <BackToDemos /> : undefined}
                 banner={!demo && aiPlan ? <AdoptedImprovements items={aiPlan.adopted} /> : undefined}
+                // 作った手順から、作業の見直し（AI業務改善診断）へ。デモ・業務改善デモの手順では出さない
+                onReview={
+                  aiSelectable && !demo && !kaizenRun
+                    ? () => {
+                        setAiFromFlow(true)
+                        setScreen('ai_diagnosis')
+                      }
+                    : undefined
+                }
                 // 実行済みなら、実行し直さずに結果へ進める（デモで前の段階へ戻っても、結果を消さない）
                 onShowResult={lastRun ? () => setScreen('result') : undefined}
                 onRan={(run, snap) => {

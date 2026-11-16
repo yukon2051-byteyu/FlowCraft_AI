@@ -182,6 +182,44 @@ def _flow_sections(flow: dict[str, Any]) -> list[ContextSection]:
     return out
 
 
+HISTORY_RECORDS = 3  # 送る診断の記録（新しい順）
+DECISION_LABEL = {"adopt": "採用", "hold": "保留", "reject": "採用しない"}
+
+
+def _records(flow: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """作業手順に残した改善の記録（1.5）。新しい順に3回分まで"""
+    log = (flow or {}).get("improvement_log") or []
+    return [r for r in log if isinstance(r, dict)][-HISTORY_RECORDS:][::-1]
+
+
+def answered_questions(flow: dict[str, Any] | None) -> set[str]:
+    """前回までの診断で回答した質問（同じ質問をもう一度聞かないために使う）"""
+    return {normalize_question(str(a.get("question", ""))) for r in _records(flow) for a in r.get("answers") or [] if isinstance(a, dict)}
+
+
+def normalize_question(q: str) -> str:
+    return "".join(q.split()).rstrip("？?")
+
+
+def _history_section(flow: dict[str, Any] | None) -> ContextSection | None:
+    """前回までの診断：回答と、提案への判断・理由"""
+    records = _records(flow)
+    if not records:
+        return None
+    lines: list[str] = []
+    for r in records:
+        day = str(r.get("diagnosed_at", ""))[:10]
+        for a in r.get("answers") or []:
+            if isinstance(a, dict):
+                lines.append(f"{day}の回答：{a.get('question')} → {a.get('answer')}")
+        for d in r.get("decisions") or []:
+            if isinstance(d, dict):
+                reason = str(d.get("reason") or "").strip()
+                lines.append(f"{day}の判断：{DECISION_LABEL.get(str(d.get('decision')), '')}「{d.get('title')}」" + (f"（理由：{reason}）" if reason else ""))
+    total = len((flow or {}).get("improvement_log") or [])
+    return ContextSection(key="history", title=f"前回までの診断（全{total}回のうち、新しい順に{len(records)}回分）", lines=lines)
+
+
 def build_context(session: Session, req: ContextRequest) -> ContextPreview:
     sections: list[ContextSection] = []
     excluded: list[str] = []
@@ -199,6 +237,9 @@ def build_context(session: Session, req: ContextRequest) -> ContextPreview:
 
     flow_sections = _flow_sections(req.flow) if req.flow else []
     sections += flow_sections
+    history = _history_section(req.flow)
+    if history:
+        sections.append(history)
     if not any(s.key == "steps" for s in flow_sections):
         missing.append("作業手順はまだありません（業務の説明とデータから考えます）")
     if not any(s.key == "criteria" for s in flow_sections):

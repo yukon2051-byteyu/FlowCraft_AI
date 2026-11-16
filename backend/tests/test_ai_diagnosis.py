@@ -209,3 +209,83 @@ def test_手順への反映_AIに使える部品の一覧を渡す(monkeypatch):
     assert "## 手順に使える部品（これ以外は使えない）" in content
     assert "- monthly_sales：月次売上集計" in content and "aggregate＝項目ごとに合計・集計する" in content and "total_match＝2つの結果で合計が一致する" in content
     assert "手順にできない提案を、できるように書かない" in msgs.calls[0]["system"]
+
+
+
+# ===================== A-6：判断と理由を残し、次の診断で使う =====================
+
+FIXED_Q1 = "この作業の結果（資料・集計表）は、誰が、何に使っていますか？"
+
+
+def _flow_with_log(log: list[dict]) -> dict:
+    return {"schema_version": "1.5", "nodes": [], "completion_criteria": {"items": []}, "improvement_log": log}
+
+
+LOG = [
+    {
+        "diagnosed_at": "2026-11-10T10:00:00+09:00",
+        "answers": [{"question": "いちばん時間がかかるのは？", "answer": "転記"}],
+        "decisions": [{"direction": "simplify", "title": "古い提案", "decision": "hold", "reason": "", "fit": "no"}],
+    },
+    {
+        "diagnosed_at": "2026-11-17T10:00:00+09:00",
+        "answers": [{"question": FIXED_Q1 + " ", "answer": "部長が会議で使う"}],
+        "decisions": [{"direction": "eliminate", "title": "役員会資料をやめる", "decision": "reject", "reason": "監査で必要な資料のため", "fit": "no"}],
+    },
+]
+
+
+def test_前回までの診断_送る情報に回答と判断と理由を新しい順に入れる():
+    client, _, _ = make()
+    res = client.post("/api/ai/diagnosis/context", json={**BODY, "flow": _flow_with_log(LOG)})
+    assert res.status_code == 200, res.text
+    hist = next(s for s in res.json()["sections"] if s["key"] == "history")
+    assert hist["title"] == "前回までの診断（全2回のうち、新しい順に2回分）"
+    assert hist["lines"][0] == f"2026-11-17の回答：{FIXED_Q1}  → 部長が会議で使う"
+    assert "2026-11-17の判断：採用しない「役員会資料をやめる」（理由：監査で必要な資料のため）" in hist["lines"]
+    assert hist["lines"][-1] == "2026-11-10の判断：保留「古い提案」"
+    # 記録がなければ、この欄は出さない
+    none = client.post("/api/ai/diagnosis/context", json=BODY).json()
+    assert all(s["key"] != "history" for s in none["sections"])
+
+
+def test_前回までの診断_送るのは新しい3回分まで():
+    client, _, _ = make()
+    log = [{**LOG[0], "diagnosed_at": f"2026-11-0{i}T10:00:00+09:00"} for i in range(1, 6)]
+    hist = next(s for s in client.post("/api/ai/diagnosis/context", json={**BODY, "flow": _flow_with_log(log)}).json()["sections"] if s["key"] == "history")
+    assert hist["title"].startswith("前回までの診断（全5回のうち、新しい順に3回分）")
+    assert [line[:10] for line in hist["lines"][::2]] == ["2026-11-05", "2026-11-04", "2026-11-03"]
+
+
+def test_前回答えた質問はもう一度聞かず_聞かなかった数を返す():
+    client, _, _ = make()
+    client.post("/api/ai/auth", json={"password": PASSWORD})
+    first = client.post("/api/ai/diagnosis/questions", json=BODY).json()
+    assert first["skipped"] == 0 and len(first["questions"]) == 3
+    # 空白・「？」の違いは同じ質問として扱う
+    again = client.post("/api/ai/diagnosis/questions", json={**BODY, "flow": _flow_with_log(LOG)}).json()
+    assert again["skipped"] == 1
+    assert FIXED_Q1 not in [q["question"] for q in again["questions"]]
+    assert len(again["questions"]) == 2
+
+
+def test_前回までの診断_AIへの指示に聞き直さない_採用しないを繰り返さないを入れる(monkeypatch):
+    sent = []
+    from app.ai import diagnosis
+
+    def fake(ctx, feature, system, user, model, max_tokens):
+        sent.append((feature, system, user))
+        out = QuestionsOut(understanding="把握", questions=[]) if feature == "diagnosis_questions" else diagnosis.ProposalsOut(proposals=[], note="")
+        return SimpleNamespace(data=out)
+
+    monkeypatch.setattr(diagnosis, "run_ai", fake)
+    client, _, _ = make()
+    client.post("/api/ai/auth", json={"password": PASSWORD})
+    req = {**BODY, "flow": _flow_with_log(LOG)}
+    assert client.post("/api/ai/diagnosis/questions", json=req).status_code == 200
+    assert client.post("/api/ai/diagnosis/proposals", json={**req, "answers": []}).status_code == 200
+    (_, sys_q, user_q), (_, sys_p, user_p) = sent
+    assert "回答済みのことは、もう一度聞かない" in sys_q
+    assert "「採用しない」とした提案は、同じ内容で出さない" in sys_p
+    for user in (user_q, user_p):
+        assert "## 前回までの診断" in user and "監査で必要な資料のため" in user

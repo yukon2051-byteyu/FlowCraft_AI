@@ -183,7 +183,7 @@ test('形の版 1.0 の作業手順ファイルを開いて保存すると、最
   await expect(dialog).toContainText('変更はありません')
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
   const saved = JSON.parse(await readFile((await download.path())!, 'utf-8'))
-  expect(saved.schema_version).toBe('1.4')
+  expect(saved.schema_version).toBe('1.5')
   expect(saved.completion_criteria).toEqual({ version: 1, items: [], changelog: [], dismissed_suggestions: [] })
   expect(saved.run_parameters).toEqual([])
 })

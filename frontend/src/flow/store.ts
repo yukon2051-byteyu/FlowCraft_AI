@@ -25,7 +25,10 @@ import {
 } from './ops'
 import { advanceCriteriaVersion, pruneRunParameters } from './criteria'
 import { copyFlow } from './copy'
-import type { Binding, Criterion, FlowDoc, FlowNode, InputDefinition, NodeType, RunParameter } from './types'
+import type { Binding, Criterion, DiagnosisRecord, FlowDoc, FlowNode, InputDefinition, NodeType, RunParameter } from './types'
+
+/** 改善の記録に残す診断の数（サーバーの MAX_DIAGNOSIS_RECORDS と同じ） */
+const MAX_DIAGNOSIS_RECORDS = 20
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -79,6 +82,8 @@ type FlowState = {
   commitSave: (meta?: { flow_name?: string; description?: string }) => FlowDoc
   /** 完了基準を置き換える（追加・変更・削除）。使われなくなった「実行時に指定する値」は消す */
   setCriteria: (items: Criterion[], addParameters?: RunParameter[]) => void
+  /** AI業務改善診断の回答と判断を、改善の記録に加える（1.5）。古いものから消して20回分までにする */
+  recordDiagnosis: (record: DiagnosisRecord) => void
   /** 自動提案の候補を「提案しない」にする（作業手順のファイルに残す。1.4）。keys を空にすると、提案しないにした候補をすべて戻す */
   setDismissedSuggestions: (keys: string[]) => void
 }
@@ -122,6 +127,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     set({ flow, bindings: {}, selectedNodeId: null, savedSnapshot: snapshot(flow), exportedSnapshot: null, runValues: {} })
   },
 
+  recordDiagnosis: (record) => set((s) => ({ flow: { ...s.flow, improvement_log: [...(s.flow.improvement_log ?? []), record].slice(-MAX_DIAGNOSIS_RECORDS) } })),
   duplicateAsNew: (meta) => set((s) => ({ flow: copyFlow(s.flow, meta), savedSnapshot: null, exportedSnapshot: null })),
   startNewFlow: (flow) => set({ flow, bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null, runValues: {} }),
 

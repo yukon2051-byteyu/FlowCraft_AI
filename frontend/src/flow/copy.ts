@@ -12,6 +12,7 @@
  *     評価では「未検証」として扱う（重大のルールなら正式な出力を止める。U-1）
  *   - 完了基準の変更の記録は引き継がない（新しい手順の記録として始める）
  *   - 実行の記録・前回比較の基準は、作業手順のファイルに入っていないため、引き継がれない
+ *   - 改善の記録（1.5。AI業務改善診断の回答と判断）は、もとの業務についてのものなので引き継がない
  */
 
 import { createFlow, normalizeFlow, newRuleId } from './ops'
@@ -39,5 +40,6 @@ export function copyFlow(raw: unknown, meta: { name: string; description?: strin
         confirmation_status: 'pending',
       })),
     },
+    improvement_log: [],
   }
 }
