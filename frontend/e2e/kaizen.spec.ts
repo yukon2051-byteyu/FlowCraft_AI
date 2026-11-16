@@ -219,8 +219,8 @@ test('作った作業手順を開き、サンプルのExcelで実行・品質の
   // 業務改善デモに戻る：STEP 5（改善前後の比較）で、実際に実行した結果を見せる。判断と改善後の手順も残っている
   await banner.getByRole('link', { name: '業務改善デモに戻る' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toContainText('作業を減らして、必要な確認は残す。')
-  const actual = page.getByRole('region', { name: 'サンプルのExcelで実行した結果' })
-  await expect(actual).toContainText('総合判定：正常')
+  const actual = page.getByRole('region', { name: '自動化した作業手順の実行結果' })
+  await expect(actual).toContainText('サンプルのExcelで実行した結果：総合判定 正常')
   await expect(actual).toContainText('完了基準 8件のうち 8件を満たしました。正式な出力：できる')
   await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toContainText('必要な作業だけを残して、手順を作り直しました。')
@@ -262,7 +262,8 @@ test('STEP 5 改善前後の比較：作った手順から数えた比較。作�
   await expect(row('元データとの合計照合')).toContainText('自動の検証')
   await expect(row('実行できる処理ステップ')).toContainText('8ステップ') // 廃止は手作業の工程だけを変え、処理ステップは変えない
   // まだ実行していない：実行を勧める（結果を作り込んで見せない）
-  await expect(page.getByRole('region', { name: 'サンプルのExcelで実行した結果' })).toContainText('まだ実行していません')
+  await expect(page.getByRole('region', { name: '自動化した作業手順の実行結果' })).toContainText('作業手順として実際に動かせます')
+  await expect(page.getByRole('region', { name: '自動化した作業手順の実行結果' })).not.toContainText('総合判定')
   await expect(page.getByRole('button', { name: 'この作業手順を開いて、サンプルのExcelで実行する' })).toBeVisible()
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(BANNED)
@@ -294,4 +295,62 @@ test('確認の問いに「要件はない」と答えただけでは判断に�
   await decision('A').getByText('採用する').click()
   await expect(next).toBeEnabled()
   await expect(page.getByRole('button', { name: '候補Aへ移動' })).toHaveCount(0)
+})
+
+test('STEP 5 の終わり方：自動化しなくても成果を伝える。TOPに戻る（主）・前のSTEPへ（副）・最初からやり直す（補助）', async ({ page }) => {
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
+  await page.getByRole('radiogroup', { name: /確認：会議用資料への転記は/ }).getByRole('radio', { name: /要件はない/ }).check()
+  for (const id of ['A', 'C', 'B']) await decision(id).getByText('採用する').click()
+  await decision('D').getByText('採用しない').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await page.getByRole('button', { name: '次へ：改善前後を比較' }).click()
+
+  // 改善後の作業の進め方：実際の改善の結果から作った成果（比較表と食い違わない）
+  const outcome = page.getByRole('region', { name: '改善後の作業の進め方' })
+  await expect(outcome).toContainText('必要な作業を残し、手順を整理しました')
+  await expect(outcome).toContainText('7工程から6工程に整理し、重複していた転記作業をなくしました。元データとの合計照合など、必要な確認作業は引き続き人が実施します。')
+  const sum = page.getByRole('list', { name: '成果のまとめ' }).or(outcome.locator('dl'))
+  await expect(sum).toContainText('7工程 → 6工程')
+  await expect(sum).toContainText('同じ集計結果を会議用資料に転記する')
+  await expect(sum).toContainText('今回は採用しない')
+  await expect(sum).toContainText('毎月90分 → 49分')
+  await expect(sum).toContainText('実測ではありません')
+  await expect(page.getByRole('table', { name: '改善前後の比較' }).getByRole('row', { name: /^工程数/ })).toHaveText('工程数7工程6工程')
+  // 自動化しないことを、失敗のように見せない
+  await expect(outcome).toContainText('今回は、自動化よりも作業の整理を優先しました。')
+  await expect(page.getByText('実行できる作業手順はありません')).toHaveCount(0)
+  await expect(page.getByText('サンプルのExcelで実行した結果')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /作業手順を開いて/ })).toHaveCount(0)
+
+  // 前のSTEPへ戻る：選択は残る
+  const end = page.getByRole('navigation', { name: 'デモの終了' })
+  await end.getByRole('button', { name: '前のSTEPへ戻る' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('必要な作業だけを残して、手順を作り直しました。')
+  await page.getByRole('button', { name: '次へ：改善前後を比較' }).click()
+
+  // 最初からやり直す：STEP 1 から（TOPには移らない）
+  await end.getByRole('button', { name: '最初からやり直す' }).click()
+  await expect(page).toHaveURL(/[/]kaizen-demo/)
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  await expect(page.getByRole('region', { name: '判断の集計' })).toContainText('未判断：4件')
+
+  // TOPページに戻る：もう一度デモを始めると STEP 1 から（前の STEP 5 を出さない）
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  await page.getByRole('radiogroup', { name: /確認：/ }).getByRole('radio', { name: /要件はない/ }).check()
+  for (const id of ['A', 'C', 'B', 'D']) await decision(id).getByText('採用する').click()
+  await page.getByRole('button', { name: '次へ進む：改善後の手順を作る' }).click()
+  await page.getByRole('button', { name: '次へ：改善前後を比較' }).click()
+  await page.getByRole('navigation', { name: 'デモの終了' }).getByRole('button', { name: 'TOPページに戻る' }).click()
+  await expect(page).toHaveURL(/localhost:\d+[/]$/)
+  await page.locator('#demo').getByRole('link', { name: '業務改善デモを体験する' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
+  await page.goto('/kaizen-demo?resume=1')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
 })

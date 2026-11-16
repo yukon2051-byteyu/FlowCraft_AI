@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CirclePlay, RotateCcw, Search } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CirclePlay, House, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ApiError } from '../api/client'
@@ -125,6 +125,11 @@ export default function KaizenDemoPage() {
     }
   }
 
+  function finish() {
+    clearKaizenState()
+    navigate('/')
+  }
+
   function restart() {
     clearKaizenState()
     setImprovement(null)
@@ -168,9 +173,33 @@ export default function KaizenDemoPage() {
             <DecisionList candidates={diagnosis.candidates} scenario={scenario.scenario} decisions={decisions} onChange={setDecisions} />
           )}
           {scenario && step === 3 && improvement && <AfterProcedure data={improvement} scenario={scenario.scenario} />}
-          {step === 4 && improvement && <KaizenCompare data={improvement} run={runResultFor((improvement.flow as { flow_id?: string } | null)?.flow_id)} />}
+          {step === 4 && improvement && scenario && (
+            <KaizenCompare
+              data={improvement}
+              scenario={scenario.scenario}
+              run={runResultFor((improvement.flow as { flow_id?: string } | null)?.flow_id)}
+              onRun={improvement.flow ? openAndRun : undefined}
+            />
+          )}
         </div>
 
+        {step === 4 ? (
+          // デモの終わり：TOPページに戻る（主）・前のSTEPへ戻る（副）・最初からやり直す（補助）。3つを同じ強さにしない
+          <nav aria-label="デモの終了" className="mt-8 flex flex-wrap items-center gap-3 border-t border-edge pt-6">
+            <Button variant="primary" size="lg" onClick={finish}>
+              <House className="size-5" aria-hidden />
+              TOPページに戻る
+            </Button>
+            <Button variant="outlineDark" onClick={() => setStep(3)}>
+              <ArrowLeft className="size-4" aria-hidden />
+              前のSTEPへ戻る
+            </Button>
+            <Button variant="ghostDark" size="sm" onClick={restart} className="ml-auto">
+              <RotateCcw className="size-4" aria-hidden />
+              最初からやり直す
+            </Button>
+          </nav>
+        ) : (
         <nav aria-label="STEPの移動" className="mt-8 flex flex-wrap items-center gap-3 border-t border-edge pt-6">
           {step > 0 && (
             <Button variant="outlineDark" onClick={() => setStep(step - 1)}>
@@ -220,16 +249,9 @@ export default function KaizenDemoPage() {
                 </Button>
               </>
             )}
-            {step === 4 && improvement?.flow && (
-              <>
-                <Button variant="primary" size="lg" onClick={openAndRun}>
-                  <CirclePlay className="size-5" aria-hidden />
-                  {runResultFor((improvement.flow as { flow_id?: string }).flow_id) ? 'もう一度、作業手順を開いて実行する' : 'この作業手順を開いて、サンプルのExcelで実行する'}
-                </Button>
-              </>
-            )}
           </div>
         </nav>
+        )}
       </main>
     </div>
   )
