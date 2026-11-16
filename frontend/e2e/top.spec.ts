@@ -175,3 +175,13 @@ test('デモの最初のカードは業務改善デモ。カードの改善前�
   await expect(table.getByRole('row', { name: /^作業時間/ })).toContainText('毎月90分')
   await expect(table.getByRole('row', { name: /^作業時間/ })).toContainText('毎月20分')
 })
+
+test('上部のメニューに「デモ」を重ねて出さない（ナビゲーションは3つ）。右側の「デモを見る」でデモ欄へ移動する', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto('/')
+  const nav = page.getByRole('navigation', { name: 'ページ内メニュー' })
+  await expect(nav.getByRole('link')).toHaveText(['できること', '使い方', 'はじめ方'])
+  await page.getByRole('banner').getByRole('link', { name: 'デモを見る' }).click()
+  await expect(page).toHaveURL(/#demo$/)
+  await expect(page.locator('#demo')).toBeInViewport()
+})
