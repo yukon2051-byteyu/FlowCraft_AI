@@ -110,7 +110,7 @@ test('別の月を指定すると、対象期間の基準を満たさず「重�
   await expect(passed).not.toContainText('対応：')
 })
 
-test('手動で基準を追加・設定し、未設定の間は実行できない。保存したファイルに基準が残る', async ({ page, request }) => {
+test('手動で基準を追加・設定する。未設定の「注意」の基準は確かめずに実行でき、「重大」なら実行できない。保存したファイルに基準が残る', async ({ page, request }) => {
   test.setTimeout(150_000)
   await buildMonthlySales(page, '商品マスタ.xlsx')
   await openCriteria(page)
@@ -118,9 +118,16 @@ test('手動で基準を追加・設定し、未設定の間は実行できな�
   await page.getByRole('region', { name: '追加する基準を選ぶ' }).getByRole('button', { name: /^件数が範囲内にある/ }).click()
   const ed = editor(page, '件数が範囲内にある')
   await expect(ed.getByRole('list', { name: '設定が必要なこと' })).toContainText('最小・最大のどちらかを入れてください')
-  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('実行するには、あと1件の設定が必要です')
-  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toContainText('完了基準「件数が範囲内にある」')
-  await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toBeDisabled()
+  const status = page.getByRole('status', { name: '作業手順のチェック' })
+  const runButton = page.getByRole('button', { name: '作業手順全体を実行する' })
+  // 「注意」（件数の基準の初期値）が未設定：実行は止めず、確かめずに実行することを知らせる
+  await expect(status).toContainText('実行できます（未設定の完了基準1件は確かめずに実行します）', { timeout: 10_000 })
+  await expect(runButton).toBeEnabled({ timeout: 10_000 })
+  // 「重大」にすると、未設定のままでは実行できない
+  await ed.getByRole('radio', { name: '重大（止める）' }).check()
+  await expect(status).toContainText('実行するには、あと1件の設定が必要です')
+  await expect(status).toContainText('完了基準「件数が範囲内にある」')
+  await expect(runButton).toBeDisabled()
 
   await ed.getByRole('textbox', { name: '基準の名前' }).fill('部署は4つ')
   const named = editor(page, '部署は4つ')

@@ -548,3 +548,23 @@ def evaluate_criteria(
             CriterionResult(**base, status=status, summary=summary, evidence=evidence, examples=examples, how_to_fix=fix, metric_value=ctx.metric_values.get(c.criterion_id))
         )
     return out
+
+
+def unset_results(skipped: list[dict[str, str]]) -> list[CriterionResult]:
+    """設定が終わっていないまま実行した「注意・記録のみ」の完了基準（2026-11-16 利用者の決定②）。
+
+    画面は、設定の終わっていない注意・記録のみの基準を作業手順から外して実行し、外した基準を知らせる。
+    確かめていないので、満たしているとはみなさず「未検証」として判定の結果に必ず載せる（重大の基準は外せない：API で拒否）。
+    """
+    return [
+        CriterionResult(
+            criterion_id=s["criterion_id"],
+            name=s["name"],
+            kind=s.get("kind", "unset"),
+            on_fail=s["on_fail"],
+            status="unverified",
+            summary="設定が終わっていないため、確かめていません（未設定のまま実行しました）。",
+            how_to_fix="完了基準の設定を終えてから、もう一度実行してください。",
+        )
+        for s in skipped
+    ]

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { advanceCriteriaVersion, applyTemplate, criterionProblems, describeCriterion, diffCriteria, KIND_ORDER, newCriterion, pruneRunParameters, refChoices, usedParamIds } from './criteria'
+import { advanceCriteriaVersion, applyTemplate, criterionProblems, describeCriterion, diffCriteria, KIND_ORDER, newCriterion, pruneRunParameters, refChoices, usedParamIds, withoutUnsetCriteria } from './criteria'
 import { normalizeFlow } from './ops'
 import type { Criterion, FlowDoc } from './types'
 
@@ -138,5 +138,33 @@ describe('完了基準の変更の記録（2-6）', () => {
     const added = newCriterion(saved, 'row_count')
     expect(added.rule_version).toBe(1)
     expect(saved.completion_criteria.items.some((x) => x.rule_id === added.rule_id)).toBe(false)
+  })
+})
+
+describe('実行のときに外す基準（設定が終わっていない注意・記録のみ）', () => {
+  const unset = (on_fail: Criterion['on_fail'], id: string): Criterion => ({ ...newCriterion(DEMO, 'row_count'), criterion_id: id, name: `件数${id}`, on_fail })
+  const done = (id: string): Criterion => ({ ...newCriterion(DEMO, 'row_count'), criterion_id: id, params: { min: 1, max: null } })
+
+  it('注意・記録のみの未設定は外して一覧にし、重大の未設定と設定済みは残す（重大は実行を止める）', () => {
+    const f = withItems([done('c1'), unset('caution', 'c2'), unset('record', 'c3'), unset('critical', 'c4')])
+    const { flow, skipped } = withoutUnsetCriteria(f)
+    expect(flow.completion_criteria.items.map((c) => c.criterion_id)).toEqual(['c1', 'c4'])
+    expect(skipped).toEqual([
+      { criterion_id: 'c2', name: '件数c2', kind: 'row_count', on_fail: 'caution' },
+      { criterion_id: 'c3', name: '件数c3', kind: 'row_count', on_fail: 'record' },
+    ])
+  })
+
+  it('外す基準がなければ、作業手順はそのまま（同じもの）', () => {
+    const f = withItems([done('c1')])
+    expect(withoutUnsetCriteria(f).flow).toBe(f)
+  })
+
+  it('外した基準でしか使っていない「実行時に指定する値」も外す（入力を求めない）', () => {
+    const period: Criterion = { ...newCriterion(DEMO, 'period'), criterion_id: 'c9', on_fail: 'caution', target: { ref: 'sales', column: null }, params: { month: { $param: 'target_month' } } }
+    const f = withItems([period], [{ param_id: 'target_month', label: '対象月', type: 'month', required: true }])
+    const { flow, skipped } = withoutUnsetCriteria(f)
+    expect(skipped.map((s) => s.criterion_id)).toEqual(['c9'])
+    expect(flow.run_parameters).toEqual([])
   })
 })

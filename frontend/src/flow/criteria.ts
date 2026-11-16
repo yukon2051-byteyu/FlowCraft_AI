@@ -557,3 +557,23 @@ export function advanceCriteriaVersion(flow: FlowDoc, savedBefore: Criterion[] |
   const changelog = [...cc.changelog, { version, changed_at: at, summary }].slice(-MAX_CHANGELOG)
   return { ...flow, completion_criteria: { ...cc, version, changelog, items: advanceRuleVersions(savedBefore, cc.items) } }
 }
+
+/* ---------- 実行のときに外す基準（2026-11-16 利用者の決定②） ---------- */
+
+export type SkippedCriterion = { criterion_id: string; name: string; kind: string; on_fail: Criterion['on_fail'] }
+
+/**
+ * 設定が終わっていない「注意・記録のみ」の完了基準を外した作業手順と、外した基準の一覧。
+ * 実行・チェックのときに使う（保存するファイルからは外さない）。外した基準は、サーバーが判定に「未検証」として載せる。
+ * 設定が終わっていない「重大」の基準は外さない（実行を止める）。使われなくなった「実行時に指定する値」も外す
+ */
+export function withoutUnsetCriteria(flow: FlowDoc): { flow: FlowDoc; skipped: SkippedCriterion[] } {
+  const skipped: SkippedCriterion[] = []
+  const items = flow.completion_criteria.items.filter((c) => {
+    if (c.on_fail === 'critical' || criterionProblems(c, flow).length === 0) return true
+    skipped.push({ criterion_id: c.criterion_id, name: c.name, kind: c.kind, on_fail: c.on_fail })
+    return false
+  })
+  if (!skipped.length) return { flow, skipped }
+  return { flow: { ...flow, completion_criteria: { ...flow.completion_criteria, items }, run_parameters: pruneRunParameters(flow.run_parameters, items) }, skipped }
+}

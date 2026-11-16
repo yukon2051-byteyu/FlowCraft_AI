@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from app import ENGINE_VERSION
 from app.criteria.blank_rules import blank_results
-from app.criteria.evaluate import evaluate_criteria
+from app.criteria.evaluate import evaluate_criteria, unset_results
 from app.criteria.verdict import decide
 from app.engine import nodes as _nodes  # noqa: F401  ノードを registry に登録する
 from app.engine.registry import NodeContext, get_handler
@@ -50,12 +50,14 @@ def run_flow(
     run_values: dict[str, str] | None = None,
     history: list | None = None,
     source: str = "manual",
+    skipped_criteria: list[dict[str, str]] | None = None,
 ) -> Execution:
     """フローを実行する。
 
     require_confirmed=False：プレビュー用。未確定ノードがあっても実行する（成果物は作らない）
     stop_after：このノードまで実行して止める（プレビュー用）
     run_values：実行時に指定する値（例 {"target_month": "2026-10"}）。完了基準の評価に使う
+    skipped_criteria：設定が終わっていないため外した「注意・記録のみ」の完了基準。判定に「未検証」として載せる
     本番の実行（require_confirmed=True かつ stop_after なし）では、最後に完了基準を評価する（タスク2-2）。
     途中で止まった場合も評価し、確かめられなかった基準は「未検証」になる。
     """
@@ -68,7 +70,7 @@ def run_flow(
         runs = [NodeRun(n.node_id, n.node_type, n.node_name, "skipped") for n in flow.nodes]
         blocked = RunResult("failed", ENGINE_VERSION, runs, flow_issues=issues)
         if require_confirmed:
-            blocked.criteria = evaluate_criteria(flow, blocked, {}, run_values)
+            blocked.criteria = evaluate_criteria(flow, blocked, {}, run_values) + unset_results(skipped_criteria or [])
             blocked.verdict = decide(blocked)
         return Execution(blocked, {})
 
@@ -158,6 +160,8 @@ def run_flow(
     )
     if require_confirmed and stop_after is None:
         result.criteria = evaluate_criteria(flow, result, tables, run_values, history=history, source=source)
+        # 設定が終わっていないまま実行した注意・記録のみの基準は「未検証」（満たしているとはみなさない）
+        result.criteria += unset_results(skipped_criteria or [])
         # 空白のルール（Phase Q）：完了基準と同じ形の結果として、総合判定に入れる
         result.criteria += blank_results(flow, result)
         result.verdict = decide(result)

@@ -1,4 +1,5 @@
 import { computeDependencies } from '../flow/ops'
+import { withoutUnsetCriteria } from '../flow/criteria'
 import type { Binding, FlowDoc } from '../flow/types'
 import { apiRequest, downloadFile } from './client'
 import { historyToSend } from '../flow/history'
@@ -22,7 +23,9 @@ export type ValidateResult = {
 }
 
 /** 画面の作業手順をそのまま送る（つながりの記録はその場で計算する） */
-export function validateFlow(flow: FlowDoc): Promise<ValidateResult> {
+export function validateFlow(doc: FlowDoc): Promise<ValidateResult> {
+  // 設定が終わっていない注意・記録のみの基準は、実行と同じく外して確かめる（それだけで実行を止めない）
+  const { flow } = withoutUnsetCriteria(doc)
   return apiRequest<ValidateResult>('/api/flows/validate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -132,8 +135,11 @@ export type CriterionResult = {
 
 export type RunDetail = RunSummary & { output_previews: TablePreview[] }
 
-const body = (flow: FlowDoc, bindings: Binding[], extra: Record<string, unknown> = {}) =>
-  JSON.stringify({ flow: { ...flow, dependencies: computeDependencies(flow.nodes) }, bindings, ...extra })
+/** 送る作業手順。設定が終わっていない注意・記録のみの完了基準は外し、外した一覧を添える（サーバーが「未検証」として判定に載せる） */
+const body = (doc: FlowDoc, bindings: Binding[], extra: Record<string, unknown> = {}) => {
+  const { flow, skipped } = withoutUnsetCriteria(doc)
+  return JSON.stringify({ flow: { ...flow, dependencies: computeDependencies(flow.nodes) }, bindings, skipped_criteria: skipped, ...extra })
+}
 
 /** 指定したステップまで実行し、その処理の前後のデータを返す（確認済みでないステップがあっても実行する） */
 export function previewStep(flow: FlowDoc, bindings: Binding[], nodeId: string, limit = 50): Promise<PreviewResult> {

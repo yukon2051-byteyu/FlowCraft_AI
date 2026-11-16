@@ -63,6 +63,13 @@ class ValidateRequest(BaseModel):
     flow: dict[str, Any]
 
 
+class SkippedCriterionIn(BaseModel):
+    criterion_id: Annotated[str, Field(min_length=1, max_length=64)]
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+    kind: Annotated[str, Field(max_length=40)] = "unset"
+    on_fail: Annotated[str, Field(max_length=20)]
+
+
 class ExecuteRequest(BaseModel):
     flow: dict[str, Any]
     bindings: list[BindingIn] = Field(default_factory=list)
@@ -70,6 +77,9 @@ class ExecuteRequest(BaseModel):
     run_parameters: Annotated[dict[Annotated[str, Field(max_length=64)], Annotated[str, Field(max_length=200)]], Field(max_length=20)] = Field(default_factory=dict)
     # 前回比較に使う、同じ作業手順の過去の記録（品質MVP。画面はブラウザに保存した記録から選んで送る。サーバーは保存しない）
     history: Annotated[list[dict[str, Any]], Field(max_length=24)] = Field(default_factory=list)
+    # 設定が終わっていないため、作業手順から外して実行する「注意・記録のみ」の完了基準（判定に「未検証」として載せる）。
+    # 重大の基準は外せない（execute で拒否）
+    skipped_criteria: Annotated[list[SkippedCriterionIn], Field(max_length=50)] = Field(default_factory=list)
 
 
 class PreviewRequest(ExecuteRequest):
@@ -423,7 +433,20 @@ def execute(
     flow = _parse_or_422(req.flow)
     bindings = _bindings(flow, req.bindings)
     history = parse_history(req.history)
-    ex = run_flow(flow, bindings, session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters, history=history)
+    # 外してよいのは、設定が終わっていない「注意・記録のみ」の基準だけ（重大の基準をすり抜けさせない）
+    present = {c.criterion_id for c in flow.completion_criteria.items}
+    for s in req.skipped_criteria:
+        if s.on_fail not in ("caution", "record"):
+            raise AppError(
+                422,
+                "CRITICAL_CRITERION_NOT_SET",
+                f"重大の完了基準「{s.name}」の設定が終わっていないため、実行できません。",
+                how_to_fix="「何を満たせば完了？」で、この基準の設定を終えてください。",
+            )
+        if s.criterion_id in present:
+            raise AppError(422, "INVALID_SKIPPED_CRITERION", f"完了基準「{s.name}」は、作業手順に含まれています（外した基準として送れません）。", how_to_fix="画面を読み込み直してから、もう一度実行してください。")
+    skipped = [s.model_dump() for s in req.skipped_criteria]
+    ex = run_flow(flow, bindings, session.files, limits=_limits(settings), require_confirmed=True, run_values=req.run_parameters, history=history, skipped_criteria=skipped)
     run_id = "r_" + secrets.token_urlsafe(9)
     executed_at = datetime.now(timezone.utc)
     fhash = flow_hash(flow)

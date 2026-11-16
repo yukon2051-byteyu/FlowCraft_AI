@@ -13,7 +13,7 @@ import { inferColumns, paramProblems, summarize } from '../../flow/params'
 import type { FlowDoc } from '../../flow/types'
 import { StepSettings } from './StepSettings'
 import { CriteriaPanel } from './CriteriaPanel'
-import { criterionProblems } from '../../flow/criteria'
+import { criterionProblems, withoutUnsetCriteria } from '../../flow/criteria'
 import { useFlowStore } from '../../flow/store'
 import type { FlowNode, NodeType } from '../../flow/types'
 import { isAvailable } from '../../content/featureStatus'
@@ -137,10 +137,13 @@ export function FlowSteps({
   const rank = { critical: 0, caution: 1, record: 2 } as const
   const criteriaBlockers: Blocker[] = flow.completion_criteria.items
     .map((c) => ({ c, problems: criterionProblems(c, flow) }))
-    .filter((x) => x.problems.length > 0)
+    // 実行を止めるのは、設定が終わっていない「重大」の基準だけ（注意・記録のみは外して実行し、未検証として記録する）
+    .filter((x) => x.problems.length > 0 && x.c.on_fail === 'critical')
     .sort((a, b) => rank[a.c.on_fail] - rank[b.c.on_fail])
     .map(({ c, problems: ps }) => ({ label: `完了基準「${c.name}」`, reason: `不足：${ps[0]}`, go: () => goCriterion(c.criterion_id) }))
-  const missingValues = flow.run_parameters.filter((p) => p.required !== false && !(runValues[p.param_id] ?? '').trim())
+  // 外して実行する基準（設定が終わっていない注意・記録のみ）でしか使わない「実行時に指定する値」は求めない
+  const { flow: runnable, skipped: unsetOptional } = withoutUnsetCriteria(flow)
+  const missingValues = runnable.run_parameters.filter((p) => p.required !== false && !(runValues[p.param_id] ?? '').trim())
   // ファイルを割り当てていない入力（保存した作業手順を、割り当てずに開いたとき）
   const unassigned = flow.input_definitions.filter((d) => !bindings[d.input_id]).length
   // 実行を止めている理由。直す順（ファイル → 完了基準 → 処理ステップ → 実行時の値 → 全体のチェック）
@@ -167,9 +170,16 @@ export function FlowSteps({
           : null
   // 要確認の完了基準（実行はできるが、確かめるまで未検証として扱う。重大なら正式な出力を止める）
   const pendingCriteria = flow.completion_criteria.items.filter((c) => c.confirmation_status === 'pending' && criterionProblems(c, flow).length === 0)
-  const reviewBlocker: Blocker | null = pendingCriteria.length
-    ? { label: `要確認の完了基準が${pendingCriteria.length}件あります`, reason: '確かめるまで未検証として扱います（重大の基準なら正式な出力を止めます）', go: () => goCriterion(pendingCriteria[0].criterion_id) }
-    : null
+  // 実行はできるが知らせること：未設定の注意・記録のみの基準（確かめずに実行）と、要確認の基準（確かめるまで未検証）
+  const reviewBlocker: Blocker | null = unsetOptional.length
+    ? {
+        label: `未設定の完了基準${unsetOptional.length}件は確かめずに実行します`,
+        reason: `注意・記録のみの基準なので実行は止めず、結果では「未検証」と示します${pendingCriteria.length ? `（ほかに要確認の基準が${pendingCriteria.length}件）` : ''}`,
+        go: () => goCriterion(unsetOptional[0].criterion_id),
+      }
+    : pendingCriteria.length
+      ? { label: `要確認の完了基準が${pendingCriteria.length}件あります`, reason: '確かめるまで未検証として扱います（重大の基準なら正式な出力を止めます）', go: () => goCriterion(pendingCriteria[0].criterion_id) }
+      : null
   const footer = footerStatus({ procedureOnly: !!onNext, check, nodeCount: flow.nodes.length, counts, stepLine, unassigned, blockers, stepBlockers, reviewBlocker })
   const stepName = (ref: string) => {
     const at = flow.nodes.findIndex((n) => n.output_reference === ref)

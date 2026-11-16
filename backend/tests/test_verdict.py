@@ -282,3 +282,45 @@ def test_blank_rule_once_decided_is_applied_next_time(client):
     _, body = run(client, base, sales="売上実績_2026-11.xlsx", mapping={"金額": "売上金額"})
     assert body["verdict"]["verdict"] == "critical" and body["can_export"] is False
 
+
+
+# ===== 設定が終わっていない「注意・記録のみ」の基準は、外して実行し「未検証」として載せる（2026-11-16 利用者の決定②） =====
+
+
+def run_skipped(client, flow, skipped):
+    h = {"X-Session-Id": client.post("/api/session").json()["session_id"]}
+
+    def up(name):
+        return client.post("/api/files", headers=h, files={"file": (name, (DATA / name).read_bytes())}).json()["file_id"]
+
+    bindings = [
+        {"input_id": "sales", "file_id": up("売上実績_2026-10.xlsx"), "sheet": "売上"},
+        {"input_id": "products", "file_id": up("商品マスタ.xlsx"), "sheet": "商品"},
+        {"input_id": "depts", "file_id": up("部署マスタ.csv")},
+    ]
+    return client.post("/api/runs", headers=h, json={"flow": flow, "bindings": bindings, "skipped_criteria": skipped})
+
+
+def test_unset_caution_rule_runs_as_unverified_and_requires_confirmation(client):
+    res = run_skipped(client, flow_with([ROWS_4]), [{"criterion_id": "c_unset", "name": "件数の確認", "kind": "row_count", "on_fail": "caution"}])
+    body = res.json()
+    assert res.status_code == 200 and body["status"] != "failed"
+    unset = next(c for c in body["criteria"] if c["criterion_id"] == "c_unset")
+    assert unset["status"] == "unverified" and "設定が終わっていないため、確かめていません" in unset["summary"]
+    # 確かめていない注意の基準があるので「正常」とは言わず、確認してから出力
+    assert body["verdict"]["verdict"] == "unverified" and body["verdict"]["export"] == "needs_confirmation"
+    assert any("件数の確認" in r for r in body["verdict"]["reasons"])
+
+
+def test_unset_record_rule_does_not_change_the_verdict(client):
+    body = run_skipped(client, flow_with([ROWS_4]), [{"criterion_id": "c_unset", "name": "一覧", "kind": "list_rows", "on_fail": "record"}]).json()
+    assert body["verdict"]["verdict"] == "normal"
+    assert next(c for c in body["criteria"] if c["criterion_id"] == "c_unset")["status"] == "unverified"
+
+
+def test_unset_critical_rule_cannot_be_skipped(client):
+    res = run_skipped(client, flow_with([ROWS_4]), [{"criterion_id": "c_unset", "name": "対象月の伝票だけ", "on_fail": "critical"}])
+    assert res.status_code == 422 and res.json()["error"]["code"] == "CRITICAL_CRITERION_NOT_SET"
+    # 作業手順に含まれている基準を「外した」とは送れない
+    res = run_skipped(client, flow_with([ROWS_4]), [{"criterion_id": "c_rows", "name": "部署は4つ", "on_fail": "caution"}])
+    assert res.status_code == 422 and res.json()["error"]["code"] == "INVALID_SKIPPED_CRITERION"
