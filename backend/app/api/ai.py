@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from app.ai.auth import AiState, auth_expires_at, authenticate, get_ai_state, logout
 from app.ai.client import fixed_response
 from app.ai.context import ContextPreview, ContextRequest, build_context
-from app.ai.diagnosis import QuestionsResponse, ask_questions
+from app.ai.diagnosis import ProposalsRequest, ProposalsResponse, QuestionsResponse, ask_questions, make_proposals
 from app.ai.guard import AiContext, require_ai, run_ai
 from app.api.session import current_session
 from app.config import Settings, get_settings
@@ -87,6 +87,16 @@ def diagnosis_questions(req: ContextRequest, ctx: AiContext = Depends(require_ai
     材料はサーバーで組み立て直す。同じ材料なら前回の結果を返し、AIは呼ばない。
     """
     return ask_questions(ctx, req)
+
+
+@router.post("/ai/diagnosis/proposals", response_model=ProposalsResponse)
+def diagnosis_proposals(req: ProposalsRequest, ctx: AiContext = Depends(require_ai)) -> ProposalsResponse:
+    """AI業務改善診断：材料と回答をもとに改善提案を作る（A-4）。
+
+    「データ」とされた根拠は材料と照らし合わせ、確かめられなければ推測に格下げする。効果の数値は推定・仮定だけ（実測とは名乗らせない）。
+    同じ材料と回答なら前回の結果を返し、AIは呼ばない。
+    """
+    return make_proposals(ctx, req)
 
 
 class CheckResult(BaseModel):

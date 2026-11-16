@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, CircleHelp, EyeOff, Info, LoaderCircle, Sparkles, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleHelp, EyeOff, Info, LoaderCircle, Sparkles } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
-import { askDiagnosisQuestions, buildDiagnosisContext } from '../../../api/ai'
-import type { ContextRequest, QuestionsResponse } from '../../../api/ai'
+import { askDiagnosisProposals, askDiagnosisQuestions, buildDiagnosisContext } from '../../../api/ai'
+import type { ContextRequest, ProposalsResponse, QuestionsResponse } from '../../../api/ai'
+import { ProposalList } from './ProposalList'
+import type { ProposalDecision } from './ProposalList'
 import { listFiles } from '../../../api/files'
 import { useFlowStore } from '../../../flow/store'
 import { useAiAction } from '../../ai/useAiAction'
@@ -10,7 +12,7 @@ import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
 
 /*
- * AI業務改善診断（A-3）：① AIに送る情報を確かめる → ② AIからの質問に答える（任意） → （A-4 で改善案）
+ * AI業務改善診断（A-3・A-4）：① AIに送る情報を確かめる → ② AIからの質問に答える（任意） → ③ 改善提案を採用・保留・不採用にする
  * - 送る情報は、今ある情報からサーバーが組み立てる（同じ内容を再入力させない）。送る前に、そのまま見せる
  * - 質問は初回3問まで。データからは分からない業務の背景だけ。各質問に「なぜ聞くか」。回答は任意
  * - AIを使えないとき（設定なし・上限・応答を確かめられない）は理由を示し、AIを使わずに手順を作る道を示す（簡易診断へ切り替えない）
@@ -46,7 +48,22 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
     setAnswers(q.questions.map(() => ''))
   }, [])
   const ai = useAiAction(ask, onAsked)
-  const [submitted, setSubmitted] = useState(false)
+
+  // ③ 改善提案（回答と一緒に材料を送る。回答していない質問は送らない）
+  const [proposals, setProposals] = useState<ProposalsResponse | null>(null)
+  const [decisions, setDecisions] = useState<Record<string, ProposalDecision>>({})
+  const propose = useCallback(
+    () => askDiagnosisProposals({ ...req!, answers: (questions?.questions ?? []).map((q, i) => ({ question: q.question, answer: answers[i] ?? '' })) }),
+    [req, questions, answers],
+  )
+  const onProposed = useCallback((p: ProposalsResponse) => {
+    setProposals(p)
+    setDecisions({})
+  }, [])
+  const ai2 = useAiAction(propose, onProposed)
+  const stage = proposals ? 'proposals' : questions ? 'questions' : 'context'
+  const error = ai.error ?? ai2.error
+  const count = (k: ProposalDecision['status']) => Object.values(decisions).filter((d) => d.status === k).length
 
   return (
     <>
@@ -57,24 +74,28 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
               <Sparkles className="size-4" aria-hidden />
               AIで業務を改善する
             </p>
-            <h1 className="mt-1 text-[1.6rem] leading-tight font-bold text-white">{questions ? 'AIからの質問（回答は任意）' : 'AIに送る情報を確かめる'}</h1>
+            <h1 className="mt-1 text-[1.6rem] leading-tight font-bold text-white">
+              {stage === 'proposals' ? 'AIの改善提案' : stage === 'questions' ? 'AIからの質問（回答は任意）' : 'AIに送る情報を確かめる'}
+            </h1>
             <p className="mt-1 text-[0.92rem] text-subtle">
-              {questions
-                ? 'データだけでは分からない業務の背景を聞いています。分からない・答えたくない質問は、空欄のままで進めます。'
-                : '送るのは、次の内容だけです。AIはこの内容から、データだけでは分からないことを質問します（初回は3問まで）。'}
+              {stage === 'proposals'
+                ? '廃止→簡素化→標準化→自動化の順に検討した提案です（重要な順）。採用するかどうかは、あなたが決めます。根拠の「AIの推測」は、データで確かめていない内容です。'
+                : stage === 'questions'
+                  ? 'データだけでは分からない業務の背景を聞いています。分からない・答えたくない質問は、空欄のままで進めます。'
+                  : '送るのは、次の内容だけです。AIはこの内容から、データだけでは分からないことを質問します（初回は3問まで）。'}
             </p>
           </header>
 
-          {ai.error && (
+          {error && (
             <div className="space-y-2">
-              <ErrorNotice error={ai.error} />
+              <ErrorNotice error={error} />
               <Button variant="outlineDark" size="sm" onClick={onSkip}>
                 AIを使わずに手順を作る
               </Button>
             </div>
           )}
 
-          {!questions && (
+          {stage === 'context' && (
             <>
               {context.isPending && (
                 <p className="flex items-center gap-1.5 text-subtle">
@@ -124,7 +145,7 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
             </>
           )}
 
-          {questions && (
+          {stage === 'questions' && questions && (
             <>
               <p className="rounded-xl bg-panel px-4 py-3 text-[0.92rem] text-white/85 ring-1 ring-edge" aria-label="AIが把握したこと">
                 <span className="mr-2 font-bold text-mint">AIが把握したこと</span>
@@ -165,11 +186,21 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
                   </li>
                 ))}
               </ol>
-              {submitted && (
-                <p role="status" className="flex items-center gap-1.5 rounded-xl bg-warning/8 px-4 py-3 text-[0.9rem] text-warning ring-1 ring-warning/30">
-                  <TriangleAlert className="size-4" aria-hidden />
-                  回答を受け取りました。改善案の作成は、次の段階（A-4）で作ります（準備中）。
+            </>
+          )}
+
+          {stage === 'proposals' && proposals && (
+            <>
+              {proposals.note && (
+                <p className="flex items-start gap-1.5 rounded-xl bg-panel px-4 py-3 text-[0.88rem] text-subtle ring-1 ring-edge" aria-label="AIからの断り書き">
+                  <Info className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+                  {proposals.note}
                 </p>
+              )}
+              {proposals.proposals.length ? (
+                <ProposalList proposals={proposals.proposals} shownFirst={proposals.shown_first} decisions={decisions} onDecide={(id, d) => setDecisions({ ...decisions, [id]: d })} />
+              ) : (
+                <p className="rounded-xl bg-panel px-4 py-3 text-subtle ring-1 ring-edge">今の情報からは、改善提案はありませんでした。</p>
               )}
             </>
           )}
@@ -177,18 +208,33 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
       </div>
 
       <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-2.5">
-        <Button variant="ghostDark" size="sm" onClick={questions ? () => setQuestions(null) : onBack} className="shrink-0">
+        <Button
+          variant="ghostDark"
+          size="sm"
+          onClick={stage === 'proposals' ? () => setProposals(null) : stage === 'questions' ? () => setQuestions(null) : onBack}
+          className="shrink-0"
+        >
           <ArrowLeft className="size-4" aria-hidden />
-          {questions ? '送る情報に戻る' : '作業を伝える画面に戻る'}
+          {stage === 'proposals' ? '質問に戻る' : stage === 'questions' ? '送る情報に戻る' : '作業を伝える画面に戻る'}
         </Button>
         <Button variant="ghostDark" size="sm" onClick={onSkip} className="shrink-0">
           AIを使わずに手順を作る
         </Button>
+        {stage === 'proposals' && proposals && (
+          <p className="min-w-0 flex-1 truncate text-[0.88rem] text-subtle" role="status" aria-label="判断の状況">
+            採用{count('adopt')}・保留{count('hold')}・採用しない{count('reject')}・未判断{proposals.proposals.length - count('adopt') - count('hold') - count('reject')}
+          </p>
+        )}
         <div className="ml-auto">
-          {questions ? (
-            <Button variant="primary" onClick={() => setSubmitted(true)}>
-              回答して改善案を作る
+          {stage === 'proposals' ? (
+            <Button variant="primary" onClick={onSkip}>
+              作業手順の作成へ進む
               <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          ) : stage === 'questions' ? (
+            <Button variant="primary" onClick={ai2.run} disabled={ai2.busy}>
+              {ai2.busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+              {ai2.busy ? 'AIが改善案を考えています…' : '回答して改善案を作る'}
             </Button>
           ) : (
             <Button variant="primary" onClick={ai.run} disabled={!context.data || ai.busy}>
@@ -199,6 +245,7 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
         </div>
       </div>
       {ai.dialog}
+      {ai2.dialog}
     </>
   )
 }

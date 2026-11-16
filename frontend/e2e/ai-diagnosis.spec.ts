@@ -17,6 +17,32 @@ const QUESTIONS = {
   cached: false,
   mode: 'fixed',
 }
+const P = (id: string, direction: string, title: string, extra: Record<string, unknown> = {}) => ({
+  proposal_id: id, direction, title, target: '対象の工程', problem: '今の問題', change: `${title}にする`,
+  evidence: [{ source: 'inference', text: '推測の根拠', ref: '', downgraded: false }], effect: '効果', estimate: null, risks: [], recommendation: '推奨する対応', priority: 1, ...extra,
+})
+const PROPOSALS = {
+  note: '過去の実行の履歴は送っていないため、品質異常の傾向は考えていません。',
+  shown_first: 3,
+  fingerprint: 'p'.repeat(64),
+  cached: false,
+  mode: 'fixed',
+  proposals: [
+    P('p2', 'eliminate', '役員会資料への転記をやめる', {
+      evidence: [
+        { source: 'answer', text: '回答：使っているか分からない', ref: '', downgraded: false },
+        { source: 'inference', text: '同じ数値を2つの資料に書いている', ref: '列「存在しない列」', downgraded: true },
+      ],
+      risks: ['監査で必要な資料なら、なくせない'],
+    }),
+    P('p1', 'automate', '集計と確認を作業手順にする', {
+      evidence: [{ source: 'data', text: '「金額」の列がある', ref: '列「金額」', downgraded: false }],
+      estimate: { kind: 'assumed', text: '月に約30分（仮定：確認に毎回30分）' },
+    }),
+    P('p3', 'standardize', '列名をそろえる'),
+    P('p4', 'simplify', '確認の回数を減らす'),
+  ],
+}
 const err = (code: string, message: string, how_to_fix: string) => JSON.stringify({ error: { code, message, cause: null, how_to_fix, node_id: null } })
 
 async function mockAi(page: Page, questions: (route: Route, authed: boolean) => Promise<void>) {
@@ -29,6 +55,7 @@ async function mockAi(page: Page, questions: (route: Route, authed: boolean) => 
     return r.fulfill({ json: { status: 'fixed', authenticated: true, expires_in_seconds: 3600, calls_left_this_hour: 20 } })
   })
   await page.route('**/api/ai/diagnosis/questions', (r) => questions(r, authed))
+  await page.route('**/api/ai/diagnosis/proposals', (r) => r.fulfill({ json: PROPOSALS }))
 }
 
 async function openAi(page: Page) {
@@ -79,9 +106,35 @@ test('送る情報を確かめ、パスワードを入れると押し直さず�
   await expect(qs.first()).toContainText('なぜ聞くか：使われていない資料なら、作らずに済む可能性があるためです。')
   await qs.first().getByRole('button', { name: '使っているか分からない' }).click()
   await expect(page.getByRole('textbox', { name: '質問1への回答' })).toHaveValue('使っているか分からない')
-  // 回答しなくても進める
+  // 回答して改善案を作る（回答した内容を送る）
+  const proposalRequest = page.waitForRequest('**/api/ai/diagnosis/proposals')
   await page.getByRole('button', { name: '回答して改善案を作る' }).click()
-  await expect(page.getByRole('status').filter({ hasText: '回答を受け取りました' })).toBeVisible()
+  const body = (await proposalRequest).postDataJSON() as { answers: { question: string; answer: string }[] }
+  expect(body.answers[0]).toEqual({ question: '役員会の資料は、誰が何に使っていますか？', answer: '使っているか分からない' })
+
+  // 改善提案：重要な順に初めは3件まで。ほかは開いて見る
+  await expect(page.getByRole('heading', { name: 'AIの改善提案' })).toBeVisible()
+  const cards = page.getByRole('list', { name: '改善提案' }).getByRole('listitem').filter({ has: page.getByRole('radiogroup') })
+  await expect(cards).toHaveCount(3)
+  await expect(cards.first()).toContainText('廃止')
+  await page.getByRole('button', { name: 'ほかの提案を見る（1件）' }).click()
+  await expect(cards).toHaveCount(4)
+  // 根拠の種類を分けて示す。データで確かめられなかったものは推測として表示
+  const first = cards.first()
+  await expect(first).toContainText('あなたの回答')
+  await expect(first).toContainText('（データで確かめられなかったため、推測として表示）')
+  await expect(first).toContainText('監査で必要な資料なら、なくせない')
+  await expect(cards.nth(1)).toContainText('データで確認')
+  await expect(cards.nth(1)).toContainText('仮定月に約30分（仮定：確認に毎回30分）')
+  await expect(page.getByLabel('AIからの断り書き')).toContainText('過去の実行の履歴は送っていない')
+  // 採用・保留・不採用（理由は任意）
+  await page.getByRole('radiogroup', { name: '提案1の判断' }).getByRole('radio', { name: '採用しない' }).click()
+  await page.getByRole('textbox', { name: '提案1の判断の理由' }).fill('監査で必要な資料のため')
+  await page.getByRole('radiogroup', { name: '提案2の判断' }).getByRole('radio', { name: '採用する' }).click()
+  await expect(page.getByRole('status', { name: '判断の状況' })).toHaveText('採用1・保留0・採用しない1・未判断2')
+  // 作業手順の作成へ進む（手順の作り方を選ぶ画面へ）
+  await page.getByRole('button', { name: '作業手順の作成へ進む' }).click()
+  await expect(page.getByRole('heading', { name: 'やりたい作業を伝える' })).toBeVisible()
 })
 
 test('AIを使えないとき（上限など）は理由を示し、AIを使わずに手順を作る道を示す（簡易診断へは切り替えない）', async ({ page }) => {

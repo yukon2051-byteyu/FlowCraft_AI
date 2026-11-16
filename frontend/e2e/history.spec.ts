@@ -64,6 +64,9 @@ test('履歴の書き出し・取り込み・削除。デモの記録は通常�
   await throughDemoSteps(page)
   await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
   await runAll(page)
+  // デモ中は上部に履歴のメニューを出さない。通常の利用（自分のExcelで試す）へ移って、履歴にデモの記録がないことを確かめる
+  await expect(page.getByRole('banner').getByRole('button', { name: '実行の履歴' })).toHaveCount(0)
+  await page.goto('/build?start=file')
   await page.getByRole('banner').getByRole('button', { name: '実行の履歴' }).click()
   const dialog = page.getByRole('dialog', { name: '実行の履歴' })
   await expect(dialog).toContainText('記録はまだありません')

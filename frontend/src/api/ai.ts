@@ -69,3 +69,36 @@ export type QuestionsResponse = {
 export function askDiagnosisQuestions(req: ContextRequest): Promise<QuestionsResponse> {
   return apiRequest<QuestionsResponse>('/api/ai/diagnosis/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
 }
+
+export type ProposalEvidence = { source: 'data' | 'answer' | 'inference'; text: string; ref: string; downgraded: boolean }
+
+export type Proposal = {
+  proposal_id: string
+  direction: 'eliminate' | 'simplify' | 'standardize' | 'automate'
+  title: string
+  target: string
+  problem: string
+  change: string
+  evidence: ProposalEvidence[]
+  effect: string
+  estimate: { kind: 'estimated' | 'assumed'; text: string } | null
+  risks: string[]
+  recommendation: string
+  priority: number
+}
+
+export type ProposalsResponse = {
+  /** 重要な順 */
+  proposals: Proposal[]
+  /** 初めに見せる数（ほかは開いて見る） */
+  shown_first: number
+  note: string
+  fingerprint: string
+  cached: boolean
+  mode: 'fixed' | 'live'
+}
+
+/** AIに改善提案を作ってもらう（AIを使う。認証が必要） */
+export function askDiagnosisProposals(req: ContextRequest & { answers: { question: string; answer: string }[] }): Promise<ProposalsResponse> {
+  return apiRequest<ProposalsResponse>('/api/ai/diagnosis/proposals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+}
