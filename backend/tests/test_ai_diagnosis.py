@@ -174,3 +174,38 @@ def test_効果を実測と名乗る応答は_形が違うとして使わない(
     client.post("/api/ai/auth", json={"password": PASSWORD})
     res = client.post("/api/ai/diagnosis/proposals", json={**BODY, "answers": ANSWERS})
     assert res.status_code == 502 and code(res) == "AI_BAD_OUTPUT"
+
+
+# ===================== A-5：手順への反映（部品の照らし合わせ） =====================
+
+
+def test_手順への反映_一覧にある部品だけを残し_何も残らなければ反映できないに直す():
+    client, _, _ = make()
+    client.post("/api/ai/auth", json={"password": PASSWORD})
+    body = client.post("/api/ai/diagnosis/proposals", json={**BODY, "answers": ANSWERS}).json()
+    by = {p["direction"]: p["build"] for p in body["proposals"]}
+    # できる：ひな形・処理・品質ルールの名前をつけて返す
+    assert by["automate"] | {} == {
+        "fit": "yes", "template_id": "monthly_sales", "step_types": ["aggregate", "join"], "criteria_kinds": ["total_match"], "note": "",
+        "template_title": "月次売上集計", "step_labels": ["項目ごとに合計・集計する", "別の表から情報を付け加える"], "criteria_labels": ["2つの結果で合計が一致する"], "adjusted": False,
+    }
+    # できない：部品は持たない
+    assert by["eliminate"]["fit"] == "no" and by["eliminate"]["step_types"] == []
+    # 一部できる：一覧にない処理の種類は取り除く
+    assert by["standardize"]["fit"] == "partial" and by["standardize"]["step_types"] == ["rename_columns"] and by["standardize"]["adjusted"] is True
+    # 存在しないひな形だけを挙げた提案は、何も残らないので「反映できない」に直す（できるように見せない）
+    assert by["simplify"]["fit"] == "no" and by["simplify"]["template_id"] is None and by["simplify"]["adjusted"] is True
+    assert "特定できなかった" in by["simplify"]["note"]
+
+
+def test_手順への反映_AIに使える部品の一覧を渡す(monkeypatch):
+    out = ProposalsOut(proposals=[])
+    msgs = FakeMessages(SimpleNamespace(stop_reason="end_turn", parsed_output=out, usage=usage(100, 10)))
+    monkeypatch.setattr(ai_client, "make_client", lambda settings: SimpleNamespace(messages=msgs))
+    client, _, _ = make(ai_mode="auto", anthropic_api_key="sk-test-secret-value")
+    client.post("/api/ai/auth", json={"password": PASSWORD})
+    assert client.post("/api/ai/diagnosis/proposals", json={**BODY, "answers": ANSWERS}).json()["proposals"] == []
+    content = msgs.calls[0]["messages"][0]["content"]
+    assert "## 手順に使える部品（これ以外は使えない）" in content
+    assert "- monthly_sales：月次売上集計" in content and "aggregate＝項目ごとに合計・集計する" in content and "total_match＝2つの結果で合計が一致する" in content
+    assert "手順にできない提案を、できるように書かない" in msgs.calls[0]["system"]

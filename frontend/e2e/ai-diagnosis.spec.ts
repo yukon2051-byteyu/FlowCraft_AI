@@ -17,9 +17,11 @@ const QUESTIONS = {
   cached: false,
   mode: 'fixed',
 }
+const NO_BUILD = { fit: 'no', template_id: null, template_title: null, step_types: [], step_labels: [], criteria_kinds: [], criteria_labels: [], note: '', adjusted: false }
 const P = (id: string, direction: string, title: string, extra: Record<string, unknown> = {}) => ({
   proposal_id: id, direction, title, target: '対象の工程', problem: '今の問題', change: `${title}にする`,
-  evidence: [{ source: 'inference', text: '推測の根拠', ref: '', downgraded: false }], effect: '効果', estimate: null, risks: [], recommendation: '推奨する対応', priority: 1, ...extra,
+  evidence: [{ source: 'inference', text: '推測の根拠', ref: '', downgraded: false }], effect: '効果', estimate: null, risks: [], recommendation: '推奨する対応', priority: 1,
+  build: NO_BUILD, ...extra,
 })
 const PROPOSALS = {
   note: '過去の実行の履歴は送っていないため、品質異常の傾向は考えていません。',
@@ -34,12 +36,16 @@ const PROPOSALS = {
         { source: 'inference', text: '同じ数値を2つの資料に書いている', ref: '列「存在しない列」', downgraded: true },
       ],
       risks: ['監査で必要な資料なら、なくせない'],
+      build: { ...NO_BUILD, note: '資料をやめるかどうかは、業務の判断です。' },
     }),
     P('p1', 'automate', '集計と確認を作業手順にする', {
       evidence: [{ source: 'data', text: '「金額」の列がある', ref: '列「金額」', downgraded: false }],
       estimate: { kind: 'assumed', text: '月に約30分（仮定：確認に毎回30分）' },
+      build: { ...NO_BUILD, fit: 'yes', template_id: 'monthly_sales', template_title: '月次売上集計', step_types: ['aggregate'], step_labels: ['集計'], criteria_kinds: ['total_match'], criteria_labels: ['2つの結果で合計が一致する'] },
     }),
-    P('p3', 'standardize', '列名をそろえる'),
+    P('p3', 'standardize', '列名をそろえる', {
+      build: { ...NO_BUILD, fit: 'partial', step_types: ['rename_columns'], step_labels: ['列名の変更'], note: '列名の見本を配るのは人が行います。' },
+    }),
     P('p4', 'simplify', '確認の回数を減らす'),
   ],
 }
@@ -127,14 +133,59 @@ test('送る情報を確かめ、パスワードを入れると押し直さず�
   await expect(cards.nth(1)).toContainText('データで確認')
   await expect(cards.nth(1)).toContainText('仮定月に約30分（仮定：確認に毎回30分）')
   await expect(page.getByLabel('AIからの断り書き')).toContainText('過去の実行の履歴は送っていない')
+  // 手順への反映（使える部品・人が行う部分）を示す
+  await expect(first.getByLabel('手順への反映')).toContainText('手順に反映できない')
+  await expect(cards.nth(1).getByLabel('手順への反映')).toContainText('手順にできるひな形「月次売上集計」／処理：集計／品質ルール：2つの結果で合計が一致する')
+
+  // まだ何も採用していない → 反映の計画は「採用した提案はありません」。改善提案に戻れる
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  await expect(page.getByRole('heading', { name: '採用した改善を手順に反映する' })).toBeVisible()
+  await expect(page.getByLabel('採用した改善')).toContainText('採用した提案はありません（未判断4件は反映しません）')
+  await expect(page.getByRole('button', { name: '手順の作り方を選ぶ' })).toBeVisible()
+  await page.getByRole('button', { name: '改善提案に戻る' }).click()
+
   // 採用・保留・不採用（理由は任意）
   await page.getByRole('radiogroup', { name: '提案1の判断' }).getByRole('radio', { name: '採用しない' }).click()
   await page.getByRole('textbox', { name: '提案1の判断の理由' }).fill('監査で必要な資料のため')
   await page.getByRole('radiogroup', { name: '提案2の判断' }).getByRole('radio', { name: '採用する' }).click()
-  await expect(page.getByRole('status', { name: '判断の状況' })).toHaveText('採用1・保留0・採用しない1・未判断2')
-  // 作業手順の作成へ進む（手順の作り方を選ぶ画面へ）
-  await page.getByRole('button', { name: '作業手順の作成へ進む' }).click()
-  await expect(page.getByRole('heading', { name: 'やりたい作業を伝える' })).toBeVisible()
+  await page.getByRole('radiogroup', { name: '提案3の判断' }).getByRole('radio', { name: '採用する' }).click()
+  await expect(page.getByRole('status', { name: '判断の状況' })).toHaveText('採用2・保留0・採用しない1・未判断1')
+
+  // 反映の計画：手順に反映できるもの／人が行う作業として残るもの（一部できるものは両方）
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  const buildable = page.getByRole('region', { name: '手順に反映できるもの' })
+  const manual = page.getByRole('region', { name: '人が行う作業として残るもの' })
+  await expect(buildable).toContainText('集計と確認を作業手順にする')
+  await expect(buildable).toContainText('列名をそろえる')
+  await expect(buildable).not.toContainText('役員会資料')
+  await expect(manual).toContainText('列名の見本を配るのは人が行います。')
+  await expect(manual).not.toContainText('集計と確認')
+  await expect(page.getByLabel('手順の作り方')).toContainText('もとにするひな形：「月次売上集計」')
+  await expect(page.getByLabel('手順の作り方')).toContainText('未判断1件の提案は反映しません。')
+
+  // ひな形を選んだ状態で手順の画面へ（処理ステップは自動で組み立てず、ひな形の仮の手順を確かめる）
+  await page.getByRole('button', { name: 'ひな形「月次売上集計」で手順を作る' }).click()
+  await expect(page.getByRole('heading', { name: '作業手順', exact: true })).toBeVisible()
+  const adopted = page.getByRole('region', { name: '採用した改善' })
+  await expect(adopted).toContainText('AIの診断で採用した改善（2件）')
+  await expect(adopted).toContainText('集計と確認を作業手順にする')
+  await expect(adopted).toContainText('品質ルールは「② 何を満たせば完了？」で')
+  await adopted.getByRole('button', { name: /AIの診断で採用した改善/ }).click()
+  await expect(adopted).not.toContainText('列名をそろえる') // 閉じられる
+})
+
+test('ひな形のない改善だけを採用したら、処理部品で作る（データの読み込みへ進む）。採用した改善は手順の画面に出る', async ({ page }) => {
+  await mockAi(page, (r) => r.fulfill({ json: QUESTIONS })) // 認証済みとして扱う
+  await openAi(page)
+  await page.getByRole('button', { name: 'この内容でAIに質問を作ってもらう' }).click()
+  await page.getByRole('button', { name: '回答して改善案を作る' }).click()
+  await page.getByRole('radiogroup', { name: '提案3の判断' }).getByRole('radio', { name: '採用する' }).click()
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  await expect(page.getByText('手順に反映できる改善と、人が行う作業を確かめて、手順を作ってください')).toBeVisible()
+  await expect(page.getByLabel('手順の作り方')).toContainText('もとにできるひな形はありません。データを読み込んでから、処理部品を組み合わせて作ります。')
+  await expect(page.getByRole('button', { name: 'ひな形を使わずに処理部品で作る' })).toHaveCount(0) // ひな形がないので出さない
+  await page.getByRole('button', { name: '処理部品を組み合わせて手順を作る' }).click()
+  await expect(page.getByTestId('file-input').first()).toBeAttached()
 })
 
 test('AIを使えないとき（上限など）は理由を示し、AIを使わずに手順を作る道を示す（簡易診断へは切り替えない）', async ({ page }) => {

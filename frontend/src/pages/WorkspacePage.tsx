@@ -20,6 +20,9 @@ import { BackToDemos } from '../components/demo/BackToDemos'
 import { useQuery } from '@tanstack/react-query'
 import { isAvailable } from '../content/featureStatus'
 import { AiDiagnosis } from '../components/workspace/ai/AiDiagnosis'
+import { AdoptedImprovements } from '../components/workspace/ai/AdoptedImprovements'
+import type { ImprovementPlan } from '../flow/aiPlan'
+import type { DiagnosisStage } from '../components/workspace/ai/AiDiagnosis'
 import { getAiStatus } from '../api/ai'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
@@ -61,6 +64,12 @@ import { selectNeedsLeaveGuard, selectSaveState, useFlowStore } from '../flow/st
 
 const NO_FACTS: Facts = { described: false, dataReady: false, procedureReady: false, ran: false, outputDone: false }
 const DEFAULT_NAME = '無題の作業手順'
+const AI_STAGE_HINT: Record<DiagnosisStage, string> = {
+  context: 'AIに送る情報を確かめてから、AIに質問を作ってもらってください（回答は任意です）',
+  questions: '分かる質問に答えて、改善案を作ってもらってください（空欄のままでも進めます）',
+  proposals: '提案ごとに、採用・保留・採用しないを選んでください（理由は任意です）',
+  plan: '手順に反映できる改善と、人が行う作業を確かめて、手順を作ってください',
+}
 
 /** 選んだファイル・シート・見出し行が同じなら、決めた内容を残す（変わったら最初から決め直す） */
 const sourcesKey = (sources: DefineSource[]) => sources.map((s) => `${s.summary.file_id}:${s.detail.sheet}:${s.detail.header_row}`).join('|')
@@ -316,8 +325,33 @@ export default function WorkspacePage() {
   const aiStatus = useQuery({ queryKey: ['ai-status'], queryFn: getAiStatus, retry: false }).data?.status ?? null
   const defs = useFlowStore((s) => s.flow.input_definitions)
   const bindings = useFlowStore((s) => s.bindings)
+  // AI業務改善診断で採用した改善（手順の画面に一覧で出す）。別の作り方を始めたら消す
+  const [aiPlan, setAiPlan] = useState<ImprovementPlan | null>(null)
+  const [aiStage, setAiStage] = useState<DiagnosisStage>('context')
+  // ひな形から「仮の手順」を作る（新しい手順ID・品質ルールは未確認）。データを読み込んだ後、列を照合して確定する
+  const startFromTemplate = async (templateId: string, name: string, desc: string) => {
+    setTemplateError(null)
+    setTemplateBusy(true)
+    try {
+      startNewFlow(copyFlow(await fetchTemplate(templateId), { name, description: desc }))
+      setDemo(null)
+      setKaizenRun(false)
+      setLastRun(null)
+      setOrigin('opened')
+      setOpenedKey((k) => k + 1)
+    } catch (e) {
+      setTemplateError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'ひな形を読み込めませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null })
+      return
+    } finally {
+      setTemplateBusy(false)
+    }
+    setDescribed(true)
+    setMethod('template')
+    setScreen('edit')
+  }
   const choose = (m: StartMode) => {
     setMode(m)
+    setAiPlan(null)
     setParams({ start: START_PARAM[m] }, { replace: true })
     if (m === 'WORK_FIRST') setScreen('describe')
     else if (m === 'FILE_FIRST') setScreen('data')
@@ -387,7 +421,7 @@ export default function WorkspacePage() {
                   : screen === 'describe'
                     ? '案件名とやりたい作業を入れて、手順の作り方を選んでください'
                     : screen === 'ai_diagnosis'
-                      ? 'AIに送る情報を確かめてから、AIに質問を作ってもらってください（回答は任意です）'
+                      ? AI_STAGE_HINT[aiStage]
                     : screen === 'output'
                       ? 'Excelに出力して、作業を終えてください（作業手順の保存は任意です）'
                     : screen === 'result'
@@ -440,25 +474,9 @@ export default function WorkspacePage() {
                 busy={templateBusy}
                 onNext={async (v) => {
                   setTemplateError(null)
+                  setAiPlan(null)
                   if (v.method === 'template' && v.templateId) {
-                    // ひな形から「仮の手順」を作る（新しい手順ID・品質ルールは未確認）。データを読み込んだ後、列を照合して確定する
-                    setTemplateBusy(true)
-                    try {
-                      startNewFlow(copyFlow(await fetchTemplate(v.templateId), { name: v.name, description: v.description }))
-                      setDemo(null)
-                      setKaizenRun(false)
-                      setLastRun(null)
-                      setOrigin('opened')
-                      setOpenedKey((k) => k + 1)
-                    } catch (e) {
-                      setTemplateError(e instanceof ApiError ? e.body : { code: 'UNKNOWN', message: 'ひな形を読み込めませんでした。', cause: null, how_to_fix: 'もう一度お試しください。', node_id: null })
-                      return
-                    } finally {
-                      setTemplateBusy(false)
-                    }
-                    setDescribed(true)
-                    setMethod('template')
-                    setScreen('edit')
+                    await startFromTemplate(v.templateId, v.name, v.description)
                     return
                   }
                   renameFlow(v.name)
@@ -470,9 +488,32 @@ export default function WorkspacePage() {
               />
             )}
             {screen === 'ai_diagnosis' && (
-              <AiDiagnosis name={flowName} purpose={description} onBack={() => setScreen('describe')} onSkip={() => setScreen('describe')} />
+              <AiDiagnosis
+                name={flowName}
+                purpose={description}
+                onBack={() => setScreen('describe')}
+                onSkip={() => setScreen('describe')}
+                building={templateBusy}
+                onStage={setAiStage}
+                onBuild={async (plan, how) => {
+                  if (how.kind === 'choose') {
+                    setAiPlan(null)
+                    setScreen('describe')
+                    return
+                  }
+                  setAiPlan(plan.adopted.length ? plan : null)
+                  if (how.kind === 'template') {
+                    await startFromTemplate(how.templateId, flowName, description)
+                    return
+                  }
+                  // 処理部品を組み合わせて作る：データを読み込んでから、使う列と形式を決めて手順を作る
+                  setTemplateError(null)
+                  setMethod('parts_from_data')
+                  setScreen('data')
+                }}
+              />
             )}
-            {screen === 'describe' && templateError && (
+            {(screen === 'describe' || screen === 'ai_diagnosis') && templateError && (
               <div className="shrink-0 border-t border-edge px-6 py-3">
                 <ErrorNotice error={templateError} title="ひな形を読み込めませんでした" />
               </div>
@@ -547,6 +588,7 @@ export default function WorkspacePage() {
                     })}
                 // デモでは、どの段階からでもデモ選択へ戻れる（すべてのデモで共通の部品）
                 leading={demo ? <BackToDemos /> : undefined}
+                banner={!demo && aiPlan ? <AdoptedImprovements items={aiPlan.adopted} /> : undefined}
                 // 実行済みなら、実行し直さずに結果へ進める（デモで前の段階へ戻っても、結果を消さない）
                 onShowResult={lastRun ? () => setScreen('result') : undefined}
                 onRan={(run, snap) => {
@@ -622,6 +664,7 @@ export default function WorkspacePage() {
           onOpened={(flow) => {
             setDemo(null) // 別の作業手順を開いたら、デモの案内は消す
             setKaizenRun(false)
+            setAiPlan(null) // 開いた作業手順は、今回の診断で作ったものではない
             openFlow(flow)
             setMode('SAVED_WORKFLOW')
             setOpenedKey((k) => k + 1)

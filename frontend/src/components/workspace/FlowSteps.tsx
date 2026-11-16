@@ -40,6 +40,7 @@ export function FlowSteps({
   onRan,
   backLabel = '使う列と形式の設定に戻る',
   onShowResult,
+  banner,
 }: {
   /** 前の画面へ戻る（補助操作）。手順の確認だけを行う画面（onNext あり）では渡さない */
   onBack?: () => void
@@ -57,6 +58,8 @@ export function FlowSteps({
   backLabel?: string
   /** 前回の実行結果を、実行し直さずに見る（実行結果があるときだけ渡す） */
   onShowResult?: () => void
+  /** 切り替えカードの上に出す表示（AI業務改善診断で採用した改善の一覧など） */
+  banner?: ReactNode
 }) {
   const flow = useFlowStore((s) => s.flow)
   const selectedId = useFlowStore((s) => s.selectedNodeId)
@@ -192,6 +195,7 @@ export function FlowSteps({
         {/* 「何をする？」（処理ステップ）と「何を満たせば完了？」（完了基準）は別の欄（docs/completion-criteria.md §1） */}
         {/* 2つの独立した設定項目を、選択カードで切り替える（選んでいるか＝枠と背景、設定の状態＝色つきの文字で別々に示す） */}
         <div className="mx-auto max-w-[1100px] px-6 pt-5">
+          {banner && <div className="mb-4">{banner}</div>}
           <div className="grid max-w-[760px] grid-cols-2 gap-3" role="tablist" aria-label="作業手順の内容">
             <SectionCard
               selected={view === 'steps'}

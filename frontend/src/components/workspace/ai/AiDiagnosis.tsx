@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, CircleHelp, EyeOff, Info, LoaderCircle, Sparkles } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { ArrowLeft, ArrowRight, CircleHelp, EyeOff, Hand, Info, LoaderCircle, Sparkles, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { askDiagnosisProposals, askDiagnosisQuestions, buildDiagnosisContext } from '../../../api/ai'
 import type { ContextRequest, ProposalsResponse, QuestionsResponse } from '../../../api/ai'
-import { ProposalList } from './ProposalList'
-import type { ProposalDecision } from './ProposalList'
+import { BuildLine, ProposalList } from './ProposalList'
+import { makePlan } from '../../../flow/aiPlan'
+import type { AdoptedImprovement, Decision, ImprovementPlan } from '../../../flow/aiPlan'
 import { listFiles } from '../../../api/files'
 import { useFlowStore } from '../../../flow/store'
 import { useAiAction } from '../../ai/useAiAction'
@@ -12,15 +14,41 @@ import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
 
 /*
- * AI業務改善診断（A-3・A-4）：① AIに送る情報を確かめる → ② AIからの質問に答える（任意） → ③ 改善提案を採用・保留・不採用にする
+ * AI業務改善診断（A-3〜A-5）：① AIに送る情報を確かめる → ② AIからの質問に答える（任意） → ③ 改善提案を採用・保留・不採用にする
+ *   → ④ 採用した改善の反映の計画を確かめて、手順を作る（手順に反映できるもの／人が行う作業として残るものに分ける）
  * - 送る情報は、今ある情報からサーバーが組み立てる（同じ内容を再入力させない）。送る前に、そのまま見せる
  * - 質問は初回3問まで。データからは分からない業務の背景だけ。各質問に「なぜ聞くか」。回答は任意
  * - AIを使えないとき（設定なし・上限・応答を確かめられない）は理由を示し、AIを使わずに手順を作る道を示す（簡易診断へ切り替えない）
+ * - AIの提案から処理ステップを自動で組み立てない。ひな形があればそれを選んだ状態で、手順の画面で利用者が確かめながら作る
  */
+
+/** 手順の作り方：ひな形から作る／処理部品を組み合わせて作る（データを読み込んでから）／作り方を選び直す */
+export type BuildChoice = { kind: 'template'; templateId: string } | { kind: 'parts' } | { kind: 'choose' }
+/** 診断の段階（上部の「次の操作」の案内に使う） */
+export type DiagnosisStage = 'context' | 'questions' | 'proposals' | 'plan'
 
 const LINES_SHOWN = 8
 
-export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; purpose: string; onBack: () => void; onSkip: () => void }) {
+export function AiDiagnosis({
+  name,
+  purpose,
+  onBack,
+  onSkip,
+  onBuild,
+  building = false,
+  onStage,
+}: {
+  name: string
+  purpose: string
+  onBack: () => void
+  onSkip: () => void
+  /** ④ 反映の計画を確かめて、手順を作る */
+  onBuild: (plan: ImprovementPlan, how: BuildChoice) => void
+  /** ひな形を読み込んでいる */
+  building?: boolean
+  /** 段階が変わったとき */
+  onStage?: (stage: DiagnosisStage) => void
+}) {
   const flow = useFlowStore((s) => s.flow)
   const bindings = useFlowStore((s) => s.bindings)
   const files = useQuery({ queryKey: ['files'], queryFn: listFiles })
@@ -51,7 +79,7 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
 
   // ③ 改善提案（回答と一緒に材料を送る。回答していない質問は送らない）
   const [proposals, setProposals] = useState<ProposalsResponse | null>(null)
-  const [decisions, setDecisions] = useState<Record<string, ProposalDecision>>({})
+  const [decisions, setDecisions] = useState<Record<string, Decision>>({})
   const propose = useCallback(
     () => askDiagnosisProposals({ ...req!, answers: (questions?.questions ?? []).map((q, i) => ({ question: q.question, answer: answers[i] ?? '' })) }),
     [req, questions, answers],
@@ -61,9 +89,14 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
     setDecisions({})
   }, [])
   const ai2 = useAiAction(propose, onProposed)
-  const stage = proposals ? 'proposals' : questions ? 'questions' : 'context'
+  // ④ 反映の計画（採用した提案から作る。提案や判断を変えたら作り直す）
+  const [planning, setPlanning] = useState(false)
+  const plan = useMemo(() => makePlan(proposals?.proposals ?? [], decisions), [proposals, decisions])
+  const stage: DiagnosisStage = planning && proposals ? 'plan' : proposals ? 'proposals' : questions ? 'questions' : 'context'
+  useEffect(() => onStage?.(stage), [stage, onStage])
   const error = ai.error ?? ai2.error
-  const count = (k: ProposalDecision['status']) => Object.values(decisions).filter((d) => d.status === k).length
+  const count = (k: Decision['status']) => Object.values(decisions).filter((d) => d.status === k).length
+  const undecided = (proposals?.proposals.length ?? 0) - count('adopt') - count('hold') - count('reject')
 
   return (
     <>
@@ -75,10 +108,12 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
               AIで業務を改善する
             </p>
             <h1 className="mt-1 text-[1.6rem] leading-tight font-bold text-white">
-              {stage === 'proposals' ? 'AIの改善提案' : stage === 'questions' ? 'AIからの質問（回答は任意）' : 'AIに送る情報を確かめる'}
+              {stage === 'plan' ? '採用した改善を手順に反映する' : stage === 'proposals' ? 'AIの改善提案' : stage === 'questions' ? 'AIからの質問（回答は任意）' : 'AIに送る情報を確かめる'}
             </h1>
             <p className="mt-1 text-[0.92rem] text-subtle">
-              {stage === 'proposals'
+              {stage === 'plan'
+                ? 'AIの提案から処理ステップを自動では組み立てません。手順の画面で、部品を確かめながら作ります。手順にできない改善は、人が行う作業として残ります。'
+                : stage === 'proposals'
                 ? '廃止→簡素化→標準化→自動化の順に検討した提案です（重要な順）。採用するかどうかは、あなたが決めます。根拠の「AIの推測」は、データで確かめていない内容です。'
                 : stage === 'questions'
                   ? 'データだけでは分からない業務の背景を聞いています。分からない・答えたくない質問は、空欄のままで進めます。'
@@ -204,6 +239,8 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
               )}
             </>
           )}
+
+          {stage === 'plan' && <PlanView plan={plan} undecided={undecided} held={count('hold')} />}
         </div>
       </div>
 
@@ -211,24 +248,47 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
         <Button
           variant="ghostDark"
           size="sm"
-          onClick={stage === 'proposals' ? () => setProposals(null) : stage === 'questions' ? () => setQuestions(null) : onBack}
+          onClick={stage === 'plan' ? () => setPlanning(false) : stage === 'proposals' ? () => setProposals(null) : stage === 'questions' ? () => setQuestions(null) : onBack}
           className="shrink-0"
         >
           <ArrowLeft className="size-4" aria-hidden />
-          {stage === 'proposals' ? '質問に戻る' : stage === 'questions' ? '送る情報に戻る' : '作業を伝える画面に戻る'}
+          {stage === 'plan' ? '改善提案に戻る' : stage === 'proposals' ? '質問に戻る' : stage === 'questions' ? '送る情報に戻る' : '作業を伝える画面に戻る'}
         </Button>
-        <Button variant="ghostDark" size="sm" onClick={onSkip} className="shrink-0">
-          AIを使わずに手順を作る
-        </Button>
+        {stage !== 'plan' && (
+          <Button variant="ghostDark" size="sm" onClick={onSkip} className="shrink-0">
+            AIを使わずに手順を作る
+          </Button>
+        )}
+        {stage === 'plan' && plan.template && (
+          <Button variant="ghostDark" size="sm" onClick={() => onBuild(plan, { kind: 'parts' })} disabled={building} className="shrink-0">
+            ひな形を使わずに処理部品で作る
+          </Button>
+        )}
         {stage === 'proposals' && proposals && (
           <p className="min-w-0 flex-1 truncate text-[0.88rem] text-subtle" role="status" aria-label="判断の状況">
-            採用{count('adopt')}・保留{count('hold')}・採用しない{count('reject')}・未判断{proposals.proposals.length - count('adopt') - count('hold') - count('reject')}
+            採用{count('adopt')}・保留{count('hold')}・採用しない{count('reject')}・未判断{undecided}
           </p>
         )}
         <div className="ml-auto">
-          {stage === 'proposals' ? (
-            <Button variant="primary" onClick={onSkip}>
-              作業手順の作成へ進む
+          {stage === 'plan' ? (
+            <Button
+              variant="primary"
+              disabled={building}
+              onClick={() => onBuild(plan, plan.template ? { kind: 'template', templateId: plan.template.id } : plan.buildable.length ? { kind: 'parts' } : { kind: 'choose' })}
+            >
+              {building && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+              {building
+                ? 'ひな形を読み込んでいます…'
+                : plan.template
+                  ? `ひな形「${plan.template.title}」で手順を作る`
+                  : plan.buildable.length
+                    ? '処理部品を組み合わせて手順を作る'
+                    : '手順の作り方を選ぶ'}
+              {!building && <ArrowRight className="size-4" aria-hidden />}
+            </Button>
+          ) : stage === 'proposals' ? (
+            <Button variant="primary" onClick={() => setPlanning(true)}>
+              次へ：手順への反映を確かめる
               <ArrowRight className="size-4" aria-hidden />
             </Button>
           ) : stage === 'questions' ? (
@@ -247,6 +307,85 @@ export function AiDiagnosis({ name, purpose, onBack, onSkip }: { name: string; p
       {ai.dialog}
       {ai2.dialog}
     </>
+  )
+}
+
+/** ④ 反映の計画：手順に反映できるもの／人が行う作業として残るもの */
+function PlanView({ plan, undecided, held }: { plan: ImprovementPlan; undecided: number; held: number }) {
+  const others = [held && `保留${held}件`, undecided && `未判断${undecided}件`].filter(Boolean).join('・')
+  if (!plan.adopted.length)
+    return (
+      <p className="rounded-xl bg-panel px-4 py-3 text-[0.92rem] text-subtle ring-1 ring-edge" aria-label="採用した改善">
+        採用した提案はありません{others && `（${others}は反映しません）`}。手順の作り方を選んで進めます。採用する提案があれば「改善提案に戻る」で選び直してください。
+      </p>
+    )
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <PlanGroup
+          icon={Wrench}
+          title="手順に反映できるもの"
+          empty="ありません（採用した改善は、すべて人が行う作業です）"
+          items={plan.buildable}
+          render={(a) => <BuildLine b={{ ...a.build, note: '' }} />}
+        />
+        <PlanGroup
+          icon={Hand}
+          title="人が行う作業として残るもの"
+          empty="ありません（採用した改善は、すべて手順に反映できます）"
+          items={plan.manual}
+          render={(a) => <span className="text-[0.85rem] text-muted">{a.build.note || '手順の変更はありません（業務の進め方の見直しです）'}</span>}
+        />
+      </div>
+      <ul className="space-y-1 rounded-xl bg-panel px-4 py-3 text-[0.88rem] text-subtle ring-1 ring-edge" aria-label="手順の作り方">
+        <li>
+          {plan.template
+            ? `もとにするひな形：「${plan.template.title}」（反映できる提案で挙げられたひな形）。選んだ状態で手順の画面へ進みます。`
+            : plan.buildable.length
+              ? 'もとにできるひな形はありません。データを読み込んでから、処理部品を組み合わせて作ります。'
+              : '手順に反映できる改善がないため、手順の作り方を選び直します。'}
+        </li>
+        <li>採用した改善は、手順の画面の上部に一覧で表示します（作りながら確かめられます）。</li>
+        {others && <li>{others}の提案は反映しません。</li>}
+      </ul>
+    </>
+  )
+}
+
+function PlanGroup({
+  icon: Icon,
+  title,
+  empty,
+  items,
+  render,
+}: {
+  icon: typeof Wrench
+  title: string
+  empty: string
+  items: AdoptedImprovement[]
+  render: (a: AdoptedImprovement) => ReactNode
+}) {
+  return (
+    <section className="light-panel rounded-2xl px-5 py-4" aria-label={title}>
+      <h2 className="flex items-center gap-1.5 font-bold">
+        <Icon className="size-4.5 text-forest" aria-hidden />
+        {title}
+        <span className="text-[0.85rem] font-normal text-muted">{items.length}件</span>
+      </h2>
+      {items.length ? (
+        <ul className="mt-2 space-y-2.5">
+          {items.map((a) => (
+            <li key={a.proposal_id} className="text-[0.9rem]">
+              <p className="font-bold">{a.title}</p>
+              <p className="text-ink/85">{a.change}</p>
+              <div className="mt-0.5">{render(a)}</div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-[0.88rem] text-muted">{empty}</p>
+      )}
+    </section>
   )
 }
 

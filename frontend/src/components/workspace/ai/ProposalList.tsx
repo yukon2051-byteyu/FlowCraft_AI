@@ -1,6 +1,7 @@
 import { ChevronDown, Database, MessageSquareText, ShieldAlert, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import type { Proposal, ProposalEvidence } from '../../../api/ai'
+import type { Decision } from '../../../flow/aiPlan'
 
 /*
  * AI業務改善診断の改善提案（A-4）。長い報告書にせず、判断しやすいカードにする。
@@ -10,7 +11,7 @@ import type { Proposal, ProposalEvidence } from '../../../api/ai'
  * - 採用・保留・不採用（理由は任意）。AIの提案を利用者の確認なしに確定しない
  */
 
-export type ProposalDecision = { status: 'adopt' | 'hold' | 'reject' | null; reason: string }
+type ProposalDecision = Decision
 
 const DIRECTION_LABEL: Record<Proposal['direction'], string> = { eliminate: '廃止', simplify: '簡素化', standardize: '標準化', automate: '自動化' }
 const DECISION_LABEL = { adopt: '採用する', hold: '保留する', reject: '採用しない' } as const
@@ -101,6 +102,10 @@ function ProposalCard({ p, rank, decision, onDecide }: { p: Proposal; rank: numb
         )}
         <dt className="font-bold text-muted">推奨する対応</dt>
         <dd>{p.recommendation}</dd>
+        <dt className="font-bold text-muted">手順への反映</dt>
+        <dd aria-label="手順への反映">
+          <BuildLine b={p.build} />
+        </dd>
       </dl>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <span className="text-[0.85rem] font-bold text-muted">判断</span>
@@ -132,6 +137,24 @@ function ProposalCard({ p, rank, decision, onDecide }: { p: Proposal; rank: numb
         )}
       </div>
     </li>
+  )
+}
+
+const FIT = {
+  yes: { label: '手順にできる', cls: 'bg-mint-soft text-forest ring-forest/25' },
+  partial: { label: '一部を手順にできる', cls: 'bg-warning-soft text-warning-ink ring-warning/40' },
+  no: { label: '手順に反映できない', cls: 'bg-ink/6 text-muted ring-ink/15' },
+} as const
+
+/** 手順への反映：使う部品（ひな形・処理・品質ルール）と、人が行う部分 */
+export function BuildLine({ b }: { b: Proposal['build'] }) {
+  const parts = [b.template_title && `ひな形「${b.template_title}」`, b.step_labels.length && `処理：${b.step_labels.join('・')}`, b.criteria_labels.length && `品質ルール：${b.criteria_labels.join('・')}`].filter(Boolean)
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <span className={`rounded px-1.5 py-0.5 text-[0.75rem] font-bold ring-1 ring-inset ${FIT[b.fit].cls}`}>{FIT[b.fit].label}</span>
+      {parts.length > 0 && <span>{parts.join('／')}</span>}
+      {b.note && <span className="text-[0.85rem] text-muted">{b.note}</span>}
+    </span>
   )
 }
 

@@ -72,6 +72,21 @@ export function askDiagnosisQuestions(req: ContextRequest): Promise<QuestionsRes
 
 export type ProposalEvidence = { source: 'data' | 'answer' | 'inference'; text: string; ref: string; downgraded: boolean }
 
+/** 手順への反映（A-5）。部品はサーバーが実際にある一覧と照らし合わせ済み */
+export type BuildHint = {
+  /** yes：手順にできる／partial：一部できる（残りは人が行う）／no：手順にできない */
+  fit: 'yes' | 'partial' | 'no'
+  template_id: string | null
+  template_title: string | null
+  step_types: string[]
+  step_labels: string[]
+  criteria_kinds: string[]
+  criteria_labels: string[]
+  note: string
+  /** 一覧にない部品を取り除いた・反映できないに直した */
+  adjusted: boolean
+}
+
 export type Proposal = {
   proposal_id: string
   direction: 'eliminate' | 'simplify' | 'standardize' | 'automate'
@@ -85,6 +100,7 @@ export type Proposal = {
   risks: string[]
   recommendation: string
   priority: number
+  build: BuildHint
 }
 
 export type ProposalsResponse = {

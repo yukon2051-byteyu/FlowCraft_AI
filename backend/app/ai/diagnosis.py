@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from app.ai.client import fixed_response
-from app.ai.context import ContextRequest, build_context
+from app.ai.context import NODE_LABEL, ContextRequest, build_context
 from app.ai.guard import AiContext, run_ai
 
 MAX_FIRST_QUESTIONS = 3
@@ -128,6 +128,32 @@ class EffectEstimate(BaseModel):
     text: Annotated[str, Field(min_length=1, max_length=200)]  # 例：「月に約60分（仮定：4部署×15分）」
 
 
+# 手順に反映するときに使える部品（A-5）。AIが挙げた部品は、この一覧と照らし合わせる（ないものは取り除く）
+CRITERION_LABEL = {
+    "required_columns": "必要な列がそろっている",
+    "data_type": "データの形式に合っている",
+    "no_blank": "空欄がない",
+    "unique": "重複がない",
+    "value_range": "値が範囲内にある",
+    "period": "対象期間内の日付だけ",
+    "total_match": "2つの結果で合計が一致する",
+    "row_count": "件数が範囲内にある",
+    "all_matched": "照合できない行が上限以下",
+    "expected_value": "確認用の値と一致する",
+    "list_rows": "条件に合う行を一覧にする",
+}
+STEP_TYPES_FOR_AI = {k: v for k, v in NODE_LABEL.items() if k != "load"}
+
+
+class BuildHint(BaseModel):
+    # 処理エンジンで手順にできるか：yes（できる）／partial（一部できる。残りは人が行う）／no（できない。資料の作成・送付・承認など）
+    fit: Literal["yes", "partial", "no"]
+    template_id: Annotated[str, Field(max_length=40)] | None = None  # もとにするひな形
+    step_types: Annotated[list[Annotated[str, Field(max_length=40)]], Field(max_length=6)] = Field(default_factory=list)  # 使う処理の種類
+    criteria_kinds: Annotated[list[Annotated[str, Field(max_length=40)]], Field(max_length=6)] = Field(default_factory=list)  # 加える品質ルールの種類
+    note: Annotated[str, Field(max_length=200)] = ""  # 手順にできない部分（人が行う作業）や注意
+
+
 class Proposal(BaseModel):
     direction: Literal["eliminate", "simplify", "standardize", "automate"]
     title: Annotated[str, Field(min_length=1, max_length=80)]
@@ -140,6 +166,7 @@ class Proposal(BaseModel):
     risks: Annotated[list[Text], Field(max_length=4)] = Field(default_factory=list)  # 想定されるリスク（品質・内部統制）
     recommendation: Text  # 推奨する対応
     priority: Annotated[int, Field(ge=1, le=10)]  # 重要度（1がいちばん高い）
+    build: BuildHint = Field(default_factory=lambda: BuildHint(fit="no"))  # 手順への反映（A-5）
 
 
 class ProposalsOut(BaseModel):
@@ -154,9 +181,17 @@ class CheckedEvidence(Evidence):
     downgraded: bool = False
 
 
+class CheckedBuild(BuildHint):
+    template_title: str | None = None  # ひな形の名前（画面に出す）
+    step_labels: list[str] = Field(default_factory=list)
+    criteria_labels: list[str] = Field(default_factory=list)
+    adjusted: bool = False  # 一覧にない部品を取り除いた・反映できないに直した
+
+
 class CheckedProposal(Proposal):
     proposal_id: str
     evidence: list[CheckedEvidence]  # type: ignore[assignment]
+    build: CheckedBuild  # type: ignore[assignment]
 
 
 class ProposalsResponse(BaseModel):
@@ -178,8 +213,51 @@ SYSTEM_PROPOSALS = """あなたは業務改善の専門家です。材料（業�
 - 根拠（evidence）は種類を分ける。data：材料に書かれている事実（ref に「列「〇〇」」「ステップN」「品質ルールの名前」のどれかを書く）／answer：利用者の回答／inference：あなたの推測。材料にない列やステップを data として書かない。
 - 効果の数値を出せないときは、文章だけにして estimate は出さない。出すときは estimated（材料からの見積もり）か assumed（前提を置いた試算。前提を文中に書く）。根拠のない削減率・削減時間は書かない。実測とは書かない。
 - 提案は多くても5件。priority は重要度（1がいちばん高い）。
+- build には、この提案を作業手順（プログラムの処理）に反映できるかを書く。fit：yes（できる）／partial（一部できる）／no（できない：資料の作成・送付・承認・人の判断など）。
+  使える部品は、下の一覧にあるものだけ（ないものは書かない）。template_id はもとにできるひな形があるときだけ。部品で足りない部分や人が行う作業は note に書く。
+  廃止・簡素化の提案でも、残る作業を手順にできるなら部品を書く。手順にできない提案を、できるように書かない。
 - 材料の「足りない情報」に書かれたものは、ないものとして扱う。足りないために言い切れないことは note に書く。
 - 利用者は業務の担当者。やさしい日本語で、1項目は短く書く。"""
+
+
+def _parts_catalog() -> str:
+    """AIに渡す、使える部品の一覧（ひな形・処理の種類・品質ルールの種類）"""
+    from app.demos.catalog import DEMOS
+
+    lines = ["## 手順に使える部品（これ以外は使えない）", "ひな形（template_id）："]
+    lines += [f"- {d.demo_id}：{d.title.removesuffix('デモ')}（{d.summary}）" for d in DEMOS.values() if d.available and d.flow_file]
+    lines.append("処理の種類（step_types）：" + "、".join(f"{k}＝{v}" for k, v in STEP_TYPES_FOR_AI.items()))
+    lines.append("品質ルールの種類（criteria_kinds）：" + "、".join(f"{k}＝{v}" for k, v in CRITERION_LABEL.items()))
+    return "\n".join(lines)
+
+
+def _check_build(b: BuildHint) -> CheckedBuild:
+    """AIが挙げた部品を、実際にある一覧と照らし合わせる。ないものは取り除き、何も残らなければ「反映できない」に直す"""
+    from app.demos.catalog import DEMOS
+
+    templates = {d.demo_id: d.title.removesuffix("デモ") for d in DEMOS.values() if d.available and d.flow_file}
+    template_id = b.template_id if b.template_id in templates else None
+    steps = [t for t in dict.fromkeys(b.step_types) if t in STEP_TYPES_FOR_AI]
+    kinds = [k for k in dict.fromkeys(b.criteria_kinds) if k in CRITERION_LABEL]
+    adjusted = (b.template_id is not None and template_id is None) or len(steps) != len(set(b.step_types)) or len(kinds) != len(set(b.criteria_kinds))
+    fit = b.fit
+    note = b.note
+    if fit != "no" and not (template_id or steps or kinds):
+        fit, adjusted = "no", True
+        note = (note + "（手順に使える部品を特定できなかったため、手順に反映できない提案として扱います）").strip()
+    if fit == "no":
+        template_id, steps, kinds = None, [], []
+    return CheckedBuild(
+        fit=fit,
+        template_id=template_id,
+        step_types=steps,
+        criteria_kinds=kinds,
+        note=note,
+        template_title=templates.get(template_id) if template_id else None,
+        step_labels=[STEP_TYPES_FOR_AI[t] for t in steps],
+        criteria_labels=[CRITERION_LABEL[k] for k in kinds],
+        adjusted=adjusted,
+    )
 
 
 def _column_names(text: str) -> set[str]:
@@ -218,6 +296,7 @@ def _fixed_proposals(user: str) -> dict:
                 "estimate": {"kind": "assumed", "text": "月に約30分（仮定：確認に毎回30分かかっている場合）"},
                 "risks": ["作業手順の設定を誤ると、毎回同じ誤りが起きる（品質ルールで確かめる）。"],
                 "recommendation": "まず1か月分のデータで、手作業の結果と一致するかを確かめてから切り替える。", "priority": 2,
+                "build": {"fit": "yes", "template_id": "monthly_sales", "step_types": ["aggregate", "join"], "criteria_kinds": ["total_match"], "note": ""},
             },
             {
                 "direction": "eliminate", "title": "使われていない資料への転記をやめる", "target": "報告資料への転記",
@@ -226,18 +305,21 @@ def _fixed_proposals(user: str) -> dict:
                 "effect": "書き写しが1回減り、転記ミスの起きる箇所がなくなる。",
                 "risks": ["監査や承認で必要な資料なら、なくせない。"],
                 "recommendation": "資料を使っている人に、必要かどうかを確かめる。", "priority": 1,
+                "build": {"fit": "no", "note": "資料をやめるかどうかは、業務の判断です（手順の変更はありません）。"},
             },
             {
                 "direction": "standardize", "title": "提出してもらう列名をそろえる", "target": "部署からのファイルの受け取り",
                 "problem": "部署ごとに列名が違うと、読み替えが必要になる。", "change": "提出してもらうExcelの列名を統一する。",
                 "evidence": [{"source": "data", "text": "材料にない列を挙げた例（推測に格下げされる）。", "ref": "列「存在しない列」"}],
                 "effect": "読み替えの手間がなくなる。", "risks": [], "recommendation": "各部署に列名の見本を配る。", "priority": 3,
+                "build": {"fit": "partial", "step_types": ["rename_columns", "存在しない処理"], "note": "列名の見本を配るのは人が行います。"},
             },
             {
                 "direction": "simplify", "title": "確認の回数を減らす", "target": "目での確認",
                 "problem": "同じ確認を2回している。", "change": "品質ルールで自動で確かめ、目での確認は異常のときだけにする。",
                 "evidence": [{"source": "inference", "text": "確認が重複している可能性があります。"}],
                 "effect": "確認の手間が減る。", "risks": ["自動の確認で見落とす観点がないかを確かめる。"], "recommendation": "品質ルールを設定してから、目での確認を減らす。", "priority": 4,
+                "build": {"fit": "yes", "template_id": "存在しないひな形"},
             },
         ],
     }
@@ -247,7 +329,7 @@ def make_proposals(ctx: AiContext, req: ProposalsRequest) -> ProposalsResponse:
     material = build_context(ctx.session, req)
     answered = [a for a in req.answers if a.answer.strip()]
     answers_text = "\n".join(f"- 質問：{a.question}\n  回答：{a.answer.strip()}" for a in answered) or "- （回答なし。質問にはすべて答えていません）"
-    user = "# 材料\n\n" + material.text + "\n\n## 利用者の回答\n" + answers_text
+    user = "# 材料\n\n" + material.text + "\n\n## 利用者の回答\n" + answers_text + "\n\n" + _parts_catalog()
     fp = hashlib.sha256(user.encode("utf-8")).hexdigest()
     key = f"proposals:{fp}"
     cached = isinstance(ctx.session.ai_cache.get(key), ProposalsOut)
@@ -263,7 +345,9 @@ def make_proposals(ctx: AiContext, req: ProposalsRequest) -> ProposalsResponse:
     checked = []
     for i, p in enumerate(out.proposals[:5]):  # 多く返っても5件まで
         evidence = [_check_evidence(e, material.text, step_count, rule_names) for e in p.evidence]
-        checked.append(CheckedProposal(**{**p.model_dump(), "evidence": [e.model_dump() for e in evidence]}, proposal_id=f"p{i + 1}"))
+        checked.append(
+            CheckedProposal(**{**p.model_dump(), "evidence": [e.model_dump() for e in evidence], "build": _check_build(p.build).model_dump()}, proposal_id=f"p{i + 1}")
+        )
     # 重要な順（同じ重要度なら、廃止→簡素化→標準化→自動化の順）
     checked.sort(key=lambda p: (p.priority, DIRECTION_ORDER[p.direction]))
     return ProposalsResponse(
