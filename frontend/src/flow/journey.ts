@@ -42,7 +42,7 @@ export function stepOrder(mode: StartMode, method: BuildMethod | null = null): S
 }
 
 /** 画面（WorkspacePage の Screen）→ その画面で行っている段階 */
-export type Screen = 'start' | 'describe' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'demo_intro' | 'demo_improve' | 'demo_data'
+export type Screen = 'start' | 'describe' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'output' | 'demo_intro' | 'demo_improve' | 'demo_data'
 
 export function stepOfScreen(screen: Screen): StepId | null {
   switch (screen) {
@@ -63,6 +63,8 @@ export function stepOfScreen(screen: Screen): StepId | null {
       return 'procedure'
     case 'result':
       return 'run'
+    case 'output': // STEP 5：Excelの出力・作業手順の保存（STEP 4 の実行結果を使う。再実行しない）
+      return 'output'
   }
 }
 

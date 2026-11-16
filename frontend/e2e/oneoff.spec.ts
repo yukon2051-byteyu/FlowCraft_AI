@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 import { readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { buildMonthlySales, card, demo } from './helpers'
+import { buildMonthlySales, card, demo, exportFromOutput, backToProcedure } from './helpers'
 
 /*
  * タスク1-11：今回だけの作業の導線。
@@ -46,11 +46,12 @@ test('保存しなくても、実行して出力して終われる。出力し�
   await expect(page).toHaveURL(/\/build\?start=file$/)
 
   // 保存せずに出力する
-  const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  const download = await exportFromOutput(page)
   expect(download.suggestedFilename()).toMatch(/_結果_\d{8}-\d{4}\.xlsx$/)
-  // 結果の画面では、保存は「任意」として案内するだけ
-  await expect(conclusion(page).getByRole('button', { name: 'この作業手順を保存する' })).toBeVisible()
-  await expect(conclusion(page)).toContainText('任意です。今回だけの作業なら、保存せずに終われます。')
+  // 出力・保存の画面では、保存は「任意」として案内するだけ（出力したExcelとは別のもの）
+  const saveArea = page.getByRole('region', { name: '作業手順の保存' })
+  await expect(saveArea.getByRole('button', { name: 'この作業手順を保存する' })).toBeVisible()
+  await expect(saveArea).toContainText('今回だけの作業なら、保存せずに終われます。')
 
   // 出力した後は、確認なしで離れられる（タブを閉じるときも確認しない）
   let askedAgain = false
@@ -67,8 +68,8 @@ test('出力した後に作業手順を変えたら、離れるときにもう�
   test.setTimeout(150_000)
   await buildMonthlySales(page, '商品マスタ.xlsx')
   await runAll(page)
-  await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
-  await page.getByRole('button', { name: '作業手順に戻る' }).click()
+  await exportFromOutput(page)
+  await backToProcedure(page)
   await page.getByRole('button', { name: '処理ステップを追加する' }).click()
   await page.getByRole('region', { name: '追加する処理を選ぶ' }).getByRole('button', { name: /^並べ替える/ }).click()
   let asked = ''
@@ -86,15 +87,18 @@ test('実行した後に保存でき（作り直し不要）、保存したフ�
   await runAll(page)
   expect(await deptTotal(page)).toBe(20_818_240)
 
-  // 結果の画面から保存する
-  await conclusion(page).getByRole('button', { name: 'この作業手順を保存する' }).click()
+  // 出力・保存の画面から保存する（実行し直さない）
+  await page.getByRole('button', { name: '次へ：出力・保存' }).click()
+  await page.getByRole('region', { name: '作業手順の保存' }).getByRole('button', { name: 'この作業手順を保存する' }).click()
   const dialog = page.getByRole('dialog', { name: '作業手順を保存' })
   await dialog.getByRole('textbox', { name: '作業手順の名前' }).fill('月次売上集計')
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])
   await expect(dialog.getByRole('status')).toContainText('版1として保存しました')
   await dialog.getByRole('button', { name: '閉じる' }).last().click()
-  // 結果はそのまま見られ、保存済みと表示される
-  await expect(conclusion(page)).toContainText('この作業手順は保存済みです')
+  // 保存済みと表示され、「保存した手順を開く」が出る（実行し直さない）
+  const saveArea = page.getByRole('region', { name: '作業手順の保存' })
+  await expect(saveArea).toContainText('この作業手順は保存済みです')
+  await expect(page.getByRole('region', { name: '次にできること' }).getByRole('button', { name: '保存した手順を開く' })).toBeVisible()
   await expect(header(page).getByText('保存していません（保存は任意です）')).toBeHidden()
 
   // 次回：別のブラウザで、保存したファイルを開いて再実行する → 同じ合計

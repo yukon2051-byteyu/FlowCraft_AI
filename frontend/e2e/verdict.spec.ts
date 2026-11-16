@@ -44,33 +44,52 @@ const rows = (min: number, onFail: string) => ({
   on_fail: onFail,
 })
 
-test('完了基準をすべて満たすと「正常」。確認なしで出力できる', async ({ page }) => {
+const footerStatus = (page: Page) => page.getByRole('status', { name: '今の判定' })
+const outputArea = (page: Page) => page.getByRole('region', { name: 'Excelを出力する' })
+
+test('完了基準をすべて満たすと「正常」。STEP 4 から「次へ：出力・保存」で STEP 5 へ進み、確認なしで出力できる', async ({ page }) => {
   test.setTimeout(120_000)
   await openAndRun(page, [rows(4, 'critical')])
   await expect(verdictBox(page)).toContainText('総合判定：正常')
   await expect(verdictBox(page)).toContainText('（完了基準と標準の確認）')
   await expect(verdictBox(page)).toContainText('完了基準（1件）をすべて満たしています。')
   await expect(conclusion(page).getByRole('checkbox', { name: /確認したうえで出力する/ })).toHaveCount(0)
-  const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  // STEP 4 には出力・保存の操作を置かない。次に行うことを1行で示す
+  await expect(conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
+  await expect(conclusion(page).getByLabel('次に行うこと')).toHaveText('処理と品質確認が完了しました。次に、Excelの出力・保存へ進んでください。')
+  await expect(footerStatus(page)).toHaveText('正常：正式な出力ができます')
+  const summary = await conclusion(page).getByLabel('処理結果の要約').innerText()
+  await page.getByRole('button', { name: '次へ：出力・保存' }).click()
+  await expect(page.getByRole('heading', { name: '出力・保存' })).toBeVisible()
+  await expect(outputArea(page).getByRole('list', { name: '出力するシート' })).toContainText('確認結果')
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
   expect(download.suggestedFilename()).toContain('_結果_')
+  await expect(outputArea(page).getByRole('status').last()).toContainText('を保存しました')
+  // STEP 4 に戻っても再実行しない（実行日時が同じ＝同じ実行の結果のまま）
+  await page.getByRole('button', { name: '実行結果に戻る' }).click()
+  await expect(conclusion(page).getByLabel('処理結果の要約')).toHaveText(summary)
+  await expect(footerStatus(page)).toHaveText('正常：正式な出力ができます')
 })
 
-test('「注意」の結果は、確認のチェックを入れるまで出力できない（上部のボタンも同じ）', async ({ page }) => {
+test('「注意」（確認必須）は「注意事項を確認する」で確認の欄へ移動し、確認すると「次へ」に切り替わる（上部のボタンも STEP 5 へ進む）', async ({ page }) => {
   test.setTimeout(120_000)
   await openAndRun(page, [rows(5, 'caution')])
   await expect(verdictBox(page)).toContainText('総合判定：注意')
   await expect(verdictBox(page).getByRole('list', { name: '判定の理由' })).toContainText('注意とした完了基準を満たしていません：「部署は4つ」')
-  const exportButton = conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true })
-  await expect(exportButton).toBeDisabled()
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeDisabled()
-
-  await conclusion(page).getByRole('checkbox', { name: /確認したうえで出力する/ }).check()
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeEnabled()
-  const [download] = await Promise.all([page.waitForEvent('download'), exportButton.click()])
+  await expect(page.getByRole('button', { name: '次へ：出力・保存' })).toHaveCount(0)
+  await page.getByRole('button', { name: '注意事項を確認する' }).click()
+  const check = conclusion(page).getByRole('checkbox', { name: /確認したうえで出力する/ })
+  await expect(check).toBeInViewport()
+  await check.check()
+  await expect(footerStatus(page)).toHaveText('確認済み：出力できます')
+  // 上部の「Excelに出力」も、STEP 4 では出力・保存の画面へ進む（同じ目的に進む）
+  await page.getByRole('banner').getByRole('button', { name: 'Excelに出力' }).click()
+  await expect(page.getByRole('heading', { name: '出力・保存' })).toBeVisible()
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
   expect(download.suggestedFilename()).toContain('_結果_')
 })
 
-test('「重大」の結果は、処理結果を出力せず、調査用の確認結果だけを出力する', async ({ page }) => {
+test('「重大」は「異常の詳細を確認する」で完了基準の判定へ移動する（重大の項目が先頭）。正式な処理結果は出力できず、調査用の確認結果だけを出力する', async ({ page }) => {
   test.setTimeout(120_000)
   await openAndRun(page, [rows(5, 'critical')])
   await expect(verdictBox(page)).toContainText('総合判定：重大')
@@ -78,8 +97,18 @@ test('「重大」の結果は、処理結果を出力せず、調査用の確�
   // 処理と検証は完了したが、正式な出力は停止（2つを分けて示す）
   await expect(conclusion(page)).toContainText('処理・検証：完了')
   await expect(conclusion(page).getByLabel('正式な出力')).toHaveText('正式な出力：停止（調査用の確認結果だけを出力できます）')
-  await expect(conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
-  const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
+  await expect(footerStatus(page)).toHaveText('重大な異常：正式な出力を停止しています')
+  await expect(page.getByRole('button', { name: '次へ：出力・保存' })).toHaveCount(0)
+  await page.getByRole('button', { name: '異常の詳細を確認する' }).click()
+  const results = page.getByRole('region', { name: '完了基準の判定' })
+  await expect(results).toBeInViewport()
+  await expect(results.getByRole('listitem').first()).toContainText('満たしていない（重大）')
+  // 調査用の記録は STEP 5 で出力できる（正式な処理結果ではない）
+  await page.getByRole('button', { name: '調査用の記録を出力する' }).click()
+  await expect(outputArea(page).getByRole('status', { name: '正式な出力' })).toContainText('重大な品質異常があるため、正式な処理結果は出力できません')
+  await expect(outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
+  await expect(outputArea(page).getByRole('list', { name: '出力するシート' }).getByRole('listitem')).toHaveCount(2)
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
   expect(download.suggestedFilename()).toContain('確認結果（調査用）')
 })
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { BANNED } from './helpers'
+import { BANNED, exportFromOutput } from './helpers'
 
 /*
  * 業務改善診断デモ（デモ①「その集計、本当に必要？」）。
@@ -198,7 +198,7 @@ test('作った作業手順を開き、サンプルのExcelで実行・品質の
   const chart = page.getByRole('region', { name: 'データの分析' }).getByRole('figure', { name: '「部署」別の「売上合計」' })
   await expect(chart).toContainText('営業1部')
   // Excel出力
-  const [download] = await Promise.all([page.waitForEvent('download'), conclusion.getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  const download = await exportFromOutput(page)
   expect(download.suggestedFilename()).toContain('_結果_')
 
   // 保存（通常の作業手順と同じ。新しい作業手順・版1）

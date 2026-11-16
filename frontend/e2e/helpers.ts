@@ -71,3 +71,19 @@ export async function throughDemoSteps(page: Page) {
   await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
   await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toBeVisible()
 }
+
+/** STEP 5「出力・保存」の、Excelを出力する欄 */
+export const outputArea = (page: Page) => page.getByRole('region', { name: 'Excelを出力する' })
+
+/** STEP 4（実行結果）から「次へ：出力・保存」で STEP 5 へ進み、Excelに出力する（ダウンロードを返す） */
+export async function exportFromOutput(page: Page) {
+  await page.getByRole('button', { name: '次へ：出力・保存' }).click()
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  return download
+}
+
+/** STEP 5 から作業手順の画面へ戻る（実行結果 → 作業手順） */
+export async function backToProcedure(page: Page) {
+  await page.getByRole('button', { name: '実行結果に戻る' }).click()
+  await page.getByRole('button', { name: '作業手順に戻る' }).click()
+}

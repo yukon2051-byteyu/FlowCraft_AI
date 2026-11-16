@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { demo, throughDemoSteps } from './helpers'
+import { demo, throughDemoSteps, exportFromOutput, backToProcedure } from './helpers'
 
 /*
  * 分析 Phase C：実行の履歴（このブラウザの IndexedDB）と、毎月の再実行での前回比較。
@@ -29,10 +29,10 @@ test('毎月の再実行：前月に正式出力した記録と自動で比べ�
   await month(page).fill('2026-10')
   await runAll(page)
   await expect(page.getByRole('region', { name: '前回との比較' })).toContainText('比較できる前月（2026年9月）')
-  await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  await exportFromOutput(page)
 
   // 同じ作業手順を11月として実行：前月（10月）の正式な出力の記録と、自動で比べる
-  await page.getByRole('button', { name: '作業手順に戻る' }).click()
+  await backToProcedure(page)
   await month(page).fill('2026-11')
   await runAll(page)
   const prev = page.getByRole('region', { name: '前回との比較' })

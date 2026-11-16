@@ -63,6 +63,11 @@ describe('段階の表示', () => {
     expect(positionOf([])).toBeUndefined()
   })
 
+  it('STEP 5（出力・保存）の画面は「出力・保存」の段階。実行を終えていれば、実行・品質確認は完了', () => {
+    const v = stepViews('WORK_FIRST', 'output', { described: true, dataReady: true, procedureReady: true, ran: true, outputDone: false })
+    expect(states(v)).toEqual(['作業を伝える:done', '手順を確認する:done', 'データを読み込む:done', '実行・品質確認:done', '出力・保存:current'])
+  })
+
   it('実行・出力を終えたら完了になる', () => {
     const v = stepViews('FILE_FIRST', 'result', { described: true, dataReady: true, procedureReady: true, ran: true, outputDone: true })
     expect(v.map((s) => s.state)).toEqual(['done', 'done', 'done', 'current', 'done'])

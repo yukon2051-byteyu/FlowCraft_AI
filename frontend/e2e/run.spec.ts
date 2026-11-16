@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises'
  * デモ用の架空データを使い、合計は manifest.json の正解値（10月の売上合計 20,818,240円）と照合する。
  */
 
-import { BANNED, buildMonthlySales, card, panel, openStep } from './helpers'
+import { BANNED, buildMonthlySales, card, panel, openStep, exportFromOutput, backToProcedure, outputArea } from './helpers'
 
 test('ステップの処理前後を確かめ、全体を実行すると、正解値どおりの集計結果になる', async ({ page }) => {
   test.setTimeout(120_000)
@@ -40,15 +40,15 @@ test('ステップの処理前後を確かめ、全体を実行すると、正�
   expect(totals.reduce((a, b) => a + b, 0)).toBe(20_818_240)
 
   // Excelに出力：ファイル名に作業手順の名前と「結果」が入り、中身は Excel（.xlsx は zip 形式で、先頭が PK）
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('region', { name: '実行の結論' }).getByRole('button', { name: 'Excelに出力する', exact: true }).click()])
+  const download = await exportFromOutput(page)
   expect(download.suggestedFilename()).toMatch(/^無題の作業手順_結果_\d{8}-\d{4}\.xlsx$/)
   const bytes = await readFile((await download.path())!)
   expect(bytes.subarray(0, 2).toString()).toBe('PK')
   await expect(page.getByRole('status').filter({ hasText: 'を保存しました' })).toBeVisible()
-  // 上部の「Excelに出力」も、結果の画面では使える
+  // 上部の「Excelに出力」も、出力・保存の画面では使える
   await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeEnabled()
 
-  await page.getByRole('button', { name: '作業手順に戻る' }).click()
+  await backToProcedure(page)
   await expect(card(page, 7)).toBeVisible()
   await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeDisabled()
 })
@@ -73,8 +73,14 @@ test('マスタに重複があると、照合のステップで止まり、理�
   await expect(steps.locator(':scope > ol > li').nth(3)).toContainText('エラー')
   await expect(steps.locator(':scope > ol > li').nth(3)).toContainText('直し方：')
   await expect(steps.locator(':scope > ol > li').nth(4)).toContainText('実行していない')
-  // 調査用に、確認結果だけを出力できる
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
+  // 処理の失敗：主要ボタンは「エラーの詳細を確認する」（ステップごとの結果へ移動する）
+  await expect(page.getByRole('status', { name: '今の判定' })).toHaveText('処理が途中で止まりました。正式な出力はできません')
+  await page.getByRole('button', { name: 'エラーの詳細を確認する' }).click()
+  await expect(steps).toBeInViewport()
+  // 調査用に、確認結果だけを出力できる（STEP 5。正式な処理結果は出力しない）
+  await page.getByRole('button', { name: '調査用の記録を出力する' }).click()
+  await expect(outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
   expect(download.suggestedFilename()).toContain('確認結果（調査用）')
 
   // 内部の名前（in2 など）や専門用語を見せない

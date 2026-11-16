@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, CircleCheck, CircleHelp, CircleMinus, CircleX, FileOutput, LoaderCircle, RefreshCw, Save, TriangleAlert, Wrench } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowLeft, ArrowRight, ChevronDown, CircleCheck, CircleHelp, CircleMinus, CircleX, FileOutput, LoaderCircle, RefreshCw, Save, TriangleAlert, Wrench } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ApiError } from '../../../api/client'
 import type { ApiErrorBody } from '../../../api/client'
@@ -18,6 +18,8 @@ import { IssueList } from './IssueList'
 import { PreviewTable } from './PreviewTable'
 import { DemoResultSummary } from './DemoResultSummary'
 import { isAmountColumn } from '../../../flow/numberFormat'
+import { nextAction } from '../../../flow/nextAction'
+import type { NextAction } from '../../../flow/nextAction'
 
 /*
  * タスク1-6：作業手順全体の実行結果。
@@ -60,9 +62,15 @@ type Props = {
   footer?: ReactNode
   /** 金額らしい列の見出しに単位「円」を添える（デモの架空データは円） */
   amountUnit?: boolean
+  /**
+   * STEP 4「実行・品質確認」として表示する（STEP 5「出力・保存」へ進む）。
+   * 渡したときは、この画面から出力・保存の操作を外し、画面下部に判定に応じた主要ボタンを1つ出す。
+   * デモの結果の画面（渡さない）は、これまでどおりこの画面で出力する
+   */
+  onNext?: () => void
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review, demoTitle, footer, amountUnit }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review, demoTitle, footer, amountUnit, onNext }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -86,6 +94,28 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
   const reportOnly = run.status === 'failed' || verdict?.export === 'report_only'
   const needsConfirm = verdict?.export === 'needs_confirmation'
   const previews = detail.data?.output_previews ?? []
+  const action = nextAction(run, confirmed, stale)
+  // 主要ボタンで移動した欄を、少しの間だけ強調する（異常の項目は「該当する例」も開く）
+  const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null)
+  useEffect(() => {
+    if (!focus) return
+    document.getElementById(focus.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    const t = setTimeout(() => setFocus((f) => (f?.tick === focus.tick ? null : f)), 1800)
+    return () => clearTimeout(t)
+  }, [focus])
+  const go = (a: NextAction) => {
+    if (a.target === 'output') onNext?.()
+    else if (a.target === 'procedure') onBack()
+    else setFocus({ id: a.target, tick: Date.now() })
+  }
+  const flash = (id: string) => (focus?.id === id ? 'flash-ring' : '')
+  // 処理結果の要約（入力ファイル・行数・出力の行数）
+  const inputs = ((run.record?.inputs ?? []) as { label: string; rows: number | null }[]).filter((x) => x && typeof x.label === 'string')
+  const inputRows = inputs.reduce((sum, x) => sum + (x.rows ?? 0), 0)
+  const producer = new Map(flow.nodes.map((n) => [n.output_reference, n.node_id]))
+  const outputRows = run.outputs
+    .map((o) => ({ name: o.sheet_name, rows: run.nodes.find((n) => n.node_id === producer.get(o.reference))?.output_rows ?? null }))
+    .filter((o) => o.rows !== null)
 
   // Excelに出力する（結論の欄と「出力する表」の近くで同じものを使う。正式な出力を止める決まりも同じ）
   const exportButton = (
@@ -119,8 +149,10 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               </p>
             )}
             <p className="mt-1 text-[0.9rem] text-subtle">{headline.sub}</p>
-            <p className="mt-2 text-[0.85rem] text-subtle">
-              実行日時：{new Date(run.executed_at).toLocaleString('ja-JP')} ／ 処理時間：{formatDuration(run.duration_ms)}
+            <p className="mt-2 text-[0.85rem] text-subtle" aria-label="処理結果の要約">
+              {inputs.length > 0 && `入力：${inputs.length}ファイル（計${inputRows.toLocaleString()}行） ／ `}
+              {outputRows.length > 0 && run.status !== 'failed' && `出力：${outputRows.map((o) => `${o.name} ${o.rows!.toLocaleString()}行`).join('・')} ／ `}
+              処理時間：{formatDuration(run.duration_ms)} ／ 実行日時：{new Date(run.executed_at).toLocaleString('ja-JP')}
             </p>
             {stale && (
               <p className="mt-3 rounded-lg bg-warning/12 px-3 py-2 text-[0.88rem] text-warning ring-1 ring-warning/35">
@@ -128,9 +160,33 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               </p>
             )}
 
+            {onNext ? (
+              <>
+                {needsConfirm && !reportOnly && !stale && <div className="mt-4 border-t border-edge pt-4">{needsConfirm && !reportOnly && (
+                <label id="run-confirm" className={`flex w-full scroll-mt-4 items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[0.9rem] ring-1 ring-warning/35 ${flash('run-confirm')}`}>
+                  <input type="checkbox" checked={confirmed} onChange={(e) => onConfirmChange(e.target.checked)} className="mt-1 size-4 accent-[#d4a72c]" />
+                  <span>
+                    <span className="font-bold text-warning">確認したうえで出力する</span>
+                    <span className="block text-[0.85rem] text-subtle">上の判定の理由を確かめました。この結果を業務で使ってよいと判断したときだけ、チェックを入れてください。</span>
+                  </span>
+                </label>
+              )}</div>}
+                {/* 次に行うこと（1行だけ。詳しい理由は上の判定と下の欄にある） */}
+                <p className="mt-4 border-t border-edge pt-3 text-[0.92rem] text-white" aria-label="次に行うこと">
+                  {action.kind === 'next'
+                    ? '処理と品質確認が完了しました。次に、Excelの出力・保存へ進んでください。'
+                    : action.kind === 'confirm'
+                      ? '判定の理由を確かめ、「確認したうえで出力する」にチェックを入れてから、出力・保存へ進んでください。'
+                      : action.kind === 'stale'
+                        ? '作業手順を変更したため、もう一度実行してください。'
+                        : '正式な出力は止めています。原因を確かめ、作業手順やデータを直して再実行してください（修正後はかならず再実行・再検証します）。'}
+                </p>
+              </>
+            ) : (
+              <>
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-edge pt-4">
               {needsConfirm && !reportOnly && (
-                <label className="flex w-full items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[0.9rem] ring-1 ring-warning/35">
+                <label id="run-confirm" className="flex w-full items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[0.9rem] ring-1 ring-warning/35">
                   <input type="checkbox" checked={confirmed} onChange={(e) => onConfirmChange(e.target.checked)} className="mt-1 size-4 accent-[#d4a72c]" />
                   <span>
                     <span className="font-bold text-warning">確認したうえで出力する</span>
@@ -178,6 +234,8 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
                 )}
               </div>
             )}
+              </>
+            )}
           </section>
 
           {/* 分析レポート（分析エンジン）：今回の主要数値 → 確認すべきこと → 前回との比較 → データの分析 */}
@@ -194,7 +252,7 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
 
           {fix && <FixBox fix={fix} />}
 
-          {run.criteria.length > 0 && <CriteriaResults criteria={run.criteria} />}
+          {run.criteria.length > 0 && <CriteriaResults criteria={run.criteria} highlight={flash('run-criteria')} openTop={focus?.id === 'run-criteria' ? focus.tick : 0} />}
 
           {review}
 
@@ -204,7 +262,7 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
             </section>
           )}
 
-          <section className="light-panel rounded-2xl p-5" aria-label="ステップごとの結果">
+          <section id="run-steps" className={`light-panel scroll-mt-4 rounded-2xl p-5 ${flash('run-steps')}`} aria-label="ステップごとの結果">
             <h2 className="mb-3 font-bold">ステップごとの結果</h2>
             <ol className="space-y-1.5">
               {run.nodes.map((n, i) => (
@@ -218,9 +276,9 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-bold">出力する表</h2>
-                  <p className="mt-0.5 text-[0.85rem] text-muted">先頭の一部を表示しています。すべての行は「Excelに出力する」で保存できます。</p>
+                  <p className="mt-0.5 text-[0.85rem] text-muted">先頭の一部を表示しています。すべての行は{onNext ? '「出力・保存」' : '「Excelに出力する」'}で保存できます。</p>
                 </div>
-                {!reportOnly && <div className="[&_button]:shadow-none">{exportButton}</div>}
+                {!reportOnly && !onNext && <div className="[&_button]:shadow-none">{exportButton}</div>}
               </div>
               <div className="mt-3 mb-2 flex flex-wrap gap-1" role="tablist" aria-label="出力するシート">
                 {run.outputs.map((o, i) => (
@@ -249,15 +307,61 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
         </div>
       </div>
 
-      {footer ?? (
-        <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
-          <Button variant="ghostDark" size="sm" onClick={onBack}>
-            <ArrowLeft className="size-4" aria-hidden />
-            作業手順に戻る
-          </Button>
-        </div>
-      )}
+      {footer ??
+        (onNext ? (
+          <Step4Footer action={action} onBack={onBack} onGo={() => go(action)} onReport={action.kind === 'critical' || action.kind === 'unverified' || action.kind === 'failed' ? onNext : null} />
+        ) : (
+          <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
+            <Button variant="ghostDark" size="sm" onClick={onBack}>
+              <ArrowLeft className="size-4" aria-hidden />
+              作業手順に戻る
+            </Button>
+          </div>
+        ))}
     </>
+  )
+}
+
+/**
+ * STEP 4 の画面下部：左に戻る（補助）、中央に今の判定を1行、右に判定に応じた主要ボタンを1つ。
+ * 異常のときもボタンは押せる（異常を確かめる場所へ移動する）。重大・未検証・失敗のときだけ、
+ * 調査用の記録を出力する入口を控えめに添える（正式な出力ではない）
+ */
+const TONE_BUTTON: Record<NextAction['tone'], string> = {
+  mint: 'bg-mint text-on-mint hover:bg-mint-hover shadow-[0_0_0_1px_rgba(56,217,173,0.4),0_8px_24px_-8px_rgba(56,217,173,0.55)]',
+  amber: 'bg-warning text-[#2a1a04] hover:bg-[#eeb565]',
+  coral: 'bg-kaizen text-[#2b0f0d] hover:bg-[#e48b86]',
+}
+const TONE_TEXT: Record<NextAction['tone'], string> = { mint: 'text-mint', amber: 'text-warning', coral: 'text-kaizen-text' }
+
+function Step4Footer({ action, onBack, onGo, onReport }: { action: NextAction; onBack: () => void; onGo: () => void; onReport: (() => void) | null }) {
+  const Icon = action.tone === 'mint' ? CircleCheck : action.tone === 'coral' ? CircleX : TriangleAlert
+  return (
+    <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-2.5">
+      <Button variant="ghostDark" size="sm" onClick={onBack} className="shrink-0">
+        <ArrowLeft className="size-4" aria-hidden />
+        作業手順に戻る
+      </Button>
+      <p className={`flex min-w-0 flex-1 items-center gap-1.5 font-bold ${TONE_TEXT[action.tone]}`} role="status" aria-label="今の判定">
+        <Icon className="size-4.5 shrink-0" aria-hidden />
+        <span className="truncate" title={action.status}>
+          {action.status}
+        </span>
+      </p>
+      {onReport && (
+        <Button variant="ghostDark" size="sm" onClick={onReport} className="shrink-0" title="正式な処理結果ではなく、原因を調べるための確認結果を出力します">
+          調査用の記録を出力する
+        </Button>
+      )}
+      <button
+        type="button"
+        onClick={onGo}
+        className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-5 text-[0.95rem] font-bold whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint ${TONE_BUTTON[action.tone]}`}
+      >
+        {action.button}
+        <ArrowRight className="size-4" aria-hidden />
+      </button>
+    </div>
   )
 }
 
@@ -408,23 +512,26 @@ function statusKey(c: CriterionResult): string {
   return c.status === 'failed' ? `failed_${c.on_fail}` : c.status
 }
 
-function CriteriaResults({ criteria }: { criteria: CriterionResult[] }) {
+function CriteriaResults({ criteria, highlight = '', openTop = 0 }: { criteria: CriterionResult[]; highlight?: string; openTop?: number }) {
   const sorted = [...criteria].sort((a, b) => rank(a) - rank(b))
   return (
-    <section className="light-panel rounded-2xl p-5" aria-label="完了基準の判定">
+    <section id="run-criteria" className={`light-panel scroll-mt-4 rounded-2xl p-5 ${highlight}`} aria-label="完了基準の判定">
       <h2 className="font-bold">完了基準の判定と根拠</h2>
       <p className="mt-0.5 text-[0.85rem] text-muted">判定はプログラムで計算しています（AIは使っていません）。根拠は、判定に使った実際の値です。</p>
       <ol className="mt-3 space-y-2">
-        {sorted.map((c) => (
-          <CriterionRow key={c.criterion_id} c={c} />
+        {sorted.map((c, i) => (
+          <CriterionRow key={c.criterion_id} c={c} openTick={i === 0 && rank(c) <= 1 ? openTop : 0} />
         ))}
       </ol>
     </section>
   )
 }
 
-function CriterionRow({ c }: { c: CriterionResult }) {
-  const [open, setOpen] = useState(false)
+function CriterionRow({ c, openTick = 0 }: { c: CriterionResult; openTick?: number }) {
+  // 画面下部の「異常の詳細を確認する」などで移動してきたら（openTick が新しくなったら）、該当する例を開く
+  const [state, setState] = useState({ open: false, tick: 0 })
+  const open = openTick !== 0 && openTick !== state.tick ? true : state.open
+  const setOpen = (v: boolean) => setState({ open: v, tick: openTick })
   const s = CRITERION_STATUS[statusKey(c)] ?? CRITERION_STATUS.not_applicable
   const evidence = Object.entries(c.evidence)
   return (

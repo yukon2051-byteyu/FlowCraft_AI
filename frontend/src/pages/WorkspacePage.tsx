@@ -15,6 +15,7 @@ import { UploadStart } from '../components/workspace/UploadStart'
 import type { DefineSource } from '../components/workspace/UploadStart'
 import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
+import { OutputStep } from '../components/workspace/run/OutputStep'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
 import { HistoryDialog } from '../components/workspace/HistoryDialog'
@@ -346,10 +347,13 @@ export default function WorkspacePage() {
           onSave={() => setSaving(true)}
           onOpen={sample ? undefined : () => setOpening(true)}
           onHistory={sample ? undefined : () => setShowHistory(true)}
-          canExport={!sample && screen === 'result' && lastRun !== null}
-          onExport={doExport}
+          canExport={!sample && (screen === 'result' || screen === 'output') && lastRun !== null}
+          onExport={!demo && screen === 'result' ? () => setScreen('output') : doExport}
           exporting={exporting}
-          exportBlocked={needsConfirm && !confirmed ? '実行結果の画面で内容を確かめ、「確認したうえで出力する」にチェックを入れてください' : null}
+          exportPrimary={screen === 'output' || (!!demo && screen === 'result')}
+          exportBlocked={
+            needsConfirm && !confirmed && (demo || screen === 'output') ? '実行結果の画面で内容を確かめ、「確認したうえで出力する」にチェックを入れてください' : null
+          }
         />
         {sample ? (
           <>
@@ -373,14 +377,18 @@ export default function WorkspacePage() {
                   ? '始め方を選んでください（どの方法でも、同じ処理の仕組みと品質の確認を使います）'
                   : screen === 'describe'
                     ? '案件名とやりたい作業を入れて、手順の作り方を選んでください'
+                    : screen === 'output'
+                      ? 'Excelに出力して、作業を終えてください（作業手順の保存は任意です）'
                     : screen === 'result'
                   ? lastRun?.run.status === 'failed'
                     ? '止まった理由を確かめてください。調査用に、確認結果をExcelに出力できます'
                     : lastRun?.run.verdict?.export === 'report_only'
                       ? '重大と判定された理由を確かめてください。調査用に、確認結果をExcelに出力できます'
                       : lastRun?.run.verdict?.export === 'needs_confirmation'
-                        ? '判定の理由を確かめ、確認したうえでExcelに出力してください'
-                        : '実行結果を確かめて、Excelに出力してください'
+                        ? '判定の理由を確かめ、確認したうえで出力・保存へ進んでください'
+                        : demo
+                          ? '実行結果を確かめて、Excelに出力してください'
+                          : '実行結果を確かめて、「次へ：出力・保存」に進んでください'
                   : screen === 'edit'
                   ? method === 'template' && !facts.dataReady
                     ? '仮の手順です。手順を確かめたら「次へ：データを読み込む」で今回のファイルを読み込み、列を照合してください'
@@ -542,6 +550,8 @@ export default function WorkspacePage() {
                 review={demo?.story ? <DemoReview story={demo.story} criteria={lastRun.run.criteria} /> : undefined}
                 demoTitle={demo?.title}
                 amountUnit={!!demo}
+                // デモ以外は、この画面を STEP 4（実行・品質確認）にして、出力・保存は STEP 5 で行う
+                onNext={demo ? undefined : () => setScreen('output')}
                 footer={
                   demo ? (
                     // デモの終わり：TOPページに戻る（主）・作業手順に戻る（副）・別のデモを試す（補助）
@@ -561,6 +571,21 @@ export default function WorkspacePage() {
                     </nav>
                   ) : undefined
                 }
+              />
+            )}
+            {screen === 'output' && lastRun && (
+              <OutputStep
+                run={lastRun.run}
+                snap={lastRun.snap}
+                onBack={() => setScreen('result')}
+                onExport={doExport}
+                exporting={exporting}
+                exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
+                exportError={exportError}
+                confirmed={!needsConfirm || confirmed}
+                onSave={() => setSaving(true)}
+                saved={saveState === 'none'}
+                onOpen={() => setOpening(true)}
               />
             )}
           </>
