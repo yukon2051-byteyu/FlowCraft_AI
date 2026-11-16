@@ -4,6 +4,7 @@ GET    /api/ai/status ：AIの状態（使わない・固定応答・実際のAI
 POST   /api/ai/auth   ：AI使用パスワードで認証する（成功したら、このセッションに期限つきの印を付ける）
 DELETE /api/ai/auth   ：認証を解除する（共有のPCで「AIの利用を終える」）
 POST   /api/ai/check  ：AIの接続を確かめる（認証と上限の確認を通って、最小の呼び出しを1回行う）
+POST   /api/ai/diagnosis/context：AI業務改善診断に送る材料を作り、送る前に見せる（AIは呼ばない・パスワード不要）
 パスワード・APIキー・費用の金額は返さない。
 """
 
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.ai.auth import AiState, auth_expires_at, authenticate, get_ai_state, logout
 from app.ai.client import fixed_response
+from app.ai.context import ContextPreview, ContextRequest, build_context
 from app.ai.guard import AiContext, require_ai, run_ai
 from app.api.session import current_session
 from app.config import Settings, get_settings
@@ -66,6 +68,15 @@ def ai_auth(
 def ai_logout(session: Session = Depends(current_session)) -> Response:
     logout(session)
     return Response(status_code=204)
+
+
+@router.post("/ai/diagnosis/context", response_model=ContextPreview)
+def diagnosis_context(req: ContextRequest, session: Session = Depends(current_session)) -> ContextPreview:
+    """AI業務改善診断に送る材料（A-2）。AIは呼ばないので、パスワードは求めない。
+
+    送る前に利用者に見せる文章と、実際に送る文章は同じ（text）。個人情報と思われる列の値は送らない（excluded）。
+    """
+    return build_context(session, req)
 
 
 class CheckResult(BaseModel):
