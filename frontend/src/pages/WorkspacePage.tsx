@@ -17,6 +17,10 @@ import { DefineInputs } from '../components/workspace/DefineInputs'
 import { FlowSteps } from '../components/workspace/FlowSteps'
 import { OutputStep } from '../components/workspace/run/OutputStep'
 import { BackToDemos } from '../components/demo/BackToDemos'
+import { useQuery } from '@tanstack/react-query'
+import { isAvailable } from '../content/featureStatus'
+import { AiDiagnosis } from '../components/workspace/ai/AiDiagnosis'
+import { getAiStatus } from '../api/ai'
 import { RunResults } from '../components/workspace/run/RunResults'
 import { SaveDialog } from '../components/workspace/SaveDialog'
 import { HistoryDialog } from '../components/workspace/HistoryDialog'
@@ -308,6 +312,8 @@ export default function WorkspacePage() {
   const [templateError, setTemplateError] = useState<ApiErrorBody | null>(null)
   const setDescription = useFlowStore((s) => s.setDescription)
   const description = useFlowStore((s) => s.flow.description)
+  // AIの状態（使わない・固定応答・実際のAI）。分からないときは「開発中」として扱う（選べない）
+  const aiStatus = useQuery({ queryKey: ['ai-status'], queryFn: getAiStatus, retry: false }).data?.status ?? null
   const defs = useFlowStore((s) => s.flow.input_definitions)
   const bindings = useFlowStore((s) => s.bindings)
   const choose = (m: StartMode) => {
@@ -378,6 +384,8 @@ export default function WorkspacePage() {
                   ? '始め方を選んでください（どの方法でも、同じ処理の仕組みと品質の確認を使います）'
                   : screen === 'describe'
                     ? '案件名とやりたい作業を入れて、手順の作り方を選んでください'
+                    : screen === 'ai_diagnosis'
+                      ? 'AIに送る情報を確かめてから、AIに質問を作ってもらってください（回答は任意です）'
                     : screen === 'output'
                       ? 'Excelに出力して、作業を終えてください（作業手順の保存は任意です）'
                     : screen === 'result'
@@ -415,6 +423,14 @@ export default function WorkspacePage() {
               <DescribeWork
                 initialName={flowName}
                 initialDescription={description}
+                // AIで業務を改善する：固定応答（開発・テスト）か、実際のAIがあり機能が完成しているときだけ選べる
+                ai={aiStatus === 'fixed' || (aiStatus === 'live' && isAvailable('kaizen')) ? 'selectable' : aiStatus === 'off' ? 'off' : 'dev'}
+                onAi={(v) => {
+                  renameFlow(v.name)
+                  setDescription(v.description)
+                  setDescribed(true)
+                  setScreen('ai_diagnosis')
+                }}
                 onBack={() => {
                   setParams({}, { replace: true })
                   setScreen('start')
@@ -450,6 +466,9 @@ export default function WorkspacePage() {
                   setScreen('data')
                 }}
               />
+            )}
+            {screen === 'ai_diagnosis' && (
+              <AiDiagnosis name={flowName} purpose={description} onBack={() => setScreen('describe')} onSkip={() => setScreen('describe')} />
             )}
             {screen === 'describe' && templateError && (
               <div className="shrink-0 border-t border-edge px-6 py-3">

@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from app.ai.auth import AiState, auth_expires_at, authenticate, get_ai_state, logout
 from app.ai.client import fixed_response
 from app.ai.context import ContextPreview, ContextRequest, build_context
+from app.ai.diagnosis import QuestionsResponse, ask_questions
 from app.ai.guard import AiContext, require_ai, run_ai
 from app.api.session import current_session
 from app.config import Settings, get_settings
@@ -77,6 +78,15 @@ def diagnosis_context(req: ContextRequest, session: Session = Depends(current_se
     送る前に利用者に見せる文章と、実際に送る文章は同じ（text）。個人情報と思われる列の値は送らない（excluded）。
     """
     return build_context(session, req)
+
+
+@router.post("/ai/diagnosis/questions", response_model=QuestionsResponse)
+def diagnosis_questions(req: ContextRequest, ctx: AiContext = Depends(require_ai)) -> QuestionsResponse:
+    """AI業務改善診断：データからは分からない業務の背景を、AIに質問してもらう（初回は3問まで。A-3）。
+
+    材料はサーバーで組み立て直す。同じ材料なら前回の結果を返し、AIは呼ばない。
+    """
+    return ask_questions(ctx, req)
 
 
 class CheckResult(BaseModel):

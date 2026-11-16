@@ -121,7 +121,7 @@ test('作業起点（1366×768）：「改善診断をせずに手順を作る�
   await page.goto('/build?start=work')
   const list = page.getByRole('radiogroup', { name: 'もとにするひな形' })
   // 開発中の機能は小さな印（選べない）
-  await expect(page.getByRole('radio', { name: 'AIで業務を改善する' })).toContainText('開発中')
+  await expect(page.getByRole('radio', { name: 'AIで業務を改善する' })).toContainText('利用できません') // テスト用のサーバーはAIを使わない設定
   await page.getByRole('textbox', { name: '案件名' }).fill('月次売上集計')
   // 「改善診断をせずに手順を作る」→ 次の操作の案内と、ひな形の一覧が見える位置へ
   await page.getByRole('radiogroup', { name: '改善診断' }).getByRole('radio', { name: '改善診断をせずに手順を作る' }).click()

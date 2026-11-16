@@ -5,7 +5,7 @@
  * サーバー側の API_REVISION（backend/app/__init__.py）と同じ値にする（バックエンドのテストで確かめる）。
  */
 
-export const EXPECTED_API_REVISION = 5
+export const EXPECTED_API_REVISION = 6
 
 export type ServerCheck = { state: 'ok' } | { state: 'old'; revision: number | null } | { state: 'unreachable'; status: number | null }
 

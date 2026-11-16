@@ -39,6 +39,8 @@ class Session:
     ai_auth_at: float | None = None  # 認証した時刻
     ai_last_use: float | None = None  # 最後に認証・AIを使った時刻（ここから一定時間で切れる）
     ai_failures: list[float] = field(default_factory=list)  # 認証に失敗した時刻（回数の制限に使う）
+    # AIの結果（材料の指紋ごと）。同じ材料をもう一度AIに送らないために使う（メモリ上だけ。セッションと一緒に消える）
+    ai_cache: dict[str, Any] = field(default_factory=dict)
 
 
 class SessionStore:

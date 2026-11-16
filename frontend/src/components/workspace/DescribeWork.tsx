@@ -26,6 +26,12 @@ type Props = {
   initialDescription: string
   onBack: () => void
   onNext: (v: { name: string; description: string; diagnosis: DiagnosisState; method: BuildMethod; templateId: string | null }) => void
+  /**
+   * 「AIで業務を改善する」の状態（A-3）。selectable：選べる／dev：開発中で選べない／off：このサーバーではAIを使えない
+   */
+  ai?: 'selectable' | 'dev' | 'off'
+  /** 「AIで業務を改善する」を選んで次へ（AIに送る情報の確認へ） */
+  onAi?: (v: { name: string; description: string }) => void
   busy?: boolean
 }
 
@@ -38,12 +44,12 @@ function scrollToEl(el: HTMLElement | null) {
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
 }
 
-export function DescribeWork({ initialName, initialDescription, onBack, onNext, busy = false }: Props) {
+export function DescribeWork({ initialName, initialDescription, onBack, onNext, ai = 'dev', onAi, busy = false }: Props) {
   const [name, setName] = useState(initialName === DEFAULT_NAME ? '' : initialName)
   const [description, setDescription] = useState(initialDescription)
-  const aiDiagnosis = isAvailable('kaizen')
   const aiBuild = isAvailable('aiFlow')
   const [skipChosen, setSkipChosen] = useState(false)
+  const [aiChosen, setAiChosen] = useState(false)
   const [method, setMethod] = useState<BuildMethod>('template')
   const [templateId, setTemplateId] = useState<string | null>(null)
   const templates = useQuery({ queryKey: ['templates'], queryFn: listTemplates })
@@ -56,7 +62,12 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
   const [tried, setTried] = useState(false)
   const nameError = tried ? nameProblem : null
 
+  const chooseAi = () => {
+    setAiChosen(true)
+    setSkipChosen(false)
+  }
   const chooseSkip = () => {
+    setAiChosen(false)
     setSkipChosen(true)
     // 選んだ直後だけ、次の操作（ひな形を選ぶ）の位置へ動かす（再描画や入力中には動かさない）
     requestAnimationFrame(() => scrollToEl(methodRef.current))
@@ -64,6 +75,14 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
   const goName = () => {
     scrollToEl(nameRef.current)
     nameRef.current?.focus({ preventScroll: true })
+  }
+  const goAi = () => {
+    if (nameProblem) {
+      setTried(true)
+      goName()
+      return
+    }
+    onAi?.({ name: trimmed, description: description.trim() })
   }
   const next = () => {
     if (nameProblem) {
@@ -126,7 +145,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
             </label>
           </section>
 
-          {/* ② 改善診断を受けるか選ぶ（2択）。AIはできるまで開発中で選べない */}
+          {/* ② 改善診断を受けるか選ぶ（2択）。AIは使えるときだけ選べる（使えないときは理由を示す） */}
           <section className="rounded-2xl bg-panel px-5 py-4 ring-1 ring-edge" aria-label="この作業を見直しますか">
             <h2 className="font-bold text-white">
               <span className="mr-1.5 text-[0.85rem] text-mint">②</span>この作業を見直しますか？<span className="ml-1.5 text-[0.82rem] font-normal text-subtle">任意</span>
@@ -134,12 +153,13 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
             <div className="mt-2.5 grid grid-cols-2 gap-3" role="radiogroup" aria-label="改善診断">
               <DiagnosisCard
                 ai
-                available={aiDiagnosis}
-                selected={false}
-                onSelect={() => undefined}
+                available={ai === 'selectable' && !!onAi}
+                off={ai === 'off'}
+                selected={aiChosen}
+                onSelect={chooseAi}
                 title="AIで業務を改善する"
                 body="作業内容やExcelデータをAIが分析し、不要な作業の廃止・簡素化・標準化・自動化の観点から改善案を提案します。"
-                note="AI使用パスワードが必要です。"
+                note={ai === 'off' ? 'AI使用パスワードが必要です。AI機能は現在利用できません（このサーバーではAIが設定されていません）。' : 'AI使用パスワードが必要です。'}
               />
               <DiagnosisCard
                 available
@@ -152,7 +172,17 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
             </div>
           </section>
 
+          {aiChosen && (
+            <p className="flex items-start gap-2 rounded-2xl bg-panel px-5 py-4 text-[0.9rem] text-subtle ring-1 ring-edge" role="note" aria-label="手順の作り方">
+              <Info className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+              <span>
+                <span className="font-bold text-white">③ 作業手順の作り方は、AIの改善案を確かめた後で選びます。</span>
+                次の画面で、AIに送る情報を確かめてから診断を始めます。
+              </span>
+            </p>
+          )}
           {/* ③ 作業手順のひな形を選ぶ（ほかの作り方も、ここで選ぶ） */}
+          {!aiChosen && (
           <section ref={methodRef} className="scroll-mt-3 rounded-2xl bg-panel px-5 py-4 ring-1 ring-edge" aria-label="手順の作り方">
             {skipChosen && method === 'template' && !templateId && (
               <p role="status" className="mb-3 flex items-start gap-2 rounded-xl bg-mint/10 px-3.5 py-2.5 ring-1 ring-mint/40">
@@ -194,6 +224,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
               「改善診断を受けない」と「AIを使わない」は別のことです。AIを使う操作を選んだときだけ、その直前にパスワードの入力を求めます。
             </p>
           </section>
+          )}
         </div>
       </div>
 
@@ -204,7 +235,12 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
           開始方法を選び直す
         </Button>
         <div className="ml-auto flex items-center gap-3">
-          {needTemplate ? (
+          {aiChosen ? (
+            <Button variant="primary" disabled={busy} onClick={goAi}>
+              次へ：AIに送る情報を確かめる
+              <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          ) : needTemplate ? (
             <Button variant="primary" onClick={() => scrollToEl(methodRef.current)}>
               ひな形を選ぶ
               <ArrowDown className="size-4" aria-hidden />
@@ -241,6 +277,7 @@ function FieldBadge({ required = false }: { required?: boolean }) {
 function DiagnosisCard({
   ai = false,
   available,
+  off = false,
   selected,
   onSelect,
   title,
@@ -249,6 +286,8 @@ function DiagnosisCard({
 }: {
   ai?: boolean
   available: boolean
+  /** このサーバーではAIを使えない（開発中ではなく、設定がない） */
+  off?: boolean
   selected: boolean
   onSelect: () => void
   title: string
@@ -270,7 +309,7 @@ function DiagnosisCard({
           pick()
         }
       }}
-      title={available ? undefined : 'この機能は開発中のため、まだ選べません'}
+      title={available ? undefined : off ? 'このサーバーではAIが設定されていないため、選べません' : 'この機能は開発中のため、まだ選べません'}
       className={`flex gap-3 rounded-xl px-4 py-3 ring-1 transition-colors focus-visible:outline-2 focus-visible:outline-mint ${
         !available
           ? `cursor-not-allowed ${ai ? 'bg-mint/5 ring-mint/30' : 'bg-white/3 ring-edge'}`
@@ -289,7 +328,8 @@ function DiagnosisCard({
       <span className="min-w-0">
         <span className="flex flex-wrap items-center gap-2">
           <span className={`font-bold ${selected ? 'text-mint' : available ? 'text-white' : 'text-white/70'}`}>{title}</span>
-          {!available && ai && <DevBadge feature="kaizen" />}
+          {!available && ai && !off && <DevBadge feature="kaizen" />}
+          {!available && off && <span className="rounded-full px-2 py-0.5 text-[0.75rem] font-bold text-subtle ring-1 ring-edge">利用できません</span>}
         </span>
         <span className={`mt-0.5 block text-[0.84rem] leading-relaxed ${available ? 'text-white/80' : 'text-white/55'}`}>{body}</span>
         <span className={`mt-1 block text-[0.8rem] ${ai ? 'text-mint/80' : 'text-subtle'}`}>{note}</span>

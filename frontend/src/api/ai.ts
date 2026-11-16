@@ -51,3 +51,21 @@ export type ContextPreview = {
 export function buildDiagnosisContext(req: ContextRequest): Promise<ContextPreview> {
   return apiRequest<ContextPreview>('/api/ai/diagnosis/context', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
 }
+
+export type DiagnosisQuestion = { question: string; why: string; examples: string[] }
+
+export type QuestionsResponse = {
+  /** 材料から把握したこと（1〜2文） */
+  understanding: string
+  /** 初回は3問まで */
+  questions: DiagnosisQuestion[]
+  fingerprint: string
+  /** 前回の結果を返した（AIは呼んでいない） */
+  cached: boolean
+  mode: 'fixed' | 'live'
+}
+
+/** AIに、データからは分からない業務の背景を質問してもらう（AIを使う。認証が必要） */
+export function askDiagnosisQuestions(req: ContextRequest): Promise<QuestionsResponse> {
+  return apiRequest<QuestionsResponse>('/api/ai/diagnosis/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+}
