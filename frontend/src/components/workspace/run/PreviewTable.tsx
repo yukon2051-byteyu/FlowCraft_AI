@@ -1,12 +1,23 @@
 import { COLUMN_TYPE_LABEL } from '../../../api/files'
 import type { ColumnType } from '../../../api/files'
 import type { TablePreview } from '../../../api/flows'
+import { groupDigits } from '../../../flow/numberFormat'
 
 /**
  * 処理の結果の表（先頭の一部）。表示している行数と全体の行数を分けて示す。
- * 明るいパネルの中で使う。
+ * 明るいパネルの中で使う。数値の列は右揃え・3桁区切り（表示だけ。値は変えない）。unitFor で見出しに単位を添えられる。
  */
-export function PreviewTable({ table, title, maxHeight = '18rem' }: { table: TablePreview; title?: string; maxHeight?: string }) {
+export function PreviewTable({
+  table,
+  title,
+  maxHeight = '18rem',
+  unitFor,
+}: {
+  table: TablePreview
+  title?: string
+  maxHeight?: string
+  unitFor?: (column: string, type: string) => string | null
+}) {
   const numeric = (i: number) => table.types[i] === 'integer' || table.types[i] === 'decimal'
   return (
     <div>
@@ -25,8 +36,9 @@ export function PreviewTable({ table, title, maxHeight = '18rem' }: { table: Tab
             <thead className="sticky top-0 z-10">
               <tr>
                 {table.columns.map((c, i) => (
-                  <th key={`${c}-${i}`} className="border-b border-line bg-card px-2.5 py-1.5 text-left font-bold whitespace-nowrap">
+                  <th key={`${c}-${i}`} className={`border-b border-line bg-card px-2.5 py-1.5 font-bold whitespace-nowrap ${numeric(i) ? 'text-right' : 'text-left'}`}>
                     {c}
+                    {unitFor?.(c, table.types[i]) && <span className="ml-0.5 font-medium">（{unitFor(c, table.types[i])}）</span>}
                     <span className="ml-1 text-[0.72rem] font-medium text-muted">{COLUMN_TYPE_LABEL[table.types[i] as ColumnType] ?? ''}</span>
                   </th>
                 ))}
@@ -37,7 +49,7 @@ export function PreviewTable({ table, title, maxHeight = '18rem' }: { table: Tab
                 <tr key={ri} className="bg-paper hover:bg-mint-soft">
                   {r.map((v, ci) => (
                     <td key={ci} title={v ?? '空欄'} className={`max-w-[14rem] truncate border-b border-line px-2.5 py-1 whitespace-nowrap ${numeric(ci) ? 'text-right tabular-nums' : ''}`}>
-                      {v === null ? <span className="text-[0.75rem] text-muted/60">（空欄）</span> : v}
+                      {v === null ? <span className="text-[0.75rem] text-muted/60">（空欄）</span> : numeric(ci) ? groupDigits(v) : v}
                     </td>
                   ))}
                 </tr>

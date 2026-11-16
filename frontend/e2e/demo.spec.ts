@@ -28,7 +28,7 @@ test('TOP の「品質の確認」から品質異常のデモを始めると、�
   await throughDemoSteps(page)
 
   // デモの案内と、読み込まれた作業手順（完了基準つき）・実行時に指定する値
-  await expect(banner(page)).toContainText('デモ：月次売上集計デモ（品質異常）')
+  await expect(banner(page)).toContainText('月次売上集計デモ｜品質異常のデータで実行')
   await expect(banner(page)).toContainText('10月分のファイルに、11月の伝票が混ざっています。')
   await expect(page.getByRole('article', { name: /^ステップ9：/ })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('tab', { name: /完了基準 4/ })).toBeVisible()
@@ -57,7 +57,7 @@ test('案内の帯から正常終了のデモに切り替えると、正常と�
   await expect(banner(page)).toContainText('品質異常')
   await banner(page).getByRole('link', { name: '正常終了のデモに切り替える' }).click()
   // 同じデモの中の切り替え：データが変わるので「データを確認」から（作業を知るへは戻さない）
-  await expect(banner(page)).toContainText('デモ：月次売上集計デモ（正常終了）', { timeout: 20_000 })
+  await expect(banner(page)).toContainText('月次売上集計デモ｜正常データで実行', { timeout: 20_000 })
   await expect(page.getByRole('list', { name: '作業の段階' }).locator('[aria-current="step"]')).toContainText('データを確認')
   await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
   await run(page)
@@ -88,7 +88,7 @@ for (const [title, first, evidence] of [
     await page.goto('/')
     await page.getByRole('article', { name: title }).getByRole('link', { name: `${title}：異常デモを実行` }).click()
     await throughDemoSteps(page)
-    await expect(banner(page)).toContainText(`デモ：${title}（品質異常）`, { timeout: 20_000 })
+    await expect(banner(page)).toContainText(`${title}｜品質異常のデータで実行`, { timeout: 20_000 })
     await run(page)
     await expect(verdictBox(page)).toContainText('総合判定：重大')
     const top = page.getByRole('region', { name: '完了基準の判定' }).getByRole('listitem').first()
@@ -149,7 +149,7 @@ for (const [id, title] of [
       await page.keyboard.press(key)
       await expect(page).toHaveURL(new RegExp(`/build[?]demo=${id}&pattern=${pattern}$`))
       await throughDemoSteps(page)
-      await expect(banner(page)).toContainText(`デモ：${title}（${label}）`, { timeout: 20_000 })
+      await expect(banner(page)).toContainText(`${title}｜${label === '正常終了' ? '正常データで実行' : '品質異常のデータで実行'}`, { timeout: 20_000 })
       await run(page)
       await expect(verdictBox(page)).toContainText(verdict)
     })

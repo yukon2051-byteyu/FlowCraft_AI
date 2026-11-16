@@ -24,10 +24,11 @@ test('作業起点：ひな形から仮の手順を作り、データを読み�
   await page.getByRole('textbox', { name: 'やりたい作業・目的' }).fill('営業会議で使う')
   const ways = page.getByRole('radiogroup', { name: '手順の作り方' })
   await expect(ways.getByRole('radio', { name: 'ひな形から作る' })).toHaveAttribute('aria-checked', 'true')
-  const next = page.getByRole('button', { name: '次へ：手順を確認する' })
-  await expect(next).toBeDisabled() // ひな形を選ぶまで進めない
+  // ひな形を選ぶまでは「このひな形で進む」は出さず、「ひな形を選ぶ」で一覧へ案内する
+  await expect(page.getByRole('button', { name: 'このひな形で進む' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'ひな形を選ぶ' })).toBeVisible()
   await page.getByRole('radiogroup', { name: 'もとにするひな形' }).getByRole('radio', { name: '月次売上集計' }).click()
-  await next.click()
+  await page.getByRole('button', { name: 'このひな形で進む' }).click()
 
   // 仮の手順：作業の名前は引き継ぎ、まだデータを読み込んでいない（手順を確認する段階）
   await expect(page.getByRole('banner')).toContainText('部署別売上（10月）')

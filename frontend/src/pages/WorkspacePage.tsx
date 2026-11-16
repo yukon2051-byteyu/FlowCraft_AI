@@ -1,4 +1,5 @@
-import { LoaderCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, House, LoaderCircle } from 'lucide-react'
+import { Button } from '../components/ui/Button'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { AppHeader } from '../components/workspace/AppHeader'
@@ -541,6 +542,27 @@ export default function WorkspacePage() {
                 exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
                 exportError={exportError}
                 review={demo?.story ? <DemoReview story={demo.story} criteria={lastRun.run.criteria} /> : undefined}
+                demoTitle={demo?.title}
+                amountUnit={!!demo}
+                footer={
+                  demo ? (
+                    // デモの終わり：TOPページに戻る（主）・作業手順に戻る（副）・別のデモを試す（補助）
+                    <nav aria-label="デモの終了" className="flex shrink-0 items-center gap-3 border-t border-edge bg-nav px-6 py-3">
+                      <Button to="/" variant="primary">
+                        <House className="size-4" aria-hidden />
+                        TOPページに戻る
+                      </Button>
+                      <Button variant="outlineDark" size="sm" onClick={() => setScreen('edit')}>
+                        <ArrowLeft className="size-4" aria-hidden />
+                        作業手順に戻る
+                      </Button>
+                      <Button to="/#demo" variant="ghostDark" size="sm" className="ml-auto">
+                        別のデモを試す
+                        <ArrowRight className="size-4" aria-hidden />
+                      </Button>
+                    </nav>
+                  ) : undefined
+                }
               />
             )}
           </>

@@ -158,3 +158,48 @@ test('デモの後に「自分のExcelで試す」で開くと、デモの作業
   await expect(page.getByText('部署マスタ.csv').first()).toBeVisible()
   await expect(page.getByRole('note', { name: 'デモの案内' })).toHaveCount(0)
 })
+
+test('デモの完了画面：完了のまとめ（処理と品質を分けて）・3桁区切りの表・表の近くの出力・終わりの操作。品質異常では正式な出力をしない', async ({ page }) => {
+  test.setTimeout(180_000)
+  // 正常データ
+  await page.goto('/build?demo=product_match&pattern=ok')
+  await throughDemoSteps(page)
+  await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
+  const summary = page.getByRole('region', { name: '完了のまとめ' })
+  await expect(summary).toContainText('商品マスタ照合が完了しました', { timeout: 30_000 })
+  await expect(summary).toContainText('品質検証を通過しました。正式なExcelを出力できます。')
+  await expect(summary).toContainText('最後まで実行（正常終了）')
+  await expect(summary).toContainText('完了基準 3件のうち 3件を満たした')
+  await expect(summary).toContainText('照合できない商品コードが0件：満たした')
+  await expect(summary).toContainText(/カテゴリ別売上 \d+行/)
+  // 案内の帯：どのデータで実行したかを一目で。詳しい説明は折りたたみ（初めは閉じている）
+  const banner = page.getByRole('note', { name: 'デモの案内' })
+  await expect(banner).toContainText('商品マスタ照合デモ｜正常データで実行')
+  await expect(banner.getByText('このデモの確認ポイントを見る')).toBeVisible()
+  await expect(banner.locator('details')).not.toHaveAttribute('open', '')
+  // 出力する表：金額は3桁区切り・右揃え・単位
+  const out = page.getByRole('region', { name: '出力する表' })
+  await expect(out.locator('thead')).toContainText('売上合計（円）')
+  await expect(out.locator('tbody td').filter({ hasText: /^\d{1,3}(,\d{3})+$/ }).first()).toBeVisible()
+  // 表の近くから Excel に出力できる（上の結論の欄と同じ処理）
+  const [download] = await Promise.all([page.waitForEvent('download'), out.getByRole('button', { name: 'Excelに出力する' }).click()])
+  expect(download.suggestedFilename()).toContain('_結果_')
+  // 終わりの操作：TOPページに戻る（主）・作業手順に戻る（副）・別のデモを試す（補助）
+  const end = page.getByRole('navigation', { name: 'デモの終了' })
+  await expect(end.getByRole('link', { name: 'TOPページに戻る' })).toHaveAttribute('href', '/')
+  await expect(end.getByRole('link', { name: '別のデモを試す' })).toHaveAttribute('href', '/#demo')
+  await end.getByRole('button', { name: '作業手順に戻る' }).click()
+  await expect(page.getByRole('button', { name: '結果を見る（再実行しない）' })).toBeVisible()
+  await page.getByRole('button', { name: '結果を見る（再実行しない）' }).click()
+
+  // 品質異常のデータに切り替え：重大と正式な出力の停止。表の近くに正式な出力のボタンは出さない
+  await banner.getByRole('link', { name: '品質異常のデモに切り替える' }).click()
+  await expect(banner).toContainText('商品マスタ照合デモ｜品質異常のデータで実行', { timeout: 20_000 })
+  await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
+  await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
+  await expect(summary).toContainText('重大な品質異常を検出しました。正式出力を停止しています。', { timeout: 30_000 })
+  await expect(summary).toContainText('照合できない商品コードが0件：満たしていない')
+  await expect(page.getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: '実行の結論' }).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' })).toBeVisible()
+  await expect(end.getByRole('link', { name: 'TOPページに戻る' })).toBeVisible()
+})

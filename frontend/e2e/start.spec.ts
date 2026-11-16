@@ -35,6 +35,8 @@ test('作業起点：案件名と作業を入れると、作業手順の名前�
   const diagnosis = page.getByRole('radiogroup', { name: '改善診断' })
   await expect(diagnosis.getByRole('radio', { name: 'AI改善診断を受ける' })).toHaveAttribute('aria-disabled', 'true')
   await expect(diagnosis.getByRole('radio', { name: '簡易チェックで見直す' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(diagnosis.getByRole('radio', { name: '診断せずに進む' })).toHaveAttribute('aria-checked', 'false')
+  await diagnosis.getByRole('radio', { name: '診断せずに進む' }).click()
   await expect(diagnosis.getByRole('radio', { name: '診断せずに進む' })).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByRole('radiogroup', { name: '手順の作り方' }).getByRole('radio', { name: 'AIで手順を作る' })).toHaveAttribute('aria-disabled', 'true')
 
@@ -90,4 +92,31 @@ test('保存した手順を使う：作業手順を開く画面が出る。作�
   const items = await stepTexts(page)
   expect(items[0]).toContain('不要')
   expect(items.find((t) => t.includes('データを読み込む'))).toBeTruthy()
+})
+
+test('作業起点（1366×768）：「診断せずに進む」を選ぶと、次にひな形を選ぶことを示し、ひな形の一覧へ動く。下部からも一覧へ行ける', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto('/build?start=work')
+  const list = page.getByRole('radiogroup', { name: 'もとにするひな形' })
+  // 開発中の機能は小さな印（選べない）
+  await expect(page.getByText('改善診断機能は開発中です。')).toBeVisible()
+  // 案件名がないときは、短い言葉で示し、押すと入力欄へ
+  await page.getByRole('button', { name: '案件名を入力してください' }).click()
+  await expect(page.getByRole('textbox', { name: '案件名' })).toBeFocused()
+  await page.getByRole('textbox', { name: '案件名' }).fill('月次売上集計')
+  // 「診断せずに進む」→ 次の操作の案内と、ひな形の一覧が見える位置へ
+  await page.getByRole('radiogroup', { name: '改善診断' }).getByRole('radio', { name: '診断せずに進む' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '次に、作業手順のひな形を選んでください' })).toBeVisible()
+  await expect(list.getByRole('radio').first()).toBeInViewport({ timeout: 5_000 })
+  // 一番上まで戻しても、下部の「ひな形を選ぶ」で一覧へ行ける
+  await page.getByRole('textbox', { name: '案件名' }).scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'ひな形を選ぶ' }).click()
+  await expect(list.getByRole('radio').first()).toBeInViewport({ timeout: 5_000 })
+  // キーボードでもひな形を選べる。選ぶと「このひな形で進む」
+  await list.getByRole('radio', { name: '商品マスタ照合' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(list.getByRole('radio', { name: '商品マスタ照合' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('status').filter({ hasText: '次に、作業手順のひな形を選んでください' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'このひな形で進む' }).click()
+  await expect(page.getByRole('banner')).toContainText('月次売上集計')
 })

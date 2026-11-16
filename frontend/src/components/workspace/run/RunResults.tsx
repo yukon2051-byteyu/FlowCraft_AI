@@ -16,6 +16,8 @@ import { CompareWithFile } from './CompareWithFile'
 import type { Analysis, Comparison } from './AnalysisReport'
 import { IssueList } from './IssueList'
 import { PreviewTable } from './PreviewTable'
+import { DemoResultSummary } from './DemoResultSummary'
+import { isAmountColumn } from '../../../flow/numberFormat'
 
 /*
  * タスク1-6：作業手順全体の実行結果。
@@ -52,9 +54,15 @@ type Props = {
   saved: boolean
   /** デモ：改善内容の振り返り（品質ルールの結果の後に出す） */
   review?: ReactNode
+  /** デモ：冒頭に完了のまとめを出す（デモの名前） */
+  demoTitle?: string
+  /** 下部の操作（渡されたら「作業手順に戻る」の代わりに出す。デモの終わりの操作など） */
+  footer?: ReactNode
+  /** 金額らしい列の見出しに単位「円」を添える（デモの架空データは円） */
+  amountUnit?: boolean
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review, demoTitle, footer, amountUnit }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -79,10 +87,24 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
   const needsConfirm = verdict?.export === 'needs_confirmation'
   const previews = detail.data?.output_previews ?? []
 
+  // Excelに出力する（結論の欄と「出力する表」の近くで同じものを使う。正式な出力を止める決まりも同じ）
+  const exportButton = (
+    <Button
+      variant={reportOnly ? 'outlineDark' : 'primary'}
+      onClick={onExport}
+      disabled={exporting || (needsConfirm && !reportOnly && !confirmed)}
+      title={needsConfirm && !confirmed ? '「確認したうえで出力する」にチェックを入れると出力できます' : undefined}
+    >
+      {exporting ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileOutput className="size-4" aria-hidden />}
+      {reportOnly ? '確認結果をExcelに出力する（調査用）' : 'Excelに出力する'}
+    </Button>
+  )
+
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1200px] space-y-5 px-6 py-6">
+          {demoTitle && <DemoResultSummary run={run} title={demoTitle} />}
           <section className="rounded-2xl bg-panel p-6 ring-1 ring-edge" aria-label="実行の結論">
             {/* タスク2-5：総合判定を最初に大きく示す。処理がどこまで進んだかは、その下に */}
             {verdict && <VerdictBox verdict={verdict} />}
@@ -116,15 +138,7 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
                   </span>
                 </label>
               )}
-              <Button
-                variant={reportOnly ? 'outlineDark' : 'primary'}
-                onClick={onExport}
-                disabled={exporting || (needsConfirm && !reportOnly && !confirmed)}
-                title={needsConfirm && !confirmed ? '「確認したうえで出力する」にチェックを入れると出力できます' : undefined}
-              >
-                {exporting ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileOutput className="size-4" aria-hidden />}
-                {reportOnly ? '確認結果をExcelに出力する（調査用）' : 'Excelに出力する'}
-              </Button>
+              {exportButton}
               <span className="text-[0.85rem] text-subtle">
                 {reportOnly
                   ? '処理結果のシートは含めず、「確認結果」と「処理の記録」だけを出力します。'
@@ -201,8 +215,13 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
 
           {run.outputs.length > 0 && (
             <section className="light-panel rounded-2xl p-5" aria-label="出力する表">
-              <h2 className="font-bold">出力する表</h2>
-              <p className="mt-0.5 text-[0.85rem] text-muted">先頭の一部を表示しています。すべての行は「Excelに出力する」で保存できます。</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-bold">出力する表</h2>
+                  <p className="mt-0.5 text-[0.85rem] text-muted">先頭の一部を表示しています。すべての行は「Excelに出力する」で保存できます。</p>
+                </div>
+                {!reportOnly && <div className="[&_button]:shadow-none">{exportButton}</div>}
+              </div>
               <div className="mt-3 mb-2 flex flex-wrap gap-1" role="tablist" aria-label="出力するシート">
                 {run.outputs.map((o, i) => (
                   <button
@@ -224,18 +243,20 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
                 </p>
               )}
               {detail.error instanceof ApiError && <ErrorNotice error={detail.error.body} />}
-              {previews[sheet] && <PreviewTable table={previews[sheet]} maxHeight="24rem" />}
+              {previews[sheet] && <PreviewTable table={previews[sheet]} maxHeight="24rem" unitFor={amountUnit ? (c, t) => (isAmountColumn(c, t) ? '円' : null) : undefined} />}
             </section>
           )}
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
-        <Button variant="ghostDark" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" aria-hidden />
-          作業手順に戻る
-        </Button>
-      </div>
+      {footer ?? (
+        <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-3">
+          <Button variant="ghostDark" size="sm" onClick={onBack}>
+            <ArrowLeft className="size-4" aria-hidden />
+            作業手順に戻る
+          </Button>
+        </div>
+      )}
     </>
   )
 }
