@@ -46,10 +46,16 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
+# AI使用パスワードの最短の長さ（推測されにくくするため。12文字以上を勧める）
+MIN_PASSWORD_LENGTH = 8
+
+
 if __name__ == "__main__":
     import getpass
 
-    first = getpass.getpass("AI使用パスワード：")
+    first = getpass.getpass("AI使用パスワード（8文字以上）：")
+    if len(first) < MIN_PASSWORD_LENGTH:
+        raise SystemExit(f"パスワードが短すぎます（{len(first)}文字）。{MIN_PASSWORD_LENGTH}文字以上にして、もう一度やり直してください。")
     again = getpass.getpass("もう一度入力：")
     if first != again:
         raise SystemExit("2回の入力が一致しません。もう一度やり直してください。")
