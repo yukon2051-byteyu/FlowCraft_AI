@@ -83,7 +83,7 @@ function Hero() {
           <h1 className="leading-[1.3] font-bold tracking-tight text-white text-[2.5rem] xl:text-[2.6rem]">
             <span className="whitespace-nowrap">そのExcel作業、</span>
             <br />
-            <span className="whitespace-nowrap text-mint">自動化する前に、見直そう。</span>
+            <span className="whitespace-nowrap text-mint">自動化する前に、見直そう</span>
           </h1>
           <p className="mt-5 max-w-[34rem] text-[1.05rem] leading-relaxed text-subtle">
             その作業、本当に必要ですか？
@@ -200,7 +200,7 @@ function Reasons() {
       <div className="mx-auto max-w-7xl py-12 px-8 lg:py-14">
         <SectionHeading
           eyebrow="FlowCraft AIの6つの特徴"
-          title="Excelの処理だけでなく、その前と後ろまで。"
+          title="Excelの処理だけでなく、その前と後ろまで"
           lead="作業そのものを見直し、処理した結果が正しいかまで確かめる。生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。"
         />
         {/* 右側（02〜05）を少し広げて見出し・説明文の折り返しを減らし、カードの縦幅を抑える（01 はその高さに合わせて縮む） */}
@@ -290,7 +290,7 @@ function ScheduleCard() {
             <CalendarClock className="size-5" aria-hidden />
           </span>
           <span className="text-[0.8rem] text-subtle/70 tabular-nums">06</span>
-          <h3 className="min-w-0 flex-1 text-[1.2rem] leading-snug font-bold text-white">毎月のExcel作業を、確認するだけの業務へ。</h3>
+          <h3 className="min-w-0 flex-1 text-[1.2rem] leading-snug font-bold text-white">毎月のExcel作業を、確認するだけの業務へ</h3>
           <span className="shrink-0">
             <DevBadge feature="schedule" />
           </span>
@@ -658,7 +658,7 @@ function TryOwnExcel() {
         <div className="lg:col-start-1">
           <SectionHeading
             eyebrow="自分のExcelで試す"
-            title="一度作った手順を、何度でも使える。"
+            title="一度作った手順を、何度でも使える"
             lead="一度きりのExcel処理から、毎月の繰り返し作業、無人での定期実行まで。作業に合わせて使い方を選べます。"
           />
         </div>
@@ -777,7 +777,7 @@ function Trust() {
     <section id="trust" className="scroll-mt-16 border-t border-edge/60 bg-nav">
       <div className="mx-auto max-w-7xl py-10 px-8 lg:py-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <SectionHeading eyebrow="品質の確認" title="AI任せにしない。決めた基準で、毎回検証。" lead="件数・金額・重複・照合漏れなどを自動で確認。重大な異常があれば、正式な出力を止めます。" />
+          <SectionHeading eyebrow="品質の確認" title="AI任せにしない。決めた基準で、毎回検証" lead="件数・金額・重複・照合漏れなどを自動で確認。重大な異常があれば、正式な出力を止めます。" />
           <DevBadge feature="quality" className="mb-1" />
         </div>
 

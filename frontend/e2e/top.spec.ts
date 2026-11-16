@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 test('無人定期実行のカードは「開発中」と、5つの確認を示す', async ({ page }) => {
   await page.goto('/')
   const card = page.getByRole('article', { name: '決まった日時に無人で実行できる' })
-  await expect(card.getByRole('heading', { name: '毎月のExcel作業を、確認するだけの業務へ。' })).toBeVisible()
+  await expect(card.getByRole('heading', { name: '毎月のExcel作業を、確認するだけの業務へ' })).toBeVisible()
   await expect(card.getByText('開発中', { exact: true })).toHaveCount(3) // 無人定期実行・クラウドで試す・Windows Worker
   // 3分後の自動実行デモは、完成するまで押せない
   await expect(card.getByRole('button', { name: '3分後に自動実行を試す' })).toBeDisabled()
@@ -39,10 +39,19 @@ test('先頭に戻るボタン：先頭では隠れ、スクロールすると�
   expect(box.x + box.width).toBeGreaterThan(vp.width - 40) // 右下にある
   expect(box.y + box.height).toBeGreaterThan(vp.height - 40)
 
+  // 滑らかなスクロール：ブラウザに「滑らかに先頭へ」と指示したかを記録して確かめる
+  // （途中の位置を読む方法は、負荷が高いと時間がずれて不安定だったため、指示そのものを確かめる）
+  await page.evaluate(() => {
+    const w = window as unknown as { __scrollCalls: unknown[] }
+    w.__scrollCalls = []
+    const orig = window.scrollTo.bind(window) as (o?: ScrollToOptions) => void
+    window.scrollTo = ((o?: ScrollToOptions) => {
+      w.__scrollCalls.push(o)
+      orig(o)
+    }) as typeof window.scrollTo
+  })
   await btn.click()
-  // 滑らかなスクロール：押した直後はまだ途中にいて、少し待つと先頭に着く
-  const midway = await page.evaluate(() => new Promise<number>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.scrollY)))))
-  expect(midway).toBeGreaterThan(0)
+  expect(await page.evaluate(() => (window as unknown as { __scrollCalls: unknown[] }).__scrollCalls)).toContainEqual({ top: 0, behavior: 'smooth' })
   // 他のテストと同時に動くと描画が遅くなるため、着くまで長めに待つ
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBe(0)
   await expect(btn).toHaveCSS('opacity', '0')
@@ -59,7 +68,7 @@ test('特徴カードから詳しい説明へ：③「品質検証の仕組み�
   for (const href of ['#flow', '#trust', '#try']) await expect(page.locator(href)).toHaveCount(1)
 
   await features.getByRole('link', { name: '品質検証の仕組みを見る' }).click()
-  const heading = page.getByRole('heading', { name: 'AI任せにしない。決めた基準で、毎回検証。' })
+  const heading = page.getByRole('heading', { name: 'AI任せにしない。決めた基準で、毎回検証' })
   await expect(heading).toBeFocused()
   await expect.poll(async () => (await heading.boundingBox())?.y ?? -1, { timeout: 10_000 }).toBeGreaterThan(64)
   await expect.poll(async () => (await heading.boundingBox())?.y ?? 999, { timeout: 10_000 }).toBeLessThan(160)
@@ -75,7 +84,7 @@ test('キーボードでも使える。動きを減らす設定では、すぐ�
   const link = page.locator('#features').getByRole('link', { name: '保存・再実行について見る' })
   await link.focus()
   await page.keyboard.press('Enter')
-  const heading = page.getByRole('heading', { name: '一度作った手順を、何度でも使える。' })
+  const heading = page.getByRole('heading', { name: '一度作った手順を、何度でも使える' })
   await expect(heading).toBeFocused()
   await expect(heading).not.toHaveClass(/section-flash/)
   const y = (await heading.boundingBox())!.y

@@ -1,6 +1,6 @@
 # FlowCraft AI
 
-**そのExcel作業、自動化する前に、見直そう。**
+**そのExcel作業、自動化する前に、見直そう**
 
 Excel・CSVを使う業務について、作業の必要性の見直しから、処理の実行・結果の確認・継続的な改善までを支援するWebアプリケーションです（開発中）。
 
@@ -74,6 +74,27 @@ npm run dev
 
 ブラウザで http://localhost:5173 を開きます。画面からの `/api/...` の呼び出しは、開発サーバーがバックエンドへ中継します。
 
+## 困ったとき
+
+### 「サーバーが古い版のまま動いています」と表示される（デモが HTTP 404 になる）
+
+開発用のサーバー（ポート8000）が、古いプログラムのまま動いています。Windows では `--reload` 付きで起動したサーバーを止めても、
+実際に処理をしている**子プロセスが残り、ポート8000を使い続ける**ことがあります（2026-11-16 に確認）。次の手順で止めてから起動し直してください。
+
+```powershell
+# 1. ポート8000を使っている古いプロセスを確かめる（コマンドの中に multiprocessing.spawn とあるものが子プロセス）
+Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' } | Select-Object ProcessId, CreationDate, CommandLine
+
+# 2. 古いもの（起動日時が古いもの）を、番号を指定して止める
+Stop-Process -Id <番号>
+
+# 3. backend フォルダで起動し直す
+cd backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+止めたあと、画面上部の「もう一度確かめる」を押して、表示が消えれば解決です。
+
 ## テスト方法
 
 ```powershell
@@ -121,6 +142,8 @@ node scripts/screenshots.mjs screenshots
 | `/` | TOP（製品紹介） |
 | `/build` | 作る画面（ファイル読込 → 作業手順の作成）。PC専用。旧URL `/workspace` は自動で転送 |
 | `/build?view=sample` | サンプルの作業手順での画面表示 |
+| `/build?demo=<案件>&pattern=ok\|ng` | デモ（作業を知る → 手順と改善を確認 → データを確認 → 実行・品質確認 → 結果を確認） |
+| `/kaizen-demo` | 業務改善診断デモ「その集計、本当に必要？」（現状の確認 → 改善候補 → 判断 → 改善後の手順 → 改善前後の比較） |
 | `/dev/diagnostics` | 開発者向けのシステム状態 |
 
 ## 設計資料
@@ -130,8 +153,10 @@ node scripts/screenshots.mjs screenshots
 - [無人定期実行の設計](docs/scheduled-run-design.md)（設計のみ・未実装）
 - [クラウドの「3分後に自動実行を試す」の設計](docs/cloud-demo-design.md)（設計のみ・未実装）
 - [Windows Worker の設計](docs/windows-worker-design.md)（設計のみ・未実装）
-- [空白データの確認と品質ルールの設計](docs/blank-data-design.md)（設計のみ・未実装）
-- [デモ（正常終了／品質異常）の設計](docs/demo-design.md)（月次売上集計は実装済み）
+- [空白データの確認と品質ルールの設計](docs/blank-data-design.md)
+- [デモ（正常終了／品質異常）の設計](docs/demo-design.md)（3案件とも実装済み。業務の説明から始まる5段階）
+- [業務改善診断デモの受入確認](docs/kaizen-demo-acceptance.md)（受入条件13項目と自動テストの対応、設計上の判断）
+- [PC専用の方針](docs/pc-only.md)
 - [AI利用の認証と利用上限の設計](docs/ai-auth-design.md)（設計のみ。AI機能と同時に実装）
 
 ## データの取り扱い
