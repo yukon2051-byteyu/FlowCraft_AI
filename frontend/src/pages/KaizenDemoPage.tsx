@@ -15,7 +15,7 @@ import type { KaizenStepState } from '../components/kaizen/KaizenProgress'
 import { SiteHeader } from '../components/layout/SiteHeader'
 import { Button } from '../components/ui/Button'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
-import { STATUS_DONE_LABEL, firstUndecided, initialDecisions, problems } from '../kaizen/decisions'
+import { STATUS_DONE_LABEL, firstUndecided, initialDecisions, normalizeDecisions, problems, toPayload } from '../kaizen/decisions'
 import type { Decisions } from '../kaizen/decisions'
 import { clearKaizenState, handOffFlow, resumeState, runResultFor } from '../kaizen/handoff'
 
@@ -69,7 +69,7 @@ export default function KaizenDemoPage() {
     diagnoseScenario().then(
       (d) => {
         setDiagnosis(d)
-        setDecisions(resumed.decisions)
+        setDecisions(normalizeDecisions(resumed.decisions as unknown as Record<string, unknown>))
         setImprovement(resumed.improvement)
         // 作った作業手順を実行してから戻ってきたときは、比較（STEP 5）で実際の結果を見せる
         const ran = runResultFor((resumed.improvement?.flow as { flow_id?: string } | null)?.flow_id)
@@ -116,7 +116,7 @@ export default function KaizenDemoPage() {
     setError(null)
     setBusy(true)
     try {
-      setImprovement(await buildImprovement(decisions))
+      setImprovement(await buildImprovement(toPayload(decisions)))
       setStep(3)
     } catch (e) {
       setError(toBody(e))
@@ -156,7 +156,8 @@ export default function KaizenDemoPage() {
         </div>
         <h1 className="mt-6 text-[1.6rem] leading-snug font-bold text-white">
           <span className="mr-2 text-[1rem] text-mint">STEP {step + 1}</span>
-          {HEADINGS[step](minutes)}
+          {/* 読み込み終わるまでは数字を出さない（「毎月0分」と誤って見せない） */}
+          {scenario ? HEADINGS[step](minutes) : '業務の情報を読み込んでいます…'}
         </h1>
 
         {error && (

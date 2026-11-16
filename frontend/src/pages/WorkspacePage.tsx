@@ -26,6 +26,8 @@ import { DemoImprove } from '../components/workspace/demo/DemoImprove'
 import { DemoIntro } from '../components/workspace/demo/DemoIntro'
 import { DemoReview } from '../components/workspace/demo/DemoReview'
 import { handedFlow, saveRunResult } from '../kaizen/handoff'
+import { hasDemoSession, markDemoSession, takeDemoSession } from '../flow/demoSession'
+import { deleteFile } from '../api/files'
 import type { DemoPattern, DemoStart } from '../api/demos'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
 import { OpenDialog } from '../components/workspace/OpenDialog'
@@ -140,6 +142,7 @@ export default function WorkspacePage() {
     setFixError(null)
     try {
       const fixed = await startDemo(demo.demo_id, demo.fixed_pattern)
+      markDemoSession(fixed.bindings.map((b) => b.file_id))
       const current = useFlowStore.getState()
       current.clearBindings()
       fixed.bindings.forEach((b) => current.setBinding({ ...b, column_mapping: {} }))
@@ -169,6 +172,7 @@ export default function WorkspacePage() {
         setHistoryScope('demo')
         await clearRecords('demo')
         openFlow(d.flow)
+        markDemoSession(d.bindings.map((b) => b.file_id))
         d.bindings.forEach((b) => setBinding({ ...b, column_mapping: {} }))
         setRunValues(d.run_parameters)
         setOrigin('opened')
@@ -213,6 +217,7 @@ export default function WorkspacePage() {
         await clearRecords('demo')
         // 改善後の作業手順は、まだ保存していない新しい作業手順（初めて保存すると版1）
         useFlowStore.getState().startNewFlow(normalizeFlow(flow))
+        markDemoSession(k.bindings.map((b) => b.file_id))
         k.bindings.forEach((b) => setBinding({ ...b, column_mapping: {} }))
         setRunValues(k.run_parameters)
         setOrigin('opened')
@@ -241,6 +246,33 @@ export default function WorkspacePage() {
       criteria_passed: r.criteria.filter((c) => c.status === 'passed').length,
     })
   }, [kaizenRun, lastRun])
+
+  // デモ以外の入口（「自分のExcelで試す」など）で開いたとき、前に動かしたデモの作業手順とファイルを後片付けする。
+  // 利用者が自分で読み込んだファイルは消さない（デモで読み込んだファイルだけを記録している）。終わるまでファイルの一覧は出さない
+  const normalEntry = !params.get('demo') && !params.get('kaizen') && !sample
+  const [cleaningDemo, setCleaningDemo] = useState(() => normalEntry && hasDemoSession())
+  const [uploadKey, setUploadKey] = useState(0)
+  useEffect(() => {
+    if (!normalEntry || !hasDemoSession()) return
+    const ids = takeDemoSession()
+    void Promise.allSettled(ids.map((id) => deleteFile(id))).then(() => {
+      useFlowStore.getState().newFlow(DEFAULT_NAME)
+      setDemo(null)
+      setKaizenRun(false)
+      setLastRun(null)
+      setBeforeFix(null)
+      setHistoryScope('normal')
+      startedDemo.current = ''
+      startedKaizen.current = ''
+      const m = modeFromParam(params.get('start'))
+      setMode(m)
+      setScreen(m === 'WORK_FIRST' ? 'describe' : m === 'FILE_FIRST' ? 'data' : 'start')
+      setOpening(m === 'SAVED_WORKFLOW')
+      setUploadKey((k) => k + 1)
+      setCleaningDemo(false)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalEntry])
 
   // 未保存のままブラウザを閉じる・再読み込みする前に、ブラウザの確認を出す
   useEffect(() => {
@@ -415,8 +447,15 @@ export default function WorkspacePage() {
               </div>
             )}
             {/* 戻ったときに選んだ内容が消えないよう、画面を切り替えても部品は残しておく */}
-            <div className={screen === 'data' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
-              <UploadStart
+            {cleaningDemo && (
+              <p className="flex flex-1 items-center justify-center gap-2 text-subtle" role="status">
+                <LoaderCircle className="size-5 animate-spin" aria-hidden />
+                前のデモの作業手順とファイルを片付けています…
+              </p>
+            )}
+            <div className={screen === 'data' && !cleaningDemo ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+              {!cleaningDemo && <UploadStart
+                key={uploadKey}
                 onShowSample={() => setParams({ view: 'sample' })}
                 onOpenSaved={() => setOpening(true)}
                 onFileCountChange={setFileCount}
@@ -424,7 +463,7 @@ export default function WorkspacePage() {
                   setSources((prev) => (prev && sourcesKey(prev) === sourcesKey(s) ? prev : s))
                   setScreen('define')
                 }}
-              />
+              />}
             </div>
             {sources && (
               <div className={screen === 'define' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>

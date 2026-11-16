@@ -83,6 +83,13 @@ class StartResponse(BaseModel):
     story: StoryOut | None
 
 
+def replace_demo_files(session: Session) -> None:
+    """前にデモが読み込んだファイルを消す（ID で探す。利用者のファイルは消さない）"""
+    for file_id in session.demo_file_ids:
+        session.files.pop(file_id, None)
+    session.demo_file_ids.clear()
+
+
 @router.get("/demos", response_model=list[DemoOut])
 def list_demos() -> list[DemoOut]:
     return [
@@ -104,10 +111,8 @@ def start_demo(demo_id: str, req: StartRequest, session: Session = Depends(curre
         raise AppError(404, "DEMO_NOT_FOUND", "このデモは見つからないか、まだ使えません。", how_to_fix="TOP のデモの一覧から選び直してください。")
     pattern = demo.patterns[req.pattern]
 
-    # 前に開始したデモのファイルは入れ替える（利用者が自分で読み込んだファイルは消さない）
-    demo_names = {i.filename for d in DEMOS.values() for p in d.patterns.values() for i in p.inputs}
-    for file_id in [fid for fid, f in session.files.items() if getattr(f, "filename", None) in demo_names]:
-        del session.files[file_id]
+    # 前に開始したデモのファイルは入れ替える。デモが読み込んだ ID だけを消す（利用者が自分で読み込んだファイルは、同じ名前でも消さない）
+    replace_demo_files(session)
     if len(session.files) + len(pattern.inputs) > settings.max_files:
         raise AppError(
             409,
@@ -119,6 +124,7 @@ def start_demo(demo_id: str, req: StartRequest, session: Session = Depends(curre
     bindings = []
     for i in pattern.inputs:
         uploaded = accept_upload(session, (DATA_DIR / i.filename).read_bytes(), i.filename, settings)
+        session.demo_file_ids.add(uploaded.file_id)
         bindings.append(BindingOut(input_id=i.input_id, file_id=uploaded.file_id, sheet=i.sheet, header_row=1))
     return StartResponse(
         demo_id=demo.demo_id,

@@ -12,7 +12,8 @@ import { BANNED } from './helpers'
 
 test('現在の作業を確認し、改善候補を根拠とともに見る（AIは使っていない）', async ({ page }) => {
   await page.goto('/kaizen-demo')
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分のExcel作業。何に時間がかかっている？')
+  // 全件実行の最初に開く画面は、開発サーバーの準備で時間がかかるため長めに待つ
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分のExcel作業。何に時間がかかっている？', { timeout: 20_000 })
   const progress = page.getByRole('list', { name: 'デモの進み具合' })
   await expect(progress.locator('[aria-current="step"]')).toContainText('現在の作業を確認')
 
@@ -77,13 +78,13 @@ test('改善する作業を判断する：廃止は確認してから、前提�
   await decision('A').getByText('採用する').click()
   await expect(decision('A').getByRole('radio', { name: '採用する' })).toBeChecked()
   // 理由は選択肢から選べる
-  await page.getByRole('button', { name: 'すぐに実施できる' }).click()
-  await expect(page.getByRole('textbox', { name: /判断の理由/ }).first()).toHaveValue('すぐに実施できる')
+  await page.locator('#kz-card-A').getByRole('button', { name: '作業時間を削減できる' }).click()
+  await expect(page.locator('#kz-card-A').getByRole('textbox', { name: '採用する理由（自由入力）' })).toHaveValue('作業時間を削減できる')
   // 後から「要件がある」に変えると、採用は取り消される（確認なしに採用されない）
   await q.getByRole('radio', { name: '要件がある' }).check()
   await expect(decision('A').getByRole('radio', { name: '採用する' })).not.toBeChecked()
   await decision('A').getByText('採用しない').click()
-  await page.getByRole('button', { name: '業務上の要件がある' }).click()
+  await page.locator('#kz-card-A').getByRole('button', { name: '業務上の要件がある' }).click()
 
   // 簡素化（候補B）は、前提の候補C を採用するまで採用できない
   await expect(decision('B').getByRole('radio', { name: '採用する' })).toBeDisabled()
@@ -353,4 +354,56 @@ test('STEP 5 の終わり方：自動化しなくても成果を伝える。TOP�
   await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
   await page.goto('/kaizen-demo?resume=1')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('毎月90分')
+})
+
+test('判断の理由：候補は押せるボタン。選ぶと入力欄に入り、編集でき、判断ごとに保たれる。キーボードでも選べる', async ({ page }) => {
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  const card = page.locator('#kz-card-D')
+  await card.getByText('採用しない').click()
+  // 判断に合わせた見出しと説明、候補3つ（押せるボタン）
+  await expect(card).toContainText('採用しない理由任意・100文字まで')
+  await expect(card).toContainText('当てはまる理由を選ぶか、自由に入力してください。')
+  const group = card.getByRole('group', { name: '採用しない理由の候補' })
+  await expect(group.getByRole('button')).toHaveCount(3)
+  const input = card.getByRole('textbox', { name: '採用しない理由（自由入力）' })
+  // 選ぶと入力欄へ。選択の印が付く
+  await group.getByRole('button', { name: '効果が小さい' }).click()
+  await expect(input).toHaveValue('効果が小さい')
+  await expect(group.getByRole('button', { name: '効果が小さい' })).toHaveAttribute('aria-pressed', 'true')
+  // 別の候補に切り替え（単一選択）
+  await group.getByRole('button', { name: '別の方法で対応する' }).click()
+  await expect(input).toHaveValue('別の方法で対応する')
+  await expect(group.getByRole('button', { name: '効果が小さい' })).toHaveAttribute('aria-pressed', 'false')
+  // 同じ候補をもう一度押すと解除
+  await group.getByRole('button', { name: '別の方法で対応する' }).click()
+  await expect(input).toHaveValue('')
+  // 自由に編集すると、候補の選択は外れる。書き換えた文章は、確かめずに上書きしない（キャンセルなら残る）
+  await input.fill('効果が小さい。来期に再検討')
+  await expect(group.getByRole('button', { name: '効果が小さい' })).toHaveAttribute('aria-pressed', 'false')
+  page.once('dialog', (d) => void d.dismiss())
+  await group.getByRole('button', { name: '業務上の要件がある' }).click()
+  await expect(input).toHaveValue('効果が小さい。来期に再検討')
+  // 100文字まで
+  await input.fill('あ'.repeat(120))
+  await expect(input).toHaveValue('あ'.repeat(100))
+  await input.fill('効果が小さい。来期に再検討')
+  // 判断を切り替えると候補も切り替わり、理由は判断ごとに保たれる
+  await card.getByText('採用する').first().click()
+  await expect(card.getByRole('group', { name: '採用する理由の候補' })).toContainText('作業時間を削減できる')
+  await expect(card.getByRole('textbox', { name: '採用する理由（自由入力）' })).toHaveValue('')
+  await card.getByText('保留する').click()
+  await expect(card.getByRole('group', { name: '保留する理由の候補' })).toContainText('効果を検証したい')
+  await card.getByText('採用しない').click()
+  await expect(input).toHaveValue('効果が小さい。来期に再検討')
+  // キーボードでも選べる
+  await input.fill('')
+  await group.getByRole('button', { name: '効果が小さい' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('効果が小さい')
+  // STEP を戻っても、判断と理由は残る
+  await page.getByRole('button', { name: '前のSTEPへ戻る' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  await expect(page.locator('#kz-card-D').getByRole('textbox', { name: '採用しない理由（自由入力）' })).toHaveValue('効果が小さい')
 })

@@ -32,6 +32,9 @@ class Session:
     files: dict[str, Any] = field(default_factory=dict)
     # 実行ID → 実行結果（直近の数回分だけ保持。ディスクには保存しない）
     runs: dict[str, Any] = field(default_factory=dict)
+    # デモが読み込んだファイルの ID。次にデモを始めるときに、これだけを入れ替える
+    # （名前で探すと、利用者が自分で読み込んだ同じ名前のファイルまで消してしまうため。2026-11-16）
+    demo_file_ids: set[str] = field(default_factory=set)
 
 
 class SessionStore:

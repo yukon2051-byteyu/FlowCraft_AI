@@ -1,16 +1,19 @@
-import { CircleHelp, Lightbulb, TriangleAlert } from 'lucide-react'
+import { Check, Circle, CircleHelp, Lightbulb, TriangleAlert } from 'lucide-react'
 import type { Candidate, Scenario } from '../../api/kaizen'
 import {
   CONFIRM_LABEL,
   REASON_MAX,
   REASONS,
   STATUS_DONE_LABEL,
+  REASON_HEADING,
   STATUS_LABEL,
   adoptBlocker,
   answerConfirm,
   counts,
   decide,
+  pickPreset,
   problems,
+  reasonOf,
   setReason,
 } from '../../kaizen/decisions'
 import type { ConfirmAnswer, Decisions, DecisionStatus } from '../../kaizen/decisions'
@@ -121,37 +124,7 @@ export function DecisionList({
                   {blocker && d.status !== 'adopt' && <span className="self-center text-[0.84rem] text-subtle">採用するには：{blocker}</span>}
                 </div>
 
-                {d.status && (
-                  <div className="mt-3">
-                    <label htmlFor={`${groupId}-reason`} className="text-[0.85rem] text-subtle">
-                      判断の理由（任意・{REASON_MAX}文字まで）
-                    </label>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {REASONS[d.status].map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => onChange(setReason(c.candidate_id, decisions, r))}
-                          aria-pressed={d.reason === r}
-                          className={
-                            'rounded-full px-3 py-1 text-[0.82rem] ring-1 ring-inset focus-visible:outline-2 focus-visible:outline-mint ' +
-                            (d.reason === r ? 'bg-panel-hi text-white ring-white/60' : 'text-subtle ring-edge hover:text-white')
-                          }
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      id={`${groupId}-reason`}
-                      value={d.reason}
-                      maxLength={REASON_MAX}
-                      onChange={(e) => onChange(setReason(c.candidate_id, decisions, e.target.value))}
-                      placeholder="選択肢から選ぶか、短く書いてください"
-                      className="mt-2 h-10 w-full max-w-xl rounded-lg border border-edge bg-canvas px-3 text-[0.9rem] text-white placeholder:text-subtle/60 focus-visible:outline-2 focus-visible:outline-mint"
-                    />
-                  </div>
-                )}
+                {d.status && <ReasonInput id={`${groupId}-reason`} status={d.status} value={reasonOf(d)} onChange={(t) => onChange(setReason(c.candidate_id, decisions, t))} />}
               </fieldset>
             </li>
           )
@@ -177,6 +150,73 @@ export function DecisionList({
           </ul>
         )}
       </section>
+    </div>
+  )
+}
+
+/**
+ * 判断の理由の入力（判断に合わせた見出し → 短い説明 → 理由の候補3つ → 自由入力 → 補足）。
+ * 候補は入力を補助する選択ボタン（判断の3つの丸いボタンとは、形と強さを変える）。選ぶと下の入力欄に入り、自由に直せる。
+ * 単一選択。入力欄の文が候補と一致しなくなったら、候補の選択は外れる。利用者が書き換えた文章は、確かめずに上書きしない。
+ */
+function ReasonInput({ id, status, value, onChange }: { id: string; status: DecisionStatus; value: string; onChange: (t: string) => void }) {
+  const presets = REASONS[status]
+  const pick = (r: string) => {
+    const a = pickPreset(value, r, presets)
+    if (a.kind === 'confirm' && !window.confirm(`入力した理由を「${r}」に置き換えますか？
+（キャンセルすると、入力した理由をそのまま残します）`)) return
+    onChange(a.text)
+  }
+  return (
+    <div className="mt-4 border-t border-edge pt-3.5">
+      <p className="flex items-baseline gap-2">
+        <span className="text-[0.95rem] font-bold text-white">{REASON_HEADING[status]}</span>
+        <span className="text-[0.8rem] text-subtle">任意・{REASON_MAX}文字まで</span>
+      </p>
+      <p className="mt-0.5 text-[0.85rem] text-subtle">当てはまる理由を選ぶか、自由に入力してください。</p>
+      <div className="mt-2.5 grid max-w-3xl grid-cols-3 gap-2" role="group" aria-label={`${REASON_HEADING[status]}の候補`}>
+        {presets.map((r) => {
+          const on = value === r
+          return (
+            <button
+              key={r}
+              type="button"
+              onClick={() => pick(r)}
+              aria-pressed={on}
+              className={
+                'flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2.5 text-left text-[0.9rem] ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint ' +
+                (on ? 'bg-mint/14 font-bold text-white ring-mint' : 'bg-panel-hi text-white/90 ring-white/20 hover:bg-white/8 hover:ring-white/45')
+              }
+            >
+              {on ? (
+                <span className="grid size-4.5 shrink-0 place-items-center rounded-full bg-mint text-on-mint">
+                  <Check className="size-3.5" strokeWidth={3} aria-hidden />
+                </span>
+              ) : (
+                <Circle className="size-4.5 shrink-0 text-subtle" aria-hidden />
+              )}
+              {r}
+            </button>
+          )
+        })}
+      </div>
+      <label htmlFor={id} className="sr-only">
+        {REASON_HEADING[status]}（自由入力）
+      </label>
+      <input
+        id={id}
+        value={value}
+        maxLength={REASON_MAX}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="理由を入力（任意）"
+        className="mt-2.5 h-10 w-full max-w-3xl rounded-lg border border-edge bg-canvas px-3 text-[0.9rem] text-white placeholder:text-subtle/60 focus-visible:outline-2 focus-visible:outline-mint"
+      />
+      <p className="mt-1 flex max-w-3xl justify-between text-[0.8rem] text-subtle">
+        <span>選択した理由は自由に編集できます。</span>
+        <span className="tabular-nums">
+          {value.length}／{REASON_MAX}
+        </span>
+      </p>
     </div>
   )
 }

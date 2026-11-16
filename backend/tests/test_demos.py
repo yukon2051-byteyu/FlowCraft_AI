@@ -184,3 +184,14 @@ def test_templates_list_and_flow_without_loading_files(client):
     assert flow["flow_name"] and flow["nodes"] and flow["completion_criteria"]["items"]
     # ファイルは読み込まない（セッションも不要）
     assert client.get("/api/templates/nothing").status_code == 404
+
+
+def test_デモを始めても_利用者が自分で読み込んだ同じ名前のファイルは消さない(client):
+    h = session(client)
+    data = (Path(__file__).parent.parent / "app" / "demos" / "data" / "部署マスタ.csv").read_bytes()
+    own = client.post("/api/files", headers=h, files={"file": ("部署マスタ.csv", data, "text/csv")}).json()["file_id"]
+    client.post("/api/demos/monthly_sales/start", headers=h, json={"pattern": "ok"})  # デモも 部署マスタ.csv を読み込む
+    second = client.post("/api/demos/product_match/start", headers=h, json={"pattern": "ok"}).json()  # 前のデモのファイルは入れ替わる
+    ids = {f["file_id"] for f in client.get("/api/files", headers=h).json()}
+    assert own in ids
+    assert ids == {own} | {b["file_id"] for b in second["bindings"]}

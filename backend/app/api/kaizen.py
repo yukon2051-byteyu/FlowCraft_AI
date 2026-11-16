@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.api.session import current_session
 from app.config import Settings, get_settings
+from app.api.demos import replace_demo_files
 from app.demos.catalog import DATA_DIR
 from app.files.service import accept_upload
 from app.sessions.store import Session
@@ -113,8 +114,7 @@ def start_scenario(scenario_id: str, session: Session = Depends(current_session)
     """
     sc = _scenario(scenario_id)
     names = {f.filename for f in sc.department_files}
-    for file_id in [fid for fid, f in session.files.items() if getattr(f, "filename", None) in names]:
-        del session.files[file_id]
+    replace_demo_files(session)  # デモが読み込んだ ID だけを消す（利用者のファイルは、同じ名前でも消さない）
     if len(session.files) + len(names) > settings.max_files:
         raise AppError(
             409,
@@ -125,5 +125,6 @@ def start_scenario(scenario_id: str, session: Session = Depends(current_session)
     bindings = []
     for i, f in enumerate(sc.department_files, 1):
         up = accept_upload(session, (DATA_DIR / f.filename).read_bytes(), f.filename, settings)
+        session.demo_file_ids.add(up.file_id)
         bindings.append(BindingOut(input_id=f"dept{i}", file_id=up.file_id, sheet=f.sheet, header_row=1))
     return StartResponse(bindings=bindings, run_parameters={"target_month": sc.period})

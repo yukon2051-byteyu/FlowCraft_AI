@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { BANNED } from './helpers'
+import { BANNED, demo, throughDemoSteps } from './helpers'
 
 /*
  * デモ全面改善：デモは「業務を知る」ところから始める5段階。
@@ -135,4 +135,26 @@ test('サーバーが古い版のまま動いているときは、上部に原�
   await page.unroute('**/api/health')
   await notice.getByRole('button', { name: 'もう一度確かめる' }).click()
   await expect(notice).toHaveCount(0)
+})
+
+test('デモの後に「自分のExcelで試す」で開くと、デモの作業手順とファイルは残らない（自分で読み込んだファイルは残る）', async ({ page }) => {
+  test.setTimeout(150_000)
+  // 先に自分のファイルを読み込んでおく
+  await page.goto('/build?start=file')
+  await page.getByTestId('file-input').first().setInputFiles(demo('部署マスタ.csv'))
+  await expect(page.getByText('1ファイル')).toBeVisible({ timeout: 20_000 })
+  // デモを最後まで動かす
+  await page.goto('/build?demo=product_match&pattern=ok')
+  await throughDemoSteps(page)
+  await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
+  await expect(verdictBox(page)).toContainText('総合判定：正常', { timeout: 30_000 })
+  // TOP の「自分のExcelで試す」
+  await page.goto('/')
+  await page.getByRole('main').getByRole('link', { name: '自分のExcelで試す' }).first().click()
+  await expect(page.getByRole('banner')).toContainText('無題の作業手順', { timeout: 20_000 })
+  await expect(page.getByRole('banner')).not.toContainText('（デモ）')
+  await expect(page.getByText('売上実績_2026-10.xlsx')).toHaveCount(0)
+  await expect(page.getByText('商品マスタ.xlsx')).toHaveCount(0)
+  await expect(page.getByText('部署マスタ.csv').first()).toBeVisible()
+  await expect(page.getByRole('note', { name: 'デモの案内' })).toHaveCount(0)
 })
