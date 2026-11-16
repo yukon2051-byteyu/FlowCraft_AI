@@ -57,7 +57,7 @@ test('読み込んだファイルから、使う列と形式を決めて作業�
   await expect(steps.nth(0)).toContainText('売上実績を読み込む')
   await expect(steps.nth(0)).toContainText('設定完了')
   await expect(steps.nth(0)).not.toContainText('備考')
-  await expect(steps.nth(2)).toContainText('読み込むファイル：部署マスタ')
+  await expect(steps.nth(2)).toContainText('入力：ファイル「部署マスタ」')
 
   // 戻っても、決めた内容は残っている
   await page.getByRole('button', { name: '使う列と形式の設定に戻る' }).click()

@@ -44,9 +44,14 @@ test('結合・枝分かれを含む作業手順を組み立て、つながり�
   await addAtEnd(page, '項目ごとに合計・集計する')
   await addAtEnd(page, '項目ごとに合計・集計する')
   await card(page, 7).getByRole('combobox', { name: 'ステップ7の使うデータ' }).selectOption({ label: 'ステップ5の結果：別の表から情報を付け加える' })
-  await expect(card(page, 5)).toContainText('この結果を使うステップ：ステップ6・ステップ7')
-  await expect(card(page, 1)).toContainText('この結果を使うステップ：ステップ4')
-  await expect(card(page, 7)).toContainText('この結果は、まだどのステップでも使っていません')
+  // データの流れ：入力と結果の使用先を、ステップの名前付きで示す
+  await expect(card(page, 5)).toContainText('結果の使用先：ステップ6「項目ごとに合計・集計する」・ステップ7「項目ごとに合計・集計する」')
+  await expect(card(page, 1)).toContainText('入力：ファイル「売上実績」')
+  await expect(card(page, 1)).toContainText('結果の使用先：ステップ4「別の表から情報を付け加える」')
+  await expect(card(page, 7)).toContainText('結果の使用先：まだありません')
+  // 使用先の名前を押すと、そのステップへ移動して開く
+  await card(page, 1).getByRole('button', { name: 'ステップ4「別の表から情報を付け加える」' }).click()
+  await expect(card(page, 4)).toHaveAttribute('aria-expanded', 'true')
 
   // ステップ8：2つの集計を出力
   await expect(hint).toContainText('最後に「Excelに出力する」を追加してください')
@@ -67,10 +72,12 @@ test('結合・枝分かれを含む作業手順を組み立て、つながり�
   await expect(card(page, 8).getByRole('alert')).toContainText('最後に置いてください')
   await expect(card(page, 8).getByRole('button', { name: 'ステップ8を下へ移動' })).toBeDisabled()
 
-  // 結果を使われているステップは消せない
+  // 結果を使われているステップは消せない（削除を押した時点で理由と、直す先へ移動する操作を示す）
   await card(page, 5).getByRole('button', { name: 'ステップ5を削除' }).click()
-  await card(page, 5).getByRole('button', { name: '削除する' }).click()
-  await expect(card(page, 5).getByRole('alert')).toContainText('ステップ6・7が使っているため、削除できません')
+  await expect(card(page, 5).getByRole('alert')).toContainText('この結果をステップ6・ステップ7が使っているため、削除できません')
+  await expect(card(page, 5).getByRole('button', { name: '削除する' })).toHaveCount(0)
+  await card(page, 5).getByRole('button', { name: 'ステップ6を開く' }).click()
+  await expect(card(page, 6)).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByRole('list', { name: '処理ステップ' }).getByRole('article')).toHaveCount(8)
 
   // 出力があるときに最後へ追加すると、出力の上に入る。出力はもう追加できない

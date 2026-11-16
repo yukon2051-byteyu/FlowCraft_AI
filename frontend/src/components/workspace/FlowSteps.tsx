@@ -8,7 +8,7 @@ import { fieldOf, runAndRecord, stepIndexOf, validateFlow } from '../../api/flow
 import type { RunSummary } from '../../api/flows'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { inputSlotLabel, STEP_GROUPS, STEP_TYPES } from '../../flow/catalog'
-import { contentSnapshot, dataChoices, describeInputs, snapshot, UNSELECTED, usedBy } from '../../flow/ops'
+import { contentSnapshot, dataChoices, snapshot, UNSELECTED, usedBy } from '../../flow/ops'
 import { inferColumns, paramProblems, summarize } from '../../flow/params'
 import type { FlowDoc } from '../../flow/types'
 import { StepSettings } from './StepSettings'
@@ -224,6 +224,7 @@ export function FlowSteps({
                   reasons={reasonsOf(node, i)}
                   status={statuses[i]}
                   flash={flashId === node.node_id}
+                  onJump={goStep}
                   selected={node.node_id === selectedId}
                   onSelect={() => selectNode(node.node_id)}
                   onCollapse={() => selectNode(null)}
@@ -331,6 +332,8 @@ type CardProps = {
   status: ItemStatus
   /** 「修正箇所を見る」で移動してきた直後（少しの間だけ強調する） */
   flash: boolean
+  /** データの流れの行から、ほかのステップへ移動する（開いて強調する） */
+  onJump: (nodeId: string) => void
   selected: boolean
   onSelect: () => void
   onCollapse: () => void
@@ -338,7 +341,7 @@ type CardProps = {
   canAddBelow: boolean
 }
 
-function StepCard({ node, index, nodes, labels, summary, reasons, status, flash, selected, onSelect, onCollapse, onAddBelow, canAddBelow }: CardProps) {
+function StepCard({ node, index, nodes, labels, summary, reasons, status, flash, onJump, selected, onSelect, onCollapse, onAddBelow, canAddBelow }: CardProps) {
   const moveNode = useFlowStore((s) => s.moveNode)
   const removeNode = useFlowStore((s) => s.removeNode)
   const setNodeInputs = useFlowStore((s) => s.setNodeInputs)
@@ -379,10 +382,10 @@ function StepCard({ node, index, nodes, labels, summary, reasons, status, flash,
         <h2 className="min-w-0 truncate font-bold text-ink">{node.node_name}</h2>
         {node.node_name !== info.name && <span className="shrink-0 text-[0.82rem] text-muted">{info.name}</span>}
         <div className="ml-auto flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-          <IconButton label={`ステップ${n}を上へ移動`} disabled={index === 0} onClick={() => run(moveNode(node.node_id, index - 1))}>
+          <IconButton label={`ステップ${n}を上へ移動`} disabled={index === 0} reason="いちばん上のステップのため、上へは動かせません" onClick={() => run(moveNode(node.node_id, index - 1))}>
             <ArrowUp className="size-4" />
           </IconButton>
-          <IconButton label={`ステップ${n}を下へ移動`} disabled={index === nodes.length - 1} onClick={() => run(moveNode(node.node_id, index + 1))}>
+          <IconButton label={`ステップ${n}を下へ移動`} disabled={index === nodes.length - 1} reason="いちばん下のステップのため、下へは動かせません" onClick={() => run(moveNode(node.node_id, index + 1))}>
             <ArrowDown className="size-4" />
           </IconButton>
           {canAddBelow && (
@@ -407,15 +410,7 @@ function StepCard({ node, index, nodes, labels, summary, reasons, status, flash,
               {summary}
             </p>
           )}
-          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[0.85rem] text-muted">
-            <span className="truncate">{describeInputs(nodes, index, labels).join('・')}</span>
-            {node.node_type !== 'output' && (
-              <>
-                <CornerDownRight className="size-3.5 shrink-0" aria-hidden />
-                <span className="truncate">{users.length ? `この結果を使うステップ：${users.map((u) => `ステップ${u}`).join('・')}` : 'この結果は、まだどのステップでも使っていません'}</span>
-              </>
-            )}
-          </p>
+          <DataFlowLine nodes={nodes} index={index} labels={labels} onJump={onJump} />
           {status !== 'ready' && (
             <p className={`mt-1 truncate text-[0.85rem] font-bold ${status === 'needs_review' ? 'text-warning-ink' : status === 'error' ? 'text-error-ink' : 'text-todo-ink'}`}>
               {status === 'needs_review' ? '設定に不足はありません。内容を確かめて、設定完了にしてください' : `不足：${reasons[0]}${reasons.length > 1 ? `（ほか${reasons.length - 1}件）` : ''}`}
@@ -428,7 +423,7 @@ function StepCard({ node, index, nodes, labels, summary, reasons, status, flash,
       {/* 使うデータ */}
       <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
         {node.node_type === 'load' ? (
-          <p className="text-[0.9rem] text-muted">{describeInputs(nodes, index, labels)[0]}</p>
+          <p className="text-[0.9rem] text-muted">入力：ファイル「{labels[String(node.parameters.input_id ?? '')] ?? String(node.parameters.input_id ?? '')}」</p>
         ) : (
           <InputSelectors node={node} index={index} nodes={nodes} onChange={changeInputs} />
         )}
@@ -442,9 +437,9 @@ function StepCard({ node, index, nodes, labels, summary, reasons, status, flash,
       )}
 
       {node.node_type !== 'output' && (
-        <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-muted">
-          <CornerDownRight className="size-4" aria-hidden />
-          {users.length ? `この結果を使うステップ：${users.map((u) => `ステップ${u}`).join('・')}` : 'この結果は、まだどのステップでも使っていません'}
+        <p className="mt-2 flex min-w-0 items-center gap-1.5 text-[0.85rem] text-muted">
+          <CornerDownRight className="size-4 shrink-0" aria-hidden />
+          <UsedByLinks nodes={nodes} index={index} onJump={onJump} />
         </p>
       )}
         </div>
@@ -456,28 +451,119 @@ function StepCard({ node, index, nodes, labels, summary, reasons, status, flash,
         </p>
       )}
 
-      {confirmDelete && (
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-warning-soft px-3 py-2 ring-1 ring-warning/30" onClick={(e) => e.stopPropagation()}>
-          <span className="text-[0.9rem] text-ink">ステップ{n}「{node.node_name}」を削除しますか？</span>
-          <div className="ml-auto flex gap-2">
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => {
-                setConfirmDelete(false)
-                run(removeNode(node.node_id))
-              }}
-            >
-              削除する
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(false)}>
-              やめる
-            </Button>
+      {confirmDelete &&
+        (users.length ? (
+          <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-error-soft px-3 py-2 ring-1 ring-error/30" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[0.9rem] text-error-ink">
+              この結果を{users.map((u) => `ステップ${u}`).join('・')}が使っているため、削除できません。先にそちらの「使うデータ」を変更してください。
+            </span>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setConfirmDelete(false)
+                  onJump(nodes[users[0] - 1].node_id)
+                }}
+              >
+                ステップ{users[0]}を開く
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
+                閉じる
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-warning-soft px-3 py-2 ring-1 ring-warning/30" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[0.9rem] text-ink">
+              ステップ{n}「{node.node_name}」を削除しますか？
+              <span className="ml-1 text-[0.85rem] text-muted">このステップの設定は元に戻せません（ほかのステップへの影響はありません）。</span>
+            </span>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  setConfirmDelete(false)
+                  run(removeNode(node.node_id))
+                }}
+              >
+                削除する
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(false)}>
+                やめる
+              </Button>
+            </div>
+          </div>
+        ))}
 
     </article>
+  )
+}
+
+/**
+ * データの流れを1行で：どこから受け取り（入力）、結果をどこで使うか（結果の使用先）。
+ * ステップの名前を押すと、そのステップへ移動する（開いて強調する）
+ */
+function DataFlowLine({ nodes, index, labels, onJump }: { nodes: FlowNode[]; index: number; labels: Record<string, string>; onJump: (id: string) => void }) {
+  const node = nodes[index]
+  return (
+    <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[0.85rem] text-muted" aria-label="データの流れ">
+      <span className="flex min-w-0 shrink items-center gap-1 truncate">
+        入力：
+        {node.node_type === 'load' ? (
+          <span>ファイル「{labels[String(node.parameters.input_id ?? '')] ?? String(node.parameters.input_id ?? '')}」</span>
+        ) : (
+          node.input_references.map((ref, i) => {
+            const at = nodes.findIndex((x) => x.output_reference === ref)
+            return (
+              <span key={i} className="truncate">
+                {i > 0 && '・'}
+                {at >= 0 ? <StepLink n={at + 1} name={nodes[at].node_name} onClick={() => onJump(nodes[at].node_id)} /> : <span className="text-todo-ink">（未選択）</span>}
+              </span>
+            )
+          })
+        )}
+      </span>
+      {node.node_type !== 'output' && (
+        <>
+          <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+          <UsedByLinks nodes={nodes} index={index} onJump={onJump} />
+        </>
+      )}
+    </p>
+  )
+}
+
+function UsedByLinks({ nodes, index, onJump }: { nodes: FlowNode[]; index: number; onJump: (id: string) => void }) {
+  const users = usedBy(nodes, index)
+  if (!users.length) return <span className="truncate">結果の使用先：まだありません</span>
+  return (
+    <span className="flex min-w-0 items-center gap-1 truncate">
+      結果の使用先：
+      {users.map((u, i) => (
+        <span key={u} className="truncate">
+          {i > 0 && '・'}
+          <StepLink n={u} name={nodes[u - 1].node_name} onClick={() => onJump(nodes[u - 1].node_id)} />
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function StepLink({ n, name, onClick }: { n: number; name: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      title={`ステップ${n}「${name}」へ移動する`}
+      className="rounded font-bold text-forest underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-forest"
+    >
+      ステップ{n}「{name}」
+    </button>
   )
 }
 
@@ -565,7 +651,17 @@ function AddMenu({ hasOutput, onPick, onClose }: { hasOutput: boolean; onPick: (
   )
 }
 
-function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+function IconButton({ label, disabled, reason, onClick, children }: { label: string; disabled?: boolean; reason?: string; onClick: () => void; children: ReactNode }) {
+  // 押せないボタンはマウスを重ねても説明が出ないことがあるため、外側の要素に理由を付ける
+  if (disabled && reason) {
+    return (
+      <span title={reason} className="inline-flex">
+        <IconButton label={label} disabled onClick={onClick}>
+          {children}
+        </IconButton>
+      </span>
+    )
+  }
   return (
     <button
       type="button"
