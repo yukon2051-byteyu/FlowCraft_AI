@@ -31,8 +31,8 @@ test('保存しなくても、実行して出力して終われる。出力し�
   test.setTimeout(150_000)
   await buildMonthlySales(page, '商品マスタ.xlsx')
   // 保存は任意：警告の色ではなく、控えめに表示する
-  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeVisible()
-  await expect(header(page).getByText('未保存の変更があります')).toBeHidden()
+  await expect(header(page).getByText('未保存（保存は任意）')).toBeVisible()
+  await expect(header(page).getByText('未保存の変更あり')).toBeHidden()
 
   await runAll(page)
   // 実行しただけ（出力していない）なら、離れると作業が失われるので確認する
@@ -99,7 +99,7 @@ test('実行した後に保存でき（作り直し不要）、保存したフ�
   const saveArea = page.getByRole('region', { name: '作業手順の保存' })
   await expect(saveArea).toContainText('この作業手順は保存済みです')
   await expect(page.getByRole('region', { name: '次にできること' }).getByRole('button', { name: '保存した手順を開く' })).toBeVisible()
-  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeHidden()
+  await expect(header(page).getByText('未保存（保存は任意）')).toBeHidden()
 
   // 次回：別のブラウザで、保存したファイルを開いて再実行する → 同じ合計
   const file = path.join(os.tmpdir(), `flowcraft-oneoff-${Date.now()}.json`)

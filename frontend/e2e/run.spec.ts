@@ -50,7 +50,7 @@ test('ステップの処理前後を確かめ、全体を実行すると、正�
 
   await backToProcedure(page)
   await expect(card(page, 7)).toBeVisible()
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toBeDisabled()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Excelに出力' })).toHaveCount(0)
 })
 
 test('マスタに重複があると、照合のステップで止まり、理由と直し方を示す（結果は出力できない）', async ({ page }) => {

@@ -44,23 +44,30 @@ export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExpo
       </Link>
       <span className="h-6 w-px bg-edge" aria-hidden />
       <div className="flex min-w-0 items-center gap-3">
-        <span className="truncate text-[1rem] font-bold">{flowName}</span>
+        {/* 長い作業名は省略して、右側のボタンを押し出さない（マウスを重ねると全文を表示） */}
+        <span className="max-w-[24rem] truncate text-[1rem] font-bold" title={flowName}>
+          {flowName}
+        </span>
+        {/* 保存の状態は短く出し、詳しい説明はマウスを重ねたときに出す */}
         {saveState === 'changed' && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/12 px-2.5 py-0.5 text-[0.78rem] text-warning ring-1 ring-warning/30">
+          <span
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-warning/12 px-2.5 py-0.5 text-[0.78rem] whitespace-nowrap text-warning ring-1 ring-warning/30"
+            title="前回保存した後に変更しています。このページを離れると、変更は失われます。「作業手順を保存」で保存すると、次回も同じ内容で使えます"
+          >
             <span className="size-2 rounded-full bg-warning" aria-hidden />
-            未保存の変更があります
+            未保存の変更あり
           </span>
         )}
         {saveState === 'never' && (
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.78rem] text-subtle ring-1 ring-edge"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.78rem] whitespace-nowrap text-subtle ring-1 ring-edge"
             title="今回だけの作業なら、保存せずにExcelへ出力して終われます。毎月使うなら「作業手順を保存」から保存できます"
           >
-            保存していません（保存は任意です）
+            未保存（保存は任意）
           </span>
         )}
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <Button variant="ghostDark" size="sm" disabled={!onHistory} onClick={onHistory} title="このブラウザに保存した、実行の記録を見ます">
           <History className="size-4" aria-hidden />
           実行の履歴
@@ -79,17 +86,20 @@ export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExpo
           <Save className="size-4" aria-hidden />
           作業手順を保存
         </Button>
-        {/* 画面の主要ボタンと競わないように、出力・保存の画面（exportPrimary）以外では控えめにする */}
+        {/* 実行結果があるときだけ出す（押せないボタンを常に出して迷わせない）。
+            画面の主要ボタンと競わないように、出力・保存の画面（exportPrimary）以外では控えめにする */}
+        {canExport && (
         <Button
           variant={exportPrimary ? 'primary' : 'outlineDark'}
           size="sm"
-          disabled={!canExport || exporting || exportBlocked !== null}
+          disabled={exporting || exportBlocked !== null}
           onClick={onExport}
-          title={exportBlocked ?? (canExport ? (exportPrimary ? '実行結果をExcelファイルで保存します' : '出力・保存の画面へ進みます') : '作業手順全体を実行すると、出力・保存の画面からExcelに出力できます')}
+          title={exportBlocked ?? (exportPrimary ? '実行結果をExcelファイルで保存します' : '出力・保存の画面へ進みます')}
         >
           <FileOutput className="size-4" aria-hidden />
           Excelに出力
         </Button>
+        )}
       </div>
     </header>
   )

@@ -27,7 +27,7 @@ const dialog = (page: Page) => page.getByRole('dialog', { name: '作業手順を
 test('保存すると、版1としてブラウザの一覧とファイルに保存され、ファイルはサーバーの検証を通る', async ({ page, request }) => {
   test.setTimeout(90_000)
   await startFlow(page)
-  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeVisible() // 一度も保存していないときは、控えめに表示（1-11）
+  await expect(header(page).getByText('未保存（保存は任意）')).toBeVisible() // 一度も保存していないときは、控えめに表示（1-11）
 
   await header(page).getByRole('button', { name: '作業手順を保存' }).click()
   await expect(dialog(page)).toContainText('初めての保存です。版1として保存します。')
@@ -61,13 +61,13 @@ test('保存すると、版1としてブラウザの一覧とファイルに保�
   // 閉じると、名前が上部に出て、未保存の印が消える
   await dialog(page).getByRole('button', { name: '閉じる' }).last().click()
   await expect(header(page)).toContainText('月次売上集計')
-  await expect(header(page).getByText('未保存の変更があります')).toBeHidden()
-  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeHidden()
+  await expect(header(page).getByText('未保存の変更あり')).toBeHidden()
+  await expect(header(page).getByText('未保存（保存は任意）')).toBeHidden()
 
   // 変更してから保存すると版2。一覧は置き換わり、2件にならない
   await page.getByRole('button', { name: '処理ステップを追加する' }).click()
   await page.getByRole('region', { name: '追加する処理を選ぶ' }).getByRole('button', { name: /^条件に合う行だけ残す/ }).click()
-  await expect(header(page).getByText('未保存の変更があります')).toBeVisible()
+  await expect(header(page).getByText('未保存の変更あり')).toBeVisible()
   await header(page).getByRole('button', { name: '作業手順を保存' }).click()
   await expect(dialog(page)).toContainText('変更があるため、版2として保存します（前の版：1）。')
   await dialog(page).getByRole('checkbox', { name: /ファイル（\.json）としてダウンロード/ }).uncheck()
@@ -101,7 +101,7 @@ test('保存先を1つも選ばないと保存できない。「やめる」で�
   await dialog(page).getByRole('button', { name: 'やめる' }).click()
   await expect(dialog(page)).toBeHidden()
   expect(await page.evaluate((k) => localStorage.getItem(k), LIBRARY_KEY)).toBeNull()
-  await expect(header(page).getByText('保存していません（保存は任意です）')).toBeVisible()
+  await expect(header(page).getByText('未保存（保存は任意）')).toBeVisible()
 })
 
 test('未保存のままトップへ戻ろうとすると確認が出る。キャンセルすれば留まる', async ({ page }) => {
@@ -133,7 +133,7 @@ test('未保存のままトップへ戻ろうとすると確認が出る。キ�
 test('作業手順を作る前は、保存できない', async ({ page }) => {
   await page.goto('/build?start=file')
   await expect(header(page).getByRole('button', { name: '作業手順を保存' })).toBeDisabled()
-  await expect(header(page).getByText('未保存の変更があります')).toBeHidden()
+  await expect(header(page).getByText('未保存の変更あり')).toBeHidden()
 })
 
 test('未保存のままタブを閉じようとすると、ブラウザの確認が出る', async ({ page }) => {
