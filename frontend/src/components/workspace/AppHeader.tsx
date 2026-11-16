@@ -24,12 +24,17 @@ type Props = {
   onOpen?: () => void
   /** 実行の履歴（このブラウザ）を開く */
   onHistory?: () => void
+  /**
+   * デモ中：「実行の履歴」「作業手順を開く」「作業手順を保存」を出さない（作らない）。
+   * デモの一時的な作業手順と、利用者が保存した作業手順を混同させないため。「Excelに出力」は残す（成果物を受け取れる体験）
+   */
+  demo?: boolean
 }
 
 const LEAVE_MESSAGE = '保存していない変更があります。このページを離れると、変更は失われます。離れますか？'
 
 /** ワークスペース用のヘッダー。TOPと同じロゴ・ナビゲーション色で統一する。 */
-export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExport, exporting = false, exportBlocked = null, exportPrimary = false, onSave, canSave = false, onOpen, onHistory }: Props) {
+export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExport, exporting = false, exportBlocked = null, exportPrimary = false, onSave, canSave = false, onOpen, onHistory, demo = false }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-edge bg-nav px-5 text-white">
       <Link
@@ -68,6 +73,8 @@ export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExpo
         )}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        {!demo && (
+          <>
         <Button variant="ghostDark" size="sm" disabled={!onHistory} onClick={onHistory} title="このブラウザに保存した、実行の記録を見ます">
           <History className="size-4" aria-hidden />
           実行の履歴
@@ -86,6 +93,8 @@ export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExpo
           <Save className="size-4" aria-hidden />
           作業手順を保存
         </Button>
+          </>
+        )}
         {/* 実行結果があるときだけ出す（押せないボタンを常に出して迷わせない）。
             画面の主要ボタンと競わないように、出力・保存の画面（exportPrimary）以外では控えめにする */}
         {canExport && (

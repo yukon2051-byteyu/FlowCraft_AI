@@ -101,8 +101,10 @@ test('受入条件1〜13：現状の確認 → 改善候補 → 判断 → 手�
   await expect(conclusion.getByRole('status', { name: '総合判定' })).toContainText('総合判定：正常', { timeout: 30_000 })
   await expect(page.getByRole('tablist', { name: '出力するシート' })).toContainText('部署別売上（会議用）')
 
-  // 【13】改善後の手順を保存できる（新しい作業手順・版1。編集した内容を含む）
-  await page.getByRole('banner').getByRole('button', { name: '作業手順を保存' }).click()
+  // 【13】改善後の手順を保存できる（新しい作業手順・版1。編集した内容を含む）。デモ中は上部に保存のメニューを出さないので、出力・保存の画面から
+  await expect(page.getByRole('banner').getByRole('button', { name: '作業手順を保存' })).toHaveCount(0)
+  await page.getByRole('button', { name: '次へ：出力・保存' }).click()
+  await page.getByRole('region', { name: '作業手順の保存' }).getByRole('button', { name: 'この作業手順を保存する' }).click()
   const dialog = page.getByRole('dialog', { name: '作業手順を保存' })
   await expect(dialog).toContainText('初めての保存です。版1として保存します。')
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: '保存する' }).click()])

@@ -21,6 +21,7 @@ test('作業手順のデモ：5つの段階すべてから戻れ、戻った後�
   // STEP 1〜3（デモ専用の段階）
   await expect(page.getByRole('button', { name: '次へ：作業手順と改善案を見る' })).toBeVisible({ timeout: 20_000 })
   await expect(back(page)).toBeVisible()
+  for (const name of ['実行の履歴', '作業手順を開く', '作業手順を保存']) await expect(page.getByRole('banner').getByRole('button', { name })).toHaveCount(0)
   await page.getByRole('button', { name: '次へ：作業手順と改善案を見る' }).click()
   await expect(back(page)).toBeVisible()
   await expect(page.getByRole('button', { name: '前へ：作業を知る' })).toBeVisible() // 同じデモの前の段階へ戻る操作は別にある
@@ -29,6 +30,8 @@ test('作業手順のデモ：5つの段階すべてから戻れ、戻った後�
   await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
   // STEP 4（実行・品質確認）
   await expect(page.getByRole('button', { name: '作業手順全体を実行する' })).toBeVisible()
+  // デモ中は、上部に履歴・開く・保存のメニューを出さない（全段階で）
+  for (const name of ['実行の履歴', '作業手順を開く', '作業手順を保存']) await expect(page.getByRole('banner').getByRole('button', { name })).toHaveCount(0)
   await expect(back(page)).toBeVisible()
   await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
   // STEP 5（結果を確認）：別のデモを試す（戻り先は同じ）
@@ -87,10 +90,12 @@ test('業務改善デモ：判断を入れる前は確認せずに戻り、判�
   await expectDemoList(page)
 })
 
-test('「自分のExcelで試す」の画面には、デモ選択へ戻るを出さない', async ({ page }) => {
+test('「自分のExcelで試す」の画面には、デモ選択へ戻るを出さず、上部のメニューはこれまでどおり出す', async ({ page }) => {
   await page.goto('/build?start=work')
   await expect(page.getByRole('heading', { name: 'やりたい作業を伝える' })).toBeVisible()
   await expect(back(page)).toHaveCount(0)
+  // 通常の利用では、上部のメニューはこれまでどおり
+  for (const name of ['実行の履歴', '作業手順を開く', '作業手順を保存']) await expect(page.getByRole('banner').getByRole('button', { name })).toBeVisible()
   await page.goto('/build?start=file')
   await expect(page.getByRole('heading', { name: 'Excel・CSVを読み込む' })).toBeVisible()
   await expect(back(page)).toHaveCount(0)

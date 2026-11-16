@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CircleCheck, CornerDownRight, LoaderCircle, Play, Plus, ScanSearch, Trash2, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CircleCheck, CircleX, CornerDownRight, ListOrdered, LoaderCircle, Play, Plus, ScanSearch, ShieldCheck, Trash2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ApiError } from '../../api/client'
@@ -20,7 +20,8 @@ import { isAvailable } from '../../content/featureStatus'
 import { Button } from '../ui/Button'
 import { DevBadge } from '../ui/DevBadge'
 import { ItemActionButton, ItemStatusBadge } from '../ui/ItemStatusBadge'
-import { countStatus, deriveStatus, statusStripe } from '../../flow/stepStatus'
+import { countStatus, deriveStatus, sectionState, statusStripe } from '../../flow/stepStatus'
+import type { SectionState } from '../../flow/stepStatus'
 import type { ItemStatus } from '../../flow/stepStatus'
 
 /**
@@ -114,6 +115,14 @@ export function FlowSteps({
   const reasonsOf = (n: FlowNode, i: number) => [...problems[n.node_id], ...serverProblems(n, i)]
   const statuses = flow.nodes.map((n, i) => deriveStatus(problems[n.node_id], serverProblems(n, i), n.confirmation_status === 'confirmed'))
   const counts = countStatus(statuses)
+  // 切り替えカードの設定の状態（カード・バッジと同じ判定から数える。選んでいるかどうかとは別）
+  const criteriaStatuses = flow.completion_criteria.items.map((c) => deriveStatus(criterionProblems(c, flow), [], c.confirmation_status !== 'pending'))
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const switchView = (v: 'steps' | 'criteria') => {
+    setView(v)
+    // 選んだ内容の見出しが見える位置へ（カードのすぐ下にある）
+    scrollRef.current?.scrollTo({ top: 0 })
+  }
   const stepLine = `${flow.nodes.length}ステップ中${counts.ready}ステップ設定完了`
   // 直す必要があるステップ（未設定・エラーを先に、要確認を後に）
   const stepBlockers: Blocker[] = [
@@ -169,36 +178,36 @@ export function FlowSteps({
 
   return (
     <>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {/* 「何をする？」（処理ステップ）と「何を満たせば完了？」（完了基準）は別の欄（docs/completion-criteria.md §1） */}
-        <div className="mx-auto flex max-w-[1100px] gap-1 px-6 pt-5" role="tablist" aria-label="作業手順の内容">
-          {(
-            [
-              ['steps', `何をする？（処理ステップ ${flow.nodes.length}）`],
-              ['criteria', `何を満たせば完了？（完了基準 ${flow.completion_criteria.items.length}）`],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              role="tab"
-              aria-selected={view === v}
-              onClick={() => setView(v)}
-              className={`rounded-full px-4 py-1.5 text-[0.9rem] font-bold ring-1 ${view === v ? 'bg-mint text-on-mint ring-mint' : 'text-subtle ring-edge hover:text-white'}`}
-            >
-              {label}
-            </button>
-          ))}
-          <p className="ml-3 self-center text-[0.88rem] text-subtle">
-            {view === 'steps' ? 'Excel・CSVに対して行う処理を、上から順に設定します' : '処理結果が業務上正しいかを判断する基準です。実行のたびに自動で確かめます'}
-          </p>
+        {/* 2つの独立した設定項目を、選択カードで切り替える（選んでいるか＝枠と背景、設定の状態＝色つきの文字で別々に示す） */}
+        <div className="mx-auto max-w-[1100px] px-6 pt-5">
+          <div className="grid max-w-[760px] grid-cols-2 gap-3" role="tablist" aria-label="作業手順の内容">
+            <SectionCard
+              selected={view === 'steps'}
+              onSelect={() => switchView('steps')}
+              icon={ListOrdered}
+              title="① 何をする？"
+              count={`処理ステップ ${flow.nodes.length}件`}
+              state={sectionState('steps', statuses)}
+            />
+            <SectionCard
+              selected={view === 'criteria'}
+              onSelect={() => switchView('criteria')}
+              icon={ShieldCheck}
+              title="② 何を満たせば完了？"
+              count={`完了基準 ${flow.completion_criteria.items.length}件`}
+              state={sectionState('criteria', criteriaStatuses)}
+            />
+          </div>
+          <p className="mt-1.5 text-[0.82rem] text-subtle">処理内容と、結果が正しいかを確認する基準をそれぞれ設定できます。</p>
         </div>
         {view === 'criteria' ? (
-          <div className="pt-5">
+          <div className="pt-4">
             <CriteriaPanel openId={openCriterion} onOpen={setOpenCriterion} flashId={flashId} />
           </div>
         ) : (
-        <div className="mx-auto max-w-[1100px] px-6 pt-6 pb-12">
+        <div className="mx-auto max-w-[1100px] px-6 pt-4 pb-12">
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-start gap-4">
             <div className="min-w-0 flex-1">
@@ -328,6 +337,48 @@ export function FlowSteps({
         </div>
       )}
     </>
+  )
+}
+
+const STATE_STYLE: Record<SectionState['tone'], { cls: string; icon: typeof CircleCheck }> = {
+  ok: { cls: 'text-success', icon: CircleCheck },
+  warn: { cls: 'text-warning', icon: TriangleAlert },
+  error: { cls: 'text-kaizen-text', icon: CircleX },
+  neutral: { cls: 'text-subtle', icon: CircleCheck },
+}
+
+/**
+ * 切り替えの選択カード（タブ）。カード全体を押せ、キーボードでも選べる（Tab で移り Enter・Space）。
+ * 選んでいる：ミントの枠と薄いミントの背景／選んでいない：濃い灰色の背景と見える枠（文字は明るいまま。埋もれさせない）
+ * 設定の状態は、選んでいるかどうかとは別に、色つきの文字で示す（不完全なら選んでいても「設定済み」と出さない）
+ */
+function SectionCard({ selected, onSelect, icon: Icon, title, count, state }: { selected: boolean; onSelect: () => void; icon: typeof CircleCheck; title: string; count: string; state: SectionState }) {
+  const st = STATE_STYLE[state.tone]
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onSelect}
+      className={`flex items-start gap-3 rounded-xl px-4 py-3 text-left ring-1 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint ${
+        selected ? 'bg-mint/12 ring-2 ring-mint/70' : 'cursor-pointer bg-panel ring-white/20 hover:bg-panel-hi hover:ring-white/40'
+      }`}
+    >
+      <span className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg ring-1 ${selected ? 'bg-mint/15 text-mint ring-mint/40' : 'bg-white/5 text-white/85 ring-white/15'}`}>
+        <Icon className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0">
+        <span className={`block font-bold ${selected ? 'text-mint' : 'text-white'}`}>{title}</span>
+        <span className="mt-0.5 block text-[0.85rem] text-white/80">{count}</span>
+        <span className={`mt-0.5 flex flex-wrap items-center gap-x-2 text-[0.82rem] font-bold ${st.cls}`}>
+          <span className="inline-flex items-center gap-1">
+            <st.icon className="size-3.5" aria-hidden />
+            {state.label}
+          </span>
+          {state.detail && <span className="font-normal text-subtle">{state.detail}</span>}
+        </span>
+      </span>
+    </button>
   )
 }
 

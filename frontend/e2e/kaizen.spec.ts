@@ -201,8 +201,10 @@ test('作った作業手順を開き、サンプルのExcelで実行・品質の
   const download = await exportFromOutput(page)
   expect(download.suggestedFilename()).toContain('_結果_')
 
-  // 保存（通常の作業手順と同じ。新しい作業手順・版1）
-  await page.getByRole('banner').getByRole('button', { name: '作業手順を保存' }).click()
+  // デモ中は、上部に履歴・開く・保存のメニューを出さない（デモの手順と、保存した手順を混同させない）
+  for (const name of ['実行の履歴', '作業手順を開く', '作業手順を保存']) await expect(page.getByRole('banner').getByRole('button', { name })).toHaveCount(0)
+  // 保存は、出力・保存の画面（STEP 5）から（通常の作業手順と同じ。新しい作業手順・版1）
+  await page.getByRole('region', { name: '作業手順の保存' }).getByRole('button', { name: 'この作業手順を保存する' }).click()
   const dialog = page.getByRole('dialog', { name: '作業手順を保存' })
   await expect(dialog).toContainText('初めての保存です。版1として保存します。')
   await expect(dialog.getByRole('textbox', { name: '作業手順の名前' })).toHaveValue('月次報告資料の作成（改善後）')
@@ -210,12 +212,6 @@ test('作った作業手順を開き、サンプルのExcelで実行・品質の
   await expect(dialog.getByRole('status')).toContainText('版1として保存しました')
   await dialog.getByRole('button', { name: '閉じる' }).first().click()
 
-  // デモの実行の記録は、通常の履歴に入らない
-  await page.getByRole('banner').getByRole('button', { name: '実行の履歴' }).click()
-  const history = page.getByRole('dialog', { name: '実行の履歴' })
-  await expect(history).toContainText('記録はまだありません')
-  await history.getByRole('button', { name: '閉じる' }).first().click()
-  await expect(history).toHaveCount(0)
 
   // 業務改善デモに戻る：STEP 5（改善前後の比較）で、実際に実行した結果を見せる。判断と改善後の手順も残っている
   await banner.getByRole('link', { name: '業務改善デモに戻る' }).click()

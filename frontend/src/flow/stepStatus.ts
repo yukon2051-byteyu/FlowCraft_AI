@@ -61,3 +61,22 @@ const STRIPE: Record<ItemStatus, string> = {
   ready: 'border-l-transparent',
 }
 export const statusStripe = (s: ItemStatus) => `border-l-4 ${STRIPE[s]}`
+
+/** 切り替えカード（何をする？／何を満たせば完了？）に出す設定の状態。選んでいるかどうかとは別の情報 */
+export type SectionState = { tone: 'ok' | 'warn' | 'error' | 'neutral'; label: string; detail: string | null }
+
+/**
+ * いちばん重い状態を件数つきで示す（設定が不完全なら「設定済み」と出さない）。
+ * steps：処理ステップ（0件は設定が必要）／criteria：完了基準（0件は任意なので中立の「未設定（任意）」）
+ * detail：すべてが設定済みでないときの「設定済み 2／4件」（登録件数と設定済みの件数を区別する）
+ */
+export function sectionState(kind: 'steps' | 'criteria', list: ItemStatus[]): SectionState {
+  const c = countStatus(list)
+  const total = list.length
+  const detail = total && c.ready < total ? `設定済み ${c.ready}／${total}件` : null
+  if (!total) return kind === 'steps' ? { tone: 'warn', label: '設定が必要', detail: null } : { tone: 'neutral', label: '未設定（任意）', detail: null }
+  if (c.error) return { tone: 'error', label: `設定エラー ${c.error}件`, detail }
+  if (c.needs_setting) return { tone: 'warn', label: kind === 'steps' ? `設定が必要 ${c.needs_setting}件` : `未設定 ${c.needs_setting}件`, detail }
+  if (c.needs_review) return { tone: 'warn', label: `確認が必要 ${c.needs_review}件`, detail }
+  return { tone: 'ok', label: '設定済み', detail: null }
+}

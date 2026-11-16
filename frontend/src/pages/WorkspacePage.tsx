@@ -354,6 +354,8 @@ export default function WorkspacePage() {
           onSave={() => setSaving(true)}
           onOpen={sample ? undefined : () => setOpening(true)}
           onHistory={sample ? undefined : () => setShowHistory(true)}
+          // デモ中（作業手順のデモの全段階・業務改善デモから開いた作業手順）は、履歴・開く・保存を出さない
+          demo={!!demo || kaizenRun}
           canExport={!sample && (screen === 'result' || screen === 'output') && lastRun !== null}
           onExport={!demo && screen === 'result' ? () => setScreen('output') : doExport}
           exporting={exporting}
