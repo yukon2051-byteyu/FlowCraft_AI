@@ -23,7 +23,8 @@ for (const [w, h] of [
     await page.setViewportSize({ width: w, height: h })
     for (const [url, name] of PAGES) {
       await page.goto(url)
-      await page.waitForLoadState('networkidle')
+      // 画面の中身（大見出し）が出てから横幅を測る（通信が落ち着くのを待つ networkidle は、負荷が高いと時間切れになりやすい）
+      await expect(page.getByRole('heading', { level: 1 }).first(), `${name}（${url}）の見出し`).toBeVisible({ timeout: 20_000 })
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
       expect(over, `${name}（${url}）`).toBeLessThanOrEqual(0)
     }

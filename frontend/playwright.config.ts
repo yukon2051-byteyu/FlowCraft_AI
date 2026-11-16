@@ -29,11 +29,14 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'npx vite --port 5174 --strictPort',
+      // 組み立て済みの画面（vite build → vite preview）で動かす。開発用サーバー（vite）は画面を開くたびにプログラムを変換するため、
+      // 並べて実行すると重くなり、画面を開く・ファイルを選ぶところで時間切れになりやすかった（2026-11-17 に比べて確認）。
+      // 組み立ては毎回行うので、テストは常に最新のコードで動く。/api の中継先は server.proxy と同じ設定を使う
+      command: 'npx vite build --outDir dist-e2e --emptyOutDir && npx vite preview --outDir dist-e2e --port 5174 --strictPort',
       env: { FLOWCRAFT_API_TARGET: 'http://127.0.0.1:8001' },
       url: 'http://localhost:5174',
       reuseExistingServer: false,
-      timeout: 60_000,
+      timeout: 180_000,
     },
   ],
 })
