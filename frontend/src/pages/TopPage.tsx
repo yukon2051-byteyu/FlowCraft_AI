@@ -201,7 +201,13 @@ function Reasons() {
         <SectionHeading
           eyebrow="FlowCraft AIの6つの特徴"
           title="Excelの処理だけでなく、その前と後ろまで"
-          lead="作業そのものを見直し、処理した結果が正しいかまで確かめる。生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。"
+          lead={
+            <>
+              作業そのものを見直し、処理した結果が正しいかまで確かめる。
+              <br />
+              生成AIに個別に頼むときに、利用者が自分で行っている部分を受け持ちます。
+            </>
+          }
         />
         {/* 右側（02〜05）を少し広げて見出し・説明文の折り返しを減らし、カードの縦幅を抑える（01 はその高さに合わせて縮む） */}
         <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
@@ -295,7 +301,7 @@ function ScheduleCard() {
             <DevBadge feature="schedule" />
           </span>
         </div>
-        <p className="mt-3 text-[0.92rem] leading-relaxed text-subtle">ファイルの取得から加工・集計、品質検証、保存まで、決まった日時に自動実行します。</p>
+        <p className="mt-3 text-[0.92rem] leading-relaxed text-subtle">ファイルの取得から加工・集計、品質検証、保存まで、<span className="font-semibold text-mint">決まった日時に自動実行</span>します。</p>
         <div className="mt-3 rounded-xl border px-4 py-3" style={{ backgroundColor: '#17362E', borderColor: '#327D69' }} aria-label="正常時は、結果を確認するだけ">
           <p className="flex items-center gap-2 text-[1.12rem] font-bold" style={{ color: '#39D9AD' }}>
             <CircleCheck className="size-5 shrink-0" aria-hidden />
@@ -383,7 +389,13 @@ function Stages() {
         <SectionHeading
           eyebrow="使い方"
           title="自動化だけでは終わらない"
-          lead="見直さずに自動化すると、ムダな作業や誤りまで、毎月自動で繰り返してしまいます。だから FlowCraft AI は、自動化の前に見直し、自動化の後に確かめます。"
+          lead={
+            <>
+              見直さずに自動化すると、ムダな作業や誤りまで、毎月自動で繰り返してしまいます。
+              <br />
+              そこで FlowCraft AI は、自動化の前に見直し、自動化の後に確かめます。
+            </>
+          }
         />
         <div className="mt-8 grid gap-4 grid-cols-2">
           <div className="rounded-2xl bg-kaizen/6 p-5 ring-1 ring-kaizen/35" aria-label="見直さずに自動化すると">
@@ -474,7 +486,13 @@ function Demos() {
           <SectionHeading
             eyebrow="デモ"
             title="業務の見直しから、品質異常の検出まで体験できる"
-            lead="架空の業務データで、業務の説明から始め、実際の処理と品質の確認まで行います。問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。"
+            lead={
+              <>
+                架空の業務データで、業務の説明から始め、実際の処理と品質の確認まで行います。
+                <br />
+                問題を含むデータでは、異常を見つけ、根拠を示し、誤った結果の出力を止めます。
+              </>
+            }
           />
         </div>
         {/* 3つのカードの各段（見出し・説明・ファイル・小見出し・選択肢）の高さを subgrid でそろえる（実行ボタンの位置もそろう） */}
@@ -659,7 +677,13 @@ function TryOwnExcel() {
           <SectionHeading
             eyebrow="自分のExcelで試す"
             title="一度作った手順を、何度でも使える"
-            lead="一度きりのExcel処理から、毎月の繰り返し作業、無人での定期実行まで。作業に合わせて使い方を選べます。"
+            lead={
+              <>
+                一度きりのExcel処理から、毎月の繰り返し作業、無人での定期実行まで。
+                <br />
+                作業に合わせて使い方を選べます。
+              </>
+            }
           />
         </div>
         <div className="lg:col-start-1">
@@ -905,7 +929,7 @@ function scrollToSection(id: string) {
   }
 }
 
-function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: string; lead?: string }) {
+function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: string; lead?: ReactNode }) {
   return (
     // data-section-heading：特徴カードからの移動先（固定ヘッダー 64px ＋ 余白 32px を空ける）
     <div className="max-w-3xl scroll-mt-24" data-section-heading>
