@@ -31,13 +31,18 @@ test('作業起点：案件名と作業を入れると、作業手順の名前�
   await expect(page).toHaveURL(/start=work/)
   expect(await stepTexts(page)).toEqual(['1作業を伝える', '2手順を確認する', '3データを読み込む', '4実行・品質確認', '5出力・保存'])
 
-  // 改善診断：AI改善診断と簡易チェックは別の機能で、どちらも開発中（選べない）。診断せずに進む
+  // 改善診断は2択：AIで業務を改善する（開発中で選べない）／改善診断をせずに手順を作る（AIは使わない）。簡易チェックは廃止
   const diagnosis = page.getByRole('radiogroup', { name: '改善診断' })
-  await expect(diagnosis.getByRole('radio', { name: 'AI改善診断を受ける' })).toHaveAttribute('aria-disabled', 'true')
-  await expect(diagnosis.getByRole('radio', { name: '簡易チェックで見直す' })).toHaveAttribute('aria-disabled', 'true')
-  await expect(diagnosis.getByRole('radio', { name: '診断せずに進む' })).toHaveAttribute('aria-checked', 'false')
-  await diagnosis.getByRole('radio', { name: '診断せずに進む' }).click()
-  await expect(diagnosis.getByRole('radio', { name: '診断せずに進む' })).toHaveAttribute('aria-checked', 'true')
+  await expect(diagnosis.getByRole('radio')).toHaveCount(2)
+  await expect(diagnosis.getByRole('radio', { name: 'AIで業務を改善する' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(diagnosis.getByRole('radio', { name: 'AIで業務を改善する' })).toContainText('AI使用パスワードが必要です。')
+  await expect(diagnosis.getByRole('radio', { name: '改善診断をせずに手順を作る' })).toContainText('AIは使用しません。')
+  // 開発中のAIは、押しても選ばれない
+  await diagnosis.getByRole('radio', { name: 'AIで業務を改善する' }).click({ force: true })
+  await expect(diagnosis.getByRole('radio', { name: 'AIで業務を改善する' })).toHaveAttribute('aria-checked', 'false')
+  await expect(diagnosis.getByRole('radio', { name: '改善診断をせずに手順を作る' })).toHaveAttribute('aria-checked', 'false')
+  await diagnosis.getByRole('radio', { name: '改善診断をせずに手順を作る' }).click()
+  await expect(diagnosis.getByRole('radio', { name: '改善診断をせずに手順を作る' })).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByRole('radiogroup', { name: '手順の作り方' }).getByRole('radio', { name: 'AIで手順を作る' })).toHaveAttribute('aria-disabled', 'true')
 
   // 処理部品を組み合わせて作る（Excelを読み込んで列を確かめながら）を選ぶ
@@ -111,15 +116,15 @@ test('保存した手順を使う：作業手順を開く画面が出る。作�
   expect(items.find((t) => t.includes('データを読み込む'))).toBeTruthy()
 })
 
-test('作業起点（1366×768）：「診断せずに進む」を選ぶと、次にひな形を選ぶことを示し、ひな形の一覧へ動く。下部からも一覧へ行ける', async ({ page }) => {
+test('作業起点（1366×768）：「改善診断をせずに手順を作る」を選ぶと、次にひな形を選ぶことを示し、ひな形の一覧へ動く。下部からも一覧へ行ける', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 })
   await page.goto('/build?start=work')
   const list = page.getByRole('radiogroup', { name: 'もとにするひな形' })
   // 開発中の機能は小さな印（選べない）
-  await expect(page.getByText('改善診断機能は開発中です。')).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'AIで業務を改善する' })).toContainText('開発中')
   await page.getByRole('textbox', { name: '案件名' }).fill('月次売上集計')
-  // 「診断せずに進む」→ 次の操作の案内と、ひな形の一覧が見える位置へ
-  await page.getByRole('radiogroup', { name: '改善診断' }).getByRole('radio', { name: '診断せずに進む' }).click()
+  // 「改善診断をせずに手順を作る」→ 次の操作の案内と、ひな形の一覧が見える位置へ
+  await page.getByRole('radiogroup', { name: '改善診断' }).getByRole('radio', { name: '改善診断をせずに手順を作る' }).click()
   await expect(page.getByRole('status').filter({ hasText: '次に、作業手順のひな形を選んでください' })).toBeVisible()
   await expect(list.getByRole('radio').first()).toBeInViewport({ timeout: 5_000 })
   // 一番上まで戻しても、下部の「ひな形を選ぶ」で一覧へ行ける

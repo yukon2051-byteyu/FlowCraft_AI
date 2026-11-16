@@ -8,8 +8,8 @@ AIは使わない（ai_used は常に false。AIを使っていない結果を�
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends
-from pydantic import BaseModel, ValidationError
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from app.api.session import current_session
 from app.config import Settings, get_settings
@@ -21,8 +21,8 @@ from app.sessions.store import Session
 from app.errors import AppError
 from app.flow.validate import parse_flow, validate_structure
 from app.kaizen.build import DecisionIn, Improvement, build_improvement, decision_problems
-from app.kaizen.diagnose import Diagnosis, diagnose, diagnose_review
-from app.kaizen.models import Scenario, WorkReview
+from app.kaizen.diagnose import Diagnosis, diagnose
+from app.kaizen.models import Scenario
 from app.kaizen.scenarios import load_scenario, read_file_facts
 
 router = APIRouter(tags=["kaizen"])
@@ -67,29 +67,6 @@ def diagnose_scenario(scenario_id: str) -> Diagnosis:
 
 class BuildRequest(BaseModel):
     decisions: dict[str, DecisionIn]
-
-
-@router.post("/kaizen/review/diagnose", response_model=Diagnosis)
-def diagnose_own_work(body: dict = Body(...)) -> Diagnosis:
-    """自分の業務（利用者が表で入力した今の工程）の改善候補を、決まった規則で返す（AIは使わない。Phase K-1）。
-
-    入力した事実（作業の種類・書き写し元・くり返しの回数・必ず残す工程）だけを見る。工程名の文字では判定しない。
-    入力の誤りは、どこが誤っているかを日本語で返す（一般的な「形式が正しくありません」にしない）。
-    """
-    try:
-        review = WorkReview.model_validate(body)
-    except ValidationError as e:
-        first = e.errors(include_url=False)[0]
-        msg = str(first.get("msg", "")).removeprefix("Value error, ")
-        where = ".".join(str(x) for x in first.get("loc", ()))
-        raise AppError(
-            422,
-            "INVALID_WORK_REVIEW",
-            "今の工程の入力に誤りがあります。",
-            cause=msg if first.get("type") == "value_error" else f"{where}：{msg}",
-            how_to_fix="工程の表を見直してから、もう一度お試しください。",
-        ) from None
-    return diagnose_review(review)
 
 
 @router.post("/kaizen/scenarios/{scenario_id}/build", response_model=Improvement)

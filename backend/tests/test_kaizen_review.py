@@ -1,20 +1,18 @@
-"""Phase K-1a：自分の業務（利用者が表で入力した今の工程）から、決まった規則で改善候補を出す。
+"""工程の一覧（WorkReview）から、決まった規則で改善候補を出す（AI業務改善診断で、事実の根拠として使う部品）。
+
+2026-11-16：利用者が工程の表を入力する画面と、そのAPIは廃止した（AIを使わない業務改善診断の廃止）。規則の部品は残す。
 
 - 規則はデモと同じもの（diagnose_work）を使う。見るのは入力した事実（作業の種類・書き写し元・くり返しの回数・必ず残す工程）だけ
 - 部署のExcelは使わないので、列名の標準化（KD-3）は出さない
-- 入力の誤りは、どこが誤っているかを日本語で返す
 すべて架空の業務。
 """
 
 import copy
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.config import Settings, get_settings
 from app.kaizen.diagnose import diagnose_review
 from app.kaizen.models import WorkReview
-from app.main import create_app
 
 # 架空の業務：各支店の経費精算Excelを受け取り、確認し、集計して、2つの資料へ書き写す
 BASE = {
@@ -117,30 +115,3 @@ def test_入力の誤りは_どこが誤っているかを示して拒否する(
     edit(data)
     with pytest.raises(ValueError, match=message):
         WorkReview.model_validate(data)
-
-
-@pytest.fixture
-def client(tmp_path):
-    app = create_app()
-    app.dependency_overrides[get_settings] = lambda: Settings(upload_dir=tmp_path / "uploads", disable_rate_limit=True)
-    return TestClient(app)
-
-
-def test_API_改善候補を返す_AIもパスワードも使わない(client):
-    r = client.post("/api/kaizen/review/diagnose", json=BASE)
-    assert r.status_code == 200
-    body = r.json()
-    assert [c["rule_id"] for c in body["candidates"]] == ["KD-1", "KD-2", "KD-4"]
-    assert body["ai_used"] is False
-
-
-def test_API_入力の誤りは日本語の理由を返す(client):
-    data = copy.deepcopy(BASE)
-    data["steps"][3]["transcribes_from"] = "s5"
-    r = client.post("/api/kaizen/review/diagnose", json=data)
-    assert r.status_code == 422
-    body = r.json()["error"]
-    assert body["code"] == "INVALID_WORK_REVIEW"
-    assert body["cause"] == "「経費一覧表に書き写す」の書き写し元は、それより前の工程を選んでください"
-    # 工程が0件も拒否する
-    assert client.post("/api/kaizen/review/diagnose", json={"steps": []}).status_code == 422

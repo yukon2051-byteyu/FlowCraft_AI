@@ -4,6 +4,8 @@
 - 根拠：追加開発指示書「生成AIとの差別化強化・トヨタ式カイゼン思想の導入」
 - 関連：[product-review.md](product-review.md) §15、[completion-criteria.md](completion-criteria.md)、[implementation-plan.md](implementation-plan.md)、[comparison-plan.md](comparison-plan.md)
 
+> **2026-11-16 方針の変更（AI業務改善診断への一本化）**：AIを使わない業務改善診断（下記の「簡易チェック」6問、および利用者が工程の表を入力して規則で候補を出す「今の工程から見直す」）は**廃止**した。業務改善の提案・診断はAIで行い、診断は任意とする。品質検証・完了基準の判定・完了基準の自動提案（規則）はAIに置き換えずに残す。規則による改善候補の判定（`backend/app/kaizen/diagnose.py` の `diagnose_work`）は、AIの提案のうち「データから確かめられた事実」の根拠として使う。進め方は [implementation-plan.md](implementation-plan.md) の「AI業務改善診断への一本化」を参照。以下の簡易チェックに関する記述は、経緯として残す。
+
 ---
 
 ## 0. 名称（2026-11-12：業務改善機能の名称・説明文改修指示書）

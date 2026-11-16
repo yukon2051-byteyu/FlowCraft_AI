@@ -285,7 +285,11 @@ def diagnose_work(w: WorkView) -> Diagnosis:
 
 
 def diagnose_review(r: WorkReview) -> Diagnosis:
-    """自分の業務（利用者が表で入力した工程）の改善候補。部署のExcelは使わないので、列名の標準化（KD-3）は調べない。"""
+    """工程の一覧（WorkReview）から、規則で確かめられる改善候補を出す。部署のExcelは使わないので、列名の標準化（KD-3）は調べない。
+
+    2026-11-16：AIを使わない業務改善診断（利用者が工程の表を入力する画面）は廃止した。
+    この関数は、AI業務改善診断（Phase A）で、AIが整理した工程について「データから確かめられた事実」を示す根拠として使う。
+    """
     steps = [
         WorkStep(
             step_id=s.step_id,

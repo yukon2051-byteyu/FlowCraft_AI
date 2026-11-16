@@ -25,7 +25,6 @@ import {
 } from './ops'
 import { advanceCriteriaVersion, pruneRunParameters } from './criteria'
 import { copyFlow } from './copy'
-import type { WorkReviewDraft } from '../kaizen/review'
 import type { Binding, Criterion, FlowDoc, FlowNode, InputDefinition, NodeType, RunParameter } from './types'
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -38,9 +37,6 @@ type FlowState = {
   exportedSnapshot: string | null
   /** 実行時に指定する値（例：対象月）。作業手順のファイルには保存しない（実行のたびに変わるため） */
   runValues: Record<string, string>
-  /** 自分の業務の見直し（Phase K-1）：業務の情報と今の工程の表。画面を移っても残す。新しく作り直すときだけ消す */
-  review: WorkReviewDraft | null
-  setReview: (r: WorkReviewDraft | null) => void
   setRunValues: (values: Record<string, string>) => void
   /** Excelに出力したことを記録する（snap：出力した結果を実行したときの作業手順の処理の中身＝contentSnapshot） */
   markExported: (snap: string) => void
@@ -113,10 +109,8 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   savedSnapshot: null,
   exportedSnapshot: null,
   runValues: {},
-  review: null,
-  setReview: (review) => set({ review }),
 
-  newFlow: (name) => set({ flow: createFlow(name), bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null, runValues: {}, review: null }),
+  newFlow: (name) => set({ flow: createFlow(name), bindings: {}, selectedNodeId: null, savedSnapshot: null, exportedSnapshot: null, runValues: {} }),
 
   setRunValues: (values) => set({ runValues: values }),
 

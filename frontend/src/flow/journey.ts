@@ -16,7 +16,7 @@ export type StepId = 'describe' | 'procedure' | 'data' | 'run' | 'output'
 export type StartMode = 'WORK_FIRST' | 'FILE_FIRST' | 'SAVED_WORKFLOW'
 /** 作業手順の作り方（作業起点）。ai は開発中 */
 export type BuildMethod = 'parts_from_data' | 'template' | 'ai'
-/** 改善診断（開始方法とは別に持つ）。AI改善診断・簡易チェックはどちらも開発中 */
+/** 改善診断（開始方法とは別に持つ）。AIで業務を改善する（AI改善診断）は開発中。AIを使わない簡易チェックは廃止（2026-11-16） */
 export type DiagnosisState = 'unselected' | 'chosen' | 'done' | 'skipped'
 
 export const STEP_LABEL: Record<StepId, string> = {
@@ -42,14 +42,13 @@ export function stepOrder(mode: StartMode, method: BuildMethod | null = null): S
 }
 
 /** 画面（WorkspacePage の Screen）→ その画面で行っている段階 */
-export type Screen = 'start' | 'describe' | 'review' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'output' | 'demo_intro' | 'demo_improve' | 'demo_data'
+export type Screen = 'start' | 'describe' | 'data' | 'define' | 'assign' | 'edit' | 'result' | 'output' | 'demo_intro' | 'demo_improve' | 'demo_data'
 
 export function stepOfScreen(screen: Screen): StepId | null {
   switch (screen) {
     case 'start':
       return null
     case 'describe':
-    case 'review': // 今の工程から見直す（作業を伝える段階の中で行う。Phase K-1）
     case 'demo_intro':
       return 'describe'
     case 'demo_improve':

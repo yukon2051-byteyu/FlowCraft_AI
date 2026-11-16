@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowRight, CircleCheck, Info } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowRight, CircleCheck, Info, Sparkles } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listTemplates } from '../../api/templates'
@@ -13,8 +13,10 @@ import type { BuildMethod, DiagnosisState } from '../../flow/journey'
  *
  * 画面の順番：① やりたい作業を入力する → ② 改善診断を受けるか選ぶ → ③ 作業手順のひな形を選ぶ → ④ 次へ進む
  * 2026-11-16 改修（1366×768 で、ひな形の一覧が画面の外に隠れ、次の操作に気づけなかった）：
- * - 開発中の機能（AI改善診断・簡易チェック・AIで手順を作る）は、選べない小さな印にまとめる（使えるように見せない）
- * - 「診断せずに進む」を選んだら、「次に、作業手順のひな形を選んでください」と示し、ひな形の一覧へ動かす（利用者が選んだときだけ）
+ * - ② は2択（2026-11-16 AI業務改善診断への一本化）：「AIで業務を改善する」（主役。AIができるまでは開発中で選べない）と
+ *   「改善診断をせずに手順を作る」（AIは使わない）。AIを使わない簡易チェックは廃止した
+ * - 開発中の機能（AIで業務を改善する・AIで手順を作る）は、選べない状態で示す（使えるように見せない）
+ * - 「改善診断をせずに手順を作る」を選んだら、「次に、作業手順のひな形を選んでください」と示し、ひな形の一覧へ動かす（利用者が選んだときだけ）
  * - 下部の操作：ひな形を選ぶ前は「ひな形を選ぶ ↓」（一覧へ動かす）、選んだら「このひな形で進む →」
  * 「改善診断を受けない」と「AIを使わない」は別のこと。AIを使う操作のときだけ、その直前にAI使用パスワードを求める。
  */
@@ -24,10 +26,6 @@ type Props = {
   initialDescription: string
   onBack: () => void
   onNext: (v: { name: string; description: string; diagnosis: DiagnosisState; method: BuildMethod; templateId: string | null }) => void
-  /** 「今の工程から見直す」を選んで次へ進む（業務の情報と工程の表の画面へ。Phase K-1） */
-  onReview?: (v: { name: string; description: string }) => void
-  /** 見直しの入力がすでにある（戻ってきたとき） */
-  reviewStarted?: boolean
   busy?: boolean
 }
 
@@ -40,15 +38,12 @@ function scrollToEl(el: HTMLElement | null) {
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
 }
 
-export function DescribeWork({ initialName, initialDescription, onBack, onNext, onReview, reviewStarted = false, busy = false }: Props) {
+export function DescribeWork({ initialName, initialDescription, onBack, onNext, busy = false }: Props) {
   const [name, setName] = useState(initialName === DEFAULT_NAME ? '' : initialName)
   const [description, setDescription] = useState(initialDescription)
   const aiDiagnosis = isAvailable('kaizen')
-  const quickCheck = isAvailable('kaizenCheck')
   const aiBuild = isAvailable('aiFlow')
   const [skipChosen, setSkipChosen] = useState(false)
-  // 「今の工程から見直す」（規則による見直し。AIは使わない）。見直しの入力があれば、選んだ状態で戻る
-  const [reviewChosen, setReviewChosen] = useState(reviewStarted)
   const [method, setMethod] = useState<BuildMethod>('template')
   const [templateId, setTemplateId] = useState<string | null>(null)
   const templates = useQuery({ queryKey: ['templates'], queryFn: listTemplates })
@@ -61,12 +56,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
   const [tried, setTried] = useState(false)
   const nameError = tried ? nameProblem : null
 
-  const chooseReview = () => {
-    setReviewChosen(true)
-    setSkipChosen(false)
-  }
   const chooseSkip = () => {
-    setReviewChosen(false)
     setSkipChosen(true)
     // 選んだ直後だけ、次の操作（ひな形を選ぶ）の位置へ動かす（再描画や入力中には動かさない）
     requestAnimationFrame(() => scrollToEl(methodRef.current))
@@ -74,14 +64,6 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
   const goName = () => {
     scrollToEl(nameRef.current)
     nameRef.current?.focus({ preventScroll: true })
-  }
-  const goReview = () => {
-    if (nameProblem) {
-      setTried(true)
-      goName()
-      return
-    }
-    onReview?.({ name: trimmed, description: description.trim() })
   }
   const next = () => {
     if (nameProblem) {
@@ -144,45 +126,33 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
             </label>
           </section>
 
-          {/* ② 改善診断を受けるか選ぶ。使えるのは「診断せずに進む」だけ。開発中の2つは小さな印にまとめる */}
+          {/* ② 改善診断を受けるか選ぶ（2択）。AIはできるまで開発中で選べない */}
           <section className="rounded-2xl bg-panel px-5 py-4 ring-1 ring-edge" aria-label="この作業を見直しますか">
             <h2 className="font-bold text-white">
               <span className="mr-1.5 text-[0.85rem] text-mint">②</span>この作業を見直しますか？<span className="ml-1.5 text-[0.82rem] font-normal text-subtle">任意</span>
             </h2>
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2" role="radiogroup" aria-label="改善診断">
-              {onReview && (
-                <Choice
-                  selected={reviewChosen}
-                  onSelect={chooseReview}
-                  title="今の工程から見直す"
-                  body="今の作業を工程ごとに書き出すと、決まった規則で改善候補を示します（AIは使いません）。"
-                />
-              )}
-              <Choice selected={skipChosen} onSelect={chooseSkip} title="診断せずに進む" body="今の作業内容をもとに、作業手順の作成へ進みます。" />
-              <div className="min-w-0 flex-1 rounded-lg bg-white/3 px-3 py-2 ring-1 ring-edge">
-                <p className="text-[0.84rem] text-subtle">
-                  <span className="font-bold text-white/70">改善診断機能は開発中です。</span>AI改善診断・簡易チェックは今後利用できるようになります。
-                </p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  <DevChip title="AI改善診断を受ける" feature="kaizen" disabled={!aiDiagnosis} />
-                  <DevChip title="簡易チェックで見直す" feature="kaizenCheck" disabled={!quickCheck} />
-                </div>
-              </div>
+            <div className="mt-2.5 grid grid-cols-2 gap-3" role="radiogroup" aria-label="改善診断">
+              <DiagnosisCard
+                ai
+                available={aiDiagnosis}
+                selected={false}
+                onSelect={() => undefined}
+                title="AIで業務を改善する"
+                body="作業内容やExcelデータをAIが分析し、不要な作業の廃止・簡素化・標準化・自動化の観点から改善案を提案します。"
+                note="AI使用パスワードが必要です。"
+              />
+              <DiagnosisCard
+                available
+                selected={skipChosen}
+                onSelect={chooseSkip}
+                title="改善診断をせずに手順を作る"
+                body="改善内容が決まっている場合は、診断を省略してExcelの加工・集計手順を作成します。"
+                note="AIは使用しません。"
+              />
             </div>
           </section>
 
-          {/* 見直しを選んでいる間は、③（手順の作り方）は見直しの後で選ぶ。先に選ばせて迷わせない */}
-          {reviewChosen && (
-            <p className="flex items-start gap-2 rounded-2xl bg-panel px-5 py-4 text-[0.9rem] text-subtle ring-1 ring-edge" role="note" aria-label="手順の作り方">
-              <Info className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
-              <span>
-                <span className="font-bold text-white">③ 作業手順の作り方は、見直しの後で選びます。</span>
-                改善候補を確かめてから、ひな形や処理部品で作業手順を作ります。
-              </span>
-            </p>
-          )}
           {/* ③ 作業手順のひな形を選ぶ（ほかの作り方も、ここで選ぶ） */}
-          {!reviewChosen && (
           <section ref={methodRef} className="scroll-mt-3 rounded-2xl bg-panel px-5 py-4 ring-1 ring-edge" aria-label="手順の作り方">
             {skipChosen && method === 'template' && !templateId && (
               <p role="status" className="mb-3 flex items-start gap-2 rounded-xl bg-mint/10 px-3.5 py-2.5 ring-1 ring-mint/40">
@@ -224,7 +194,6 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
               「改善診断を受けない」と「AIを使わない」は別のことです。AIを使う操作を選んだときだけ、その直前にパスワードの入力を求めます。
             </p>
           </section>
-          )}
         </div>
       </div>
 
@@ -235,12 +204,7 @@ export function DescribeWork({ initialName, initialDescription, onBack, onNext, 
           開始方法を選び直す
         </Button>
         <div className="ml-auto flex items-center gap-3">
-          {reviewChosen ? (
-            <Button variant="primary" disabled={busy} onClick={goReview}>
-              {reviewStarted ? '今の工程の入力に戻る' : '次へ：今の工程を入力する'}
-              <ArrowRight className="size-4" aria-hidden />
-            </Button>
-          ) : needTemplate ? (
+          {needTemplate ? (
             <Button variant="primary" onClick={() => scrollToEl(methodRef.current)}>
               ひな形を選ぶ
               <ArrowDown className="size-4" aria-hidden />
@@ -270,29 +234,65 @@ function FieldBadge({ required = false }: { required?: boolean }) {
   )
 }
 
-/** 使える選択肢（ラジオ）。カード全体を押せ、Enter・Space でも選べる */
-function Choice({ selected, title, body, onSelect }: { selected: boolean; title: string; body: string; onSelect: () => void }) {
+/**
+ * ② の選択肢のカード。選んだ状態は枠・背景・チェックの印で示す。
+ * ai：AIの選択肢（主役なのでミントの枠で少し目立たせる）。available が false なら「開発中」で選べない（使えるように見せない）
+ */
+function DiagnosisCard({
+  ai = false,
+  available,
+  selected,
+  onSelect,
+  title,
+  body,
+  note,
+}: {
+  ai?: boolean
+  available: boolean
+  selected: boolean
+  onSelect: () => void
+  title: string
+  body: string
+  note: string
+}) {
+  const pick = () => available && onSelect()
   return (
     <div
       role="radio"
       aria-checked={selected}
+      aria-disabled={!available || undefined}
       aria-label={title}
-      tabIndex={0}
-      onClick={onSelect}
+      tabIndex={available ? 0 : -1}
+      onClick={pick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          onSelect()
+          pick()
         }
       }}
-      className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-4 py-2.5 ring-1 transition-colors focus-visible:outline-2 focus-visible:outline-mint ${
-        selected ? 'bg-mint/12 ring-2 ring-mint/70' : 'bg-white/5 ring-white/25 hover:bg-white/8 hover:ring-white/45'
+      title={available ? undefined : 'この機能は開発中のため、まだ選べません'}
+      className={`flex gap-3 rounded-xl px-4 py-3 ring-1 transition-colors focus-visible:outline-2 focus-visible:outline-mint ${
+        !available
+          ? `cursor-not-allowed ${ai ? 'bg-mint/5 ring-mint/30' : 'bg-white/3 ring-edge'}`
+          : selected
+            ? 'cursor-pointer bg-mint/12 ring-2 ring-mint/70'
+            : `cursor-pointer hover:bg-white/8 ${ai ? 'bg-mint/8 ring-mint/45' : 'bg-white/5 ring-white/25 hover:ring-white/45'}`
       }`}
     >
-      {selected ? <CircleCheck className="size-5 shrink-0 text-mint" aria-hidden /> : <span className="size-5 shrink-0 rounded-full ring-2 ring-white/40" aria-hidden />}
-      <span>
-        <span className={`block font-bold ${selected ? 'text-mint' : 'text-white'}`}>{title}</span>
-        <span className="block text-[0.82rem] text-white/75">{body}</span>
+      {selected ? (
+        <CircleCheck className="mt-0.5 size-5 shrink-0 text-mint" aria-hidden />
+      ) : ai ? (
+        <Sparkles className={`mt-0.5 size-5 shrink-0 ${available ? 'text-mint' : 'text-mint/60'}`} aria-hidden />
+      ) : (
+        <span className="mt-0.5 size-5 shrink-0 rounded-full ring-2 ring-white/40" aria-hidden />
+      )}
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className={`font-bold ${selected ? 'text-mint' : available ? 'text-white' : 'text-white/70'}`}>{title}</span>
+          {!available && ai && <DevBadge feature="kaizen" />}
+        </span>
+        <span className={`mt-0.5 block text-[0.84rem] leading-relaxed ${available ? 'text-white/80' : 'text-white/55'}`}>{body}</span>
+        <span className={`mt-1 block text-[0.8rem] ${ai ? 'text-mint/80' : 'text-subtle'}`}>{note}</span>
       </span>
     </div>
   )
