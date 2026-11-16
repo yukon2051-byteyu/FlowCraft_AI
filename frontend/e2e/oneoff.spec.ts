@@ -107,7 +107,7 @@ test('実行した後に保存でき（作り直し不要）、保存したフ�
   await next.getByTestId('assign-file-input').setInputFiles([demo('売上実績_2026-10.xlsx'), demo('商品マスタ.xlsx'), demo('部署マスタ.csv')])
   await expect(next.getByRole('button', { name: 'この割当で作業手順へ進む' })).toBeEnabled({ timeout: 30_000 })
   await next.getByRole('button', { name: 'この割当で作業手順へ進む' }).click()
-  await expect(card(next, 7)).toContainText('確認済み')
+  await expect(card(next, 7)).toContainText('設定完了')
   await runAll(next)
   expect(await deptTotal(next)).toBe(20_818_240)
   await next.close()

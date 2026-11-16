@@ -20,8 +20,8 @@ export async function addAtEnd(page: Page, name: string) {
 }
 
 export async function confirm(page: Page, n: number) {
-  await panel(page, n).getByRole('button', { name: 'この内容で確認済みにする' }).click()
-  await expect(card(page, n)).toContainText('確認済み')
+  await panel(page, n).getByRole('button', { name: 'この内容で設定完了にする' }).click()
+  await expect(card(page, n)).toContainText('設定完了')
 }
 
 /** 売上 ＋ 商品マスタ ＋ 部署マスタ → 部署別に売上を合計 → 出力 */

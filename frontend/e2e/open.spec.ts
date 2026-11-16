@@ -53,7 +53,7 @@ test('一覧から開くと、ステップの構成・設定・順序が完全�
 
   // 構成・順序・名前・確認済みの状態が、保存したときと同じ
   expect(await stepNames(page)).toEqual(before)
-  await expect(card(page, 7)).toContainText('確認済み')
+  await expect(card(page, 7)).toContainText('設定完了')
   // 内容も同じ：もう一度保存しようとすると「変更はありません」
   await header(page).getByRole('button', { name: '作業手順を保存' }).click()
   await expect(saveDialog(page)).toContainText('変更はありません。版1のまま')

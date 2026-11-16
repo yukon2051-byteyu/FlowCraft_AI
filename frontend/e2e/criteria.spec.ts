@@ -31,7 +31,7 @@ test('テンプレート「売上集計」で設定し、対象月を入れて�
   await expect(items).toHaveCount(5)
   await expect(page.getByRole('tab', { name: /完了基準 5/ })).toBeVisible()
   // 推し当てた基準は設定済み（期間は「実行するたびに指定」）
-  await expect(items.filter({ hasText: '設定が必要' })).toHaveCount(0)
+  await expect(items.filter({ hasText: '未設定' })).toHaveCount(0)
   await expect(items.filter({ hasText: '対象月の伝票だけ' })).toContainText('実行時に指定（対象月）')
 
   // 対象月を入れるまで実行できない

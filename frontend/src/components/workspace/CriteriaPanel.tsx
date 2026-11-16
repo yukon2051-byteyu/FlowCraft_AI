@@ -1,4 +1,6 @@
 import { CircleAlert, CircleCheck, ClipboardList, History, LayoutTemplate, ListChecks, Plus, Trash2, X } from 'lucide-react'
+import { ItemStatusBadge } from '../ui/ItemStatusBadge'
+import { deriveStatus } from '../../flow/stepStatus'
 import { useState } from 'react'
 import {
   applyTemplate,
@@ -144,24 +146,22 @@ export function CriteriaPanel() {
                       <span className="font-bold text-ink">{c.name}</span>
                       {c.name !== CRITERION_KINDS[c.kind].label && <span className="text-[0.8rem] text-muted">{CRITERION_KINDS[c.kind].label}</span>}
                       <span className={`ml-auto rounded-full px-2 py-0.5 text-[0.75rem] font-bold ring-1 ring-inset ${ON_FAIL_STYLE[c.on_fail]}`}>{ON_FAIL_SHORT[c.on_fail]}</span>
+                      <ItemStatusBadge kind="criterion" status={deriveStatus(problems, [], c.confirmation_status !== 'pending')} />
                     </span>
                     <span className="mt-1 block text-[0.85rem] text-ink/80">{describeCriterion(c, flow, paramLabel)}</span>
-                    {c.confirmation_status === 'pending' ? (
+                    {problems.length > 0 ? (
                       <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-warning-ink">
                         <CircleAlert className="size-3.5" aria-hidden />
-                        未確認：写したルールです。内容を確かめてください
-                      </span>
-                    ) : problems.length > 0 ? (
-                      <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-warning-ink">
-                        <CircleAlert className="size-3.5" aria-hidden />
-                        設定が必要：{problems[0]}
+                        {problems[0]}
                         {problems.length > 1 ? ` ほか${problems.length - 1}件` : ''}
                       </span>
                     ) : (
-                      <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-success-ink">
-                        <CircleCheck className="size-3.5" aria-hidden />
-                        設定済み
-                      </span>
+                      c.confirmation_status === 'pending' && (
+                        <span className="mt-1 flex items-center gap-1 text-[0.82rem] text-muted">
+                          <CircleAlert className="size-3.5" aria-hidden />
+                          ひな形・複製から写したルールです。内容を確かめてください
+                        </span>
+                      )
                     )}
                   </button>
                 </li>

@@ -39,7 +39,8 @@ import type {
 import { useFlowStore } from '../../flow/store'
 import type { ColumnType, FlowNode } from '../../flow/types'
 import { Button } from '../ui/Button'
-import { StatusBadge } from '../ui/StatusBadge'
+import { ItemStatusBadge } from '../ui/ItemStatusBadge'
+import { deriveStatus } from '../../flow/stepStatus'
 import { StepPreview } from './run/StepPreview'
 
 type Props = {
@@ -131,7 +132,7 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
             <p className="text-[0.82rem] font-bold text-muted">ステップ{index + 1}の設定</p>
             <p className="text-[0.78rem] text-muted">{info.name}（{info.technical}）</p>
           </div>
-          <StatusBadge status={confirmed ? 'confirmed' : 'unset'} className="ml-auto" />
+          <ItemStatusBadge status={deriveStatus(problems, serverProblems, confirmed)} className="ml-auto" />
         </div>
         <label className="mt-2 flex flex-col gap-1">
           <span className="text-[0.8rem] font-bold text-muted">ステップの名前</span>
@@ -183,17 +184,17 @@ export function StepSettings({ node, index, inputs, inputNames, problems, server
             ))}
           </ul>
         ) : (
-          !confirmed && <p className="mb-3 text-[0.85rem] text-muted">設定に不足はありません。内容を確かめてから、確認済みにしてください。</p>
+          !confirmed && <p className="mb-3 text-[0.85rem] text-muted">設定に不足はありません。内容を確かめてから、設定完了にしてください。</p>
         )}
         {confirmed ? (
           <p className="flex items-center gap-1.5 text-[0.9rem] font-bold text-success-ink">
             <CircleCheck className="size-4" aria-hidden />
-            確認済みです。設定を変えると、もう一度確認が必要になります。
+            設定完了です。設定を変えると、もう一度確認が必要になります。
           </p>
         ) : (
           <Button variant="primary" size="sm" disabled={all.length > 0} onClick={() => confirmNode(node.node_id)} title={all.length ? '設定が必要なことが残っています' : undefined}>
             <CircleCheck className="size-4" aria-hidden />
-            この内容で確認済みにする
+            この内容で設定完了にする
           </Button>
         )}
       </div>

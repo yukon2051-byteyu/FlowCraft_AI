@@ -20,7 +20,9 @@ import type { FlowNode, NodeType } from '../../flow/types'
 import { isAvailable } from '../../content/featureStatus'
 import { Button } from '../ui/Button'
 import { DevBadge } from '../ui/DevBadge'
-import { StatusBadge } from '../ui/StatusBadge'
+import { ItemStatusBadge } from '../ui/ItemStatusBadge'
+import { deriveStatus } from '../../flow/stepStatus'
+import type { ItemStatus } from '../../flow/stepStatus'
 
 /**
  * タスク1-3：作業手順の処理ステップを、上から順に縦に並べて表示する。
@@ -94,7 +96,7 @@ export function FlowSteps({
         : missingValues.length
           ? `実行時に指定する値（${missingValues.map((p) => p.label).join('・')}）を入力してください`
         : notConfirmed
-        ? `確認済みでないステップが${notConfirmed}個あるため、まだ実行できません`
+        ? `要確認のステップが${notConfirmed}個あるため、まだ実行できません`
         : check.status !== 'done'
           ? '作業手順のチェックが終わるまでお待ちください'
           : serverCount
@@ -168,6 +170,7 @@ export function FlowSteps({
                   definitionColumns={flow.input_definitions.find((d) => d.input_id === node.parameters.input_id)?.columns}
                   summary={summarize(node)}
                   problemCount={problems[node.node_id].length + serverProblems(node, i).length}
+                  status={deriveStatus(problems[node.node_id], serverProblems(node, i), node.confirmation_status === 'confirmed')}
                   selected={node.node_id === selectedId}
                   onSelect={() => selectNode(node.node_id)}
                   onAddBelow={() => setAddAt(addAt === node.node_id ? null : node.node_id)}
@@ -270,13 +273,14 @@ type CardProps = {
   definitionColumns?: { name: string; type: keyof typeof COLUMN_TYPE_LABEL; required?: boolean }[]
   summary: string | null
   problemCount: number
+  status: ItemStatus
   selected: boolean
   onSelect: () => void
   onAddBelow: () => void
   canAddBelow: boolean
 }
 
-function StepCard({ node, index, nodes, labels, definitionColumns, summary, problemCount, selected, onSelect, onAddBelow, canAddBelow }: CardProps) {
+function StepCard({ node, index, nodes, labels, definitionColumns, summary, problemCount, status, selected, onSelect, onAddBelow, canAddBelow }: CardProps) {
   const moveNode = useFlowStore((s) => s.moveNode)
   const removeNode = useFlowStore((s) => s.removeNode)
   const setNodeInputs = useFlowStore((s) => s.setNodeInputs)
@@ -308,7 +312,7 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
         <span className="grid size-7 place-items-center rounded-full bg-ink text-[0.85rem] font-bold text-white">{n}</span>
         <h2 className="font-bold text-ink">{node.node_name}</h2>
         {node.node_name !== info.name && <span className="text-[0.82rem] text-muted">{info.name}</span>}
-        <StatusBadge status={node.confirmation_status === 'confirmed' ? 'confirmed' : 'unset'} className="ml-auto" />
+        <ItemStatusBadge status={status} className="ml-auto" />
         <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
           <IconButton label={`ステップ${n}を上へ移動`} disabled={index === 0} onClick={() => run(moveNode(node.node_id, index - 1))}>
             <ArrowUp className="size-4" />
@@ -349,7 +353,7 @@ function StepCard({ node, index, nodes, labels, definitionColumns, summary, prob
           {summary}
         </p>
       )}
-      {problemCount > 0 && node.confirmation_status !== 'confirmed' && (
+      {problemCount > 0 && (
         <p className="mt-2 flex items-center gap-1.5 text-[0.85rem] text-warning-ink">
           <TriangleAlert className="size-4" aria-hidden />
           設定が必要なことが{problemCount}件あります（選ぶと右側に表示）
@@ -545,7 +549,7 @@ function CheckSummary({ check, nodes, problems }: { check: ServerCheck; nodes: F
     if (needSetting > 0) {
       tone = 'text-warning'
       icon = <TriangleAlert className="size-4" aria-hidden />
-      text = `設定が必要なステップが${needSetting}個あります`
+      text = `要設定のステップが${needSetting}個あります`
     } else if (serverCount > 0) {
       tone = 'text-error'
       icon = <TriangleAlert className="size-4" aria-hidden />
@@ -553,7 +557,7 @@ function CheckSummary({ check, nodes, problems }: { check: ServerCheck; nodes: F
     } else {
       tone = 'text-success'
       icon = <CircleCheck className="size-4" aria-hidden />
-      text = unconfirmed ? `作業手順の形に問題はありません（確認済みでないステップ：${unconfirmed}個）` : '作業手順の形に問題はありません。すべてのステップが確認済みです'
+      text = unconfirmed ? `作業手順の形に問題はありません（要確認のステップ：${unconfirmed}個）` : '作業手順の形に問題はありません。すべてのステップが設定完了です'
     }
   }
   return (

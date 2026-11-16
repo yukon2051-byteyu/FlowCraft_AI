@@ -21,8 +21,8 @@ async function addAtEnd(page: Page, name: string) {
 }
 
 async function confirm(page: Page, n: number) {
-  await panel(page, n).getByRole('button', { name: 'この内容で確認済みにする' }).click()
-  await expect(card(page, n)).toContainText('確認済み')
+  await panel(page, n).getByRole('button', { name: 'この内容で設定完了にする' }).click()
+  await expect(card(page, n)).toContainText('設定完了')
 }
 
 test('よく使う9種の処理を画面から設定し、作業手順のチェックを通る', async ({ page }) => {
@@ -43,7 +43,7 @@ test('よく使う9種の処理を画面から設定し、作業手順のチェ�
   await card(page, 4).getByRole('combobox', { name: 'ステップ4の付け加える表' }).selectOption({ label: 'ステップ2の結果：商品マスタを読み込む' })
   const p4 = panel(page, 4)
   // 設定が終わるまでは、確認済みにできない
-  await expect(p4.getByRole('button', { name: 'この内容で確認済みにする' })).toBeDisabled()
+  await expect(p4.getByRole('button', { name: 'この内容で設定完了にする' })).toBeDisabled()
   await expect(p4.getByRole('list', { name: '設定が必要なこと' })).toContainText('元の表と付け加える表の列を選んでください')
   await p4.getByRole('combobox', { name: '元の表の照合に使う列1' }).selectOption('商品コード')
   await expect(p4.getByRole('combobox', { name: '付け加える表の照合に使う列1' })).toHaveValue('商品コード') // 同じ名前の列を自動で選ぶ
@@ -118,13 +118,13 @@ test('よく使う9種の処理を画面から設定し、作業手順のチェ�
 
   // すべて確認済みになり、作業手順のチェック（サーバー）も通る
   const status = page.getByRole('status', { name: '作業手順のチェック' })
-  await expect(status).toHaveText('作業手順の形に問題はありません。すべてのステップが確認済みです', { timeout: 10_000 })
+  await expect(status).toHaveText('作業手順の形に問題はありません。すべてのステップが設定完了です', { timeout: 10_000 })
 
   // 確認済みのステップの設定を変えると、もう一度確認が必要になる
   await card(page, 6).getByRole('heading').click()
   await panel(page, 6).getByRole('textbox', { name: '条件1の値' }).fill('2')
-  await expect(card(page, 6)).toContainText('設定が必要')
-  await expect(status).toContainText('確認済みでないステップ：1個', { timeout: 10_000 })
+  await expect(card(page, 6)).toContainText('要確認')
+  await expect(status).toContainText('要確認のステップ：1個', { timeout: 10_000 })
 
   const texts = (await page.locator('body').innerText()).split('\n')
   expect(texts.filter((t) => BANNED.test(t))).toEqual([])
@@ -183,7 +183,7 @@ test('残りの6種（並べ替え・列を消す・同じ値の列・形式・�
   await addAtEnd(page, 'Excelに出力する')
   await confirm(page, 8)
 
-  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toHaveText('作業手順の形に問題はありません。すべてのステップが確認済みです', { timeout: 10_000 })
+  await expect(page.getByRole('status', { name: '作業手順のチェック' })).toHaveText('作業手順の形に問題はありません。すべてのステップが設定完了です', { timeout: 10_000 })
   const texts = (await page.locator('body').innerText()).split('\n')
   expect(texts.filter((t) => BANNED.test(t))).toEqual([])
 })
