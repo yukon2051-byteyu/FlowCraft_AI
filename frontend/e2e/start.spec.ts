@@ -17,7 +17,7 @@ test('開始画面：3つの開始方法を同じ大きさのカードで示し�
   const work = ways.getByRole('region', { name: 'やりたい作業から始める' })
   await expect(work).toContainText('おすすめ')
   // 開発中の機能を、使えるように見せない
-  await expect(work).toContainText('AIによる手順の作成・改善診断は開発中です')
+  await expect(work).toContainText('AIによる手順の自動作成は開発中です')
   await expect(ways.getByRole('region', { name: 'Excelを読み込んで始める' })).toBeVisible()
   await expect(ways.getByRole('region', { name: '保存した手順を使う' })).toBeVisible()
   // 開始方法を選ぶまで、段階は出さない
@@ -31,13 +31,13 @@ test('作業起点：案件名と作業を入れると、作業手順の名前�
   await expect(page).toHaveURL(/start=work/)
   expect(await stepTexts(page)).toEqual(['1作業を伝える', '2手順を確認する', '3データを読み込む', '4実行・品質確認', '5出力・保存'])
 
-  // 改善診断は2択：AIで業務を改善する（開発中で選べない）／改善診断をせずに手順を作る（AIは使わない）。簡易チェックは廃止
+  // 改善診断は2択：AIで業務を改善する（テスト用のサーバーはAIが設定されていないので選べない）／改善診断をせずに手順を作る（AIは使わない）
   const diagnosis = page.getByRole('radiogroup', { name: '改善診断' })
   await expect(diagnosis.getByRole('radio')).toHaveCount(2)
   await expect(diagnosis.getByRole('radio', { name: 'AIで業務を改善する' })).toHaveAttribute('aria-disabled', 'true')
   await expect(diagnosis.getByRole('radio', { name: 'AIで業務を改善する' })).toContainText('AI使用パスワードが必要です。')
   await expect(diagnosis.getByRole('radio', { name: '改善診断をせずに手順を作る' })).toContainText('AIは使用しません。')
-  // 開発中のAIは、押しても選ばれない
+  // 使えないAIは、押しても選ばれない
   await diagnosis.getByRole('radio', { name: 'AIで業務を改善する' }).click({ force: true })
   await expect(diagnosis.getByRole('radio', { name: 'AIで業務を改善する' })).toHaveAttribute('aria-checked', 'false')
   await expect(diagnosis.getByRole('radio', { name: '改善診断をせずに手順を作る' })).toHaveAttribute('aria-checked', 'false')

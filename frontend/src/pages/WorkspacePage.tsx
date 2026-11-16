@@ -331,9 +331,8 @@ export default function WorkspacePage() {
   // 作った作業手順から見直している（手順は置き換えず、判断を記録して手順の画面に戻る）
   const [aiFromFlow, setAiFromFlow] = useState(false)
   const recordDiagnosis = useFlowStore((s) => s.recordDiagnosis)
-  // 実際のAI（live）は、機能が完成していれば選べる。手元の開発用サーバー（npm run dev）では、完成前でも実際のAIで確かめられるよう選べる
-  // （公開用に作った画面は「開発中」のまま。実際のAIで確かめてから kaizen を available にする）
-  const aiSelectable = aiStatus === 'fixed' || (aiStatus === 'live' && (isAvailable('kaizen') || import.meta.env.DEV))
+  // AIで業務を改善する：固定応答（開発・テスト）か、実際のAIがあり機能が完成しているときだけ選べる
+  const aiSelectable = aiStatus === 'fixed' || (aiStatus === 'live' && isAvailable('kaizen'))
   // ひな形から「仮の手順」を作る（新しい手順ID・品質ルールは未確認）。データを読み込んだ後、列を照合して確定する
   const startFromTemplate = async (templateId: string, name: string, desc: string) => {
     setTemplateError(null)

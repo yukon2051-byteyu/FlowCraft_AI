@@ -142,7 +142,7 @@ test('データの取り扱いは「自分のExcelで試す」の右側に統合
   await expect(formats).toContainText('※ パスワード付きExcel、VBAマクロの実行には対応していません。')
   const handling = page.getByRole('region', { name: 'データの取り扱い' })
   await expect(handling).toContainText('読み込んだデータは、最後の操作から60分で自動的に削除します。')
-  await expect(handling).toContainText('現在、AIへのデータ送信は行っていません（AI機能は開発中です）。')
+  await expect(handling).toContainText('AIへの送信は、AI業務改善診断を使うときだけです。送る内容は、送る前に画面でそのまま確かめられます。')
   await expect(handling).toContainText('公開版では、機密情報や実在する個人情報を含むファイルは使用しないでください。')
   await expect(handling).toContainText('AI機能について')
   await expect(page.getByRole('region', { name: 'AI機能の利用について' })).toHaveCount(0)

@@ -21,6 +21,9 @@ export default defineConfig({
     {
       command: '.venv\\Scripts\\python.exe -m uvicorn app.main:app --port 8001',
       cwd: '../backend',
+      // テストでは実際のAIを決して呼ばない（backend/.env にAPIキーがあっても、環境変数が優先されるので使わない）。
+      // AIの画面は、テストの中で応答を差し替えて確かめる
+      env: { AI_MODE: 'off', ANTHROPIC_API_KEY: '', AI_PASSWORD_HASH: '' },
       url: 'http://127.0.0.1:8001/api/health',
       reuseExistingServer: false,
       timeout: 60_000,

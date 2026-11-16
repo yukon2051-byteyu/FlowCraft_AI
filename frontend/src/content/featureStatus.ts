@@ -43,7 +43,7 @@ export const FEATURE_STATUS = {
   /** 業務の完了基準の設定・評価 */
   criteria: 'available',
   /** AI業務改善支援（AI業務改善診断・改善提案・効果の測定）。キー名 kaizen は互換性のため変えない */
-  kaizen: 'in_development',
+  kaizen: 'available', // 2026-11-17 実際のAIで最後まで動くことを利用者が確認
   /** 無人定期実行（共通Workerが、有効化された案件だけを決まった日時に実行する） */
   schedule: 'in_development',
   /** クラウドで3分後に自動実行を試す（サンプルデータ）。公開・実測ができたら available にし、表示を「今すぐ試せる」にする */

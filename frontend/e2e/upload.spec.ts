@@ -122,7 +122,7 @@ test('最初の画面：読み込む前に始め方を選ばせず、すぐに�
   // データの取り扱い：要点は右側に。詳しい説明は、ファイルを選ぶ場所のすぐ下の「データの取り扱いを確認」から開く（同意は求めない）
   const handling = side.getByRole('region', { name: 'データの取り扱い' })
   await expect(handling).toContainText('最後の操作から60分で自動的に削除します')
-  await expect(handling).toContainText('現在、AIへのデータ送信は行っていません')
+  await expect(handling).toContainText('AIへの送信は、AI業務改善診断を使うときだけです。')
   await main.getByRole('button', { name: 'データの取り扱いを確認' }).click()
   const dialog = page.getByRole('dialog', { name: 'データの取り扱い' })
   for (const t of ['読み込んだデータの保存と削除', 'このブラウザに残るもの', 'AIへの送信', '機密情報・個人情報', '対応していないもの']) {
