@@ -14,7 +14,9 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import ENGINE_VERSION
-from app.api import demos, files, flows, health, kaizen, session
+from app.ai.auth import AiState
+from app.ai.usage import UsageLedger
+from app.api import ai, demos, files, flows, health, kaizen, session
 from app.config import Settings, get_settings
 from app.errors import AppError, install_error_handlers
 from app.sessions.store import SessionStore
@@ -47,6 +49,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="FlowCraft AI API", version=ENGINE_VERSION, lifespan=lifespan)
     app.state.session_store = store
+    # AIの費用の記録・認証の失敗回数（アプリ全体で1つ。メモリ上だけ）
+    app.state.ai = AiState(ledger=UsageLedger(monthly_budget_usd=settings.ai_monthly_budget_usd, calls_per_hour=settings.ai_calls_per_hour))
 
     # 開発中はフロント（Vite: localhost:5173）から呼べるようにする。
     # 公開環境ではフロントを同じサーバーから配信するため、この許可は不要になる。
@@ -84,6 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(flows.router, prefix="/api")
     app.include_router(demos.router, prefix="/api")
     app.include_router(kaizen.router, prefix="/api")
+    app.include_router(ai.router, prefix="/api")
     return app
 
 

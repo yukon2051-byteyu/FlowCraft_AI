@@ -6,6 +6,19 @@
 
 ---
 
+## 0. 実装の状況（2026-11-16 A-1 で実装）
+
+| 項目 | 実装 |
+|---|---|
+| AIの状態 | `Settings.ai_status`：off（使わない。APIキーかパスワードがない＝初期状態）／fixed（固定応答。`AI_MODE=fixed` のときだけ。テスト・開発用で費用なし）／live（APIキーとパスワードの両方）。**APIキーがないときに固定応答へ黙って切り替えない** |
+| パスワード | `app/ai/password.py`：PBKDF2（標準ライブラリ）でハッシュ。`python -m app.ai.password` で作り、`AI_PASSWORD_HASH` に置く。照合は `hmac.compare_digest` |
+| 認証 | `app/ai/auth.py`・`POST/GET/DELETE /api/ai/auth`・`GET /api/ai/status`。セッションに期限つきの印（最後の利用から60分・最長8時間）。失敗はセッションと接続元でそれぞれ15分に5回まで |
+| 上限 | `app/ai/usage.py`：呼ぶ前に最大の費用を確保（ロックの中）→ 実際の費用に直す。月の予算・セッションの1時間あたりの回数。記録は機能・日時・トークン数・費用だけ（メモリ上。永続化は公開時の課題） |
+| 呼び出しと検証 | `app/ai/client.py`：公式 SDK の `messages.parse`（構造化出力）。形が違う・回答を断った・途中で切れた応答は使わない（費用は記録）。呼べなかったときは確保を戻す |
+| 確認の部品 | `app/ai/guard.py` の `require_ai`（off なら 503、未認証なら 401 AI_AUTH_REQUIRED）と `run_ai`。すべての AI の API で使う |
+| 接続の確認 | `POST /api/ai/check`：設定した後に、実際につながるかを最小の呼び出しで確かめる |
+| 画面 | 認証のダイアログと `useAiAction` は、AIを使う最初の画面（A-3）と一緒に作り、E2E で確かめる |
+
 ## 1. 今の状況（2026-11-13 調査）
 
 | 項目 | 状況 |

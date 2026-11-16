@@ -30,20 +30,35 @@ def test_health_returns_ok():
     assert f"EXPECTED_API_REVISION = {API_REVISION}" in expected
 
 
-def test_ai_mode_is_fixed_without_api_key():
-    res = make_client(anthropic_api_key=None).get("/api/health")
-    assert res.json()["ai_mode"] == "fixed"
+HASH = "pbkdf2_sha256$1000$c2FsdA==$ZHVtbXk="  # 形だけのハッシュ（状態の判定に使う。照合はしない）
 
 
-def test_ai_mode_is_fixed_with_empty_api_key():
-    # .env に「ANTHROPIC_API_KEY=」と空で書いた場合も固定応答モードになること
-    res = make_client(anthropic_api_key="").get("/api/health")
-    assert res.json()["ai_mode"] == "fixed"
+def test_ai_mode_is_off_without_api_key():
+    # APIキーがないときは、固定応答へ黙って切り替えず「使わない」（未完成・未設定のAIを使えるように見せない）
+    res = make_client(anthropic_api_key=None, ai_password_hash=HASH).get("/api/health")
+    assert res.json()["ai_mode"] == "off"
 
 
-def test_ai_mode_is_live_with_api_key():
+def test_ai_mode_is_off_with_empty_api_key():
+    # .env に「ANTHROPIC_API_KEY=」と空で書いた場合も使わない
+    res = make_client(anthropic_api_key="", ai_password_hash=HASH).get("/api/health")
+    assert res.json()["ai_mode"] == "off"
+
+
+def test_ai_mode_is_off_without_password_even_with_api_key():
+    # AI使用パスワードがなければ認証できないので、APIキーがあっても使わない
     res = make_client(anthropic_api_key="sk-test-dummy").get("/api/health")
+    assert res.json()["ai_mode"] == "off"
+
+
+def test_ai_mode_is_live_with_api_key_and_password():
+    res = make_client(anthropic_api_key="sk-test-dummy", ai_password_hash=HASH).get("/api/health")
     assert res.json()["ai_mode"] == "live"
+
+
+def test_ai_mode_is_fixed_only_when_chosen():
+    res = make_client(ai_mode="fixed", ai_password_hash=HASH).get("/api/health")
+    assert res.json()["ai_mode"] == "fixed"
 
 
 def test_api_key_is_not_exposed():

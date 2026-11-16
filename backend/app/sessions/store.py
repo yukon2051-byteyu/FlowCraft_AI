@@ -35,6 +35,10 @@ class Session:
     # デモが読み込んだファイルの ID。次にデモを始めるときに、これだけを入れ替える
     # （名前で探すと、利用者が自分で読み込んだ同じ名前のファイルまで消してしまうため。2026-11-16）
     demo_file_ids: set[str] = field(default_factory=set)
+    # AI使用パスワードの認証（docs/ai-auth-design.md §3）。サーバーのセッションにだけ持つ（ブラウザには置かない）
+    ai_auth_at: float | None = None  # 認証した時刻
+    ai_last_use: float | None = None  # 最後に認証・AIを使った時刻（ここから一定時間で切れる）
+    ai_failures: list[float] = field(default_factory=list)  # 認証に失敗した時刻（回数の制限に使う）
 
 
 class SessionStore:

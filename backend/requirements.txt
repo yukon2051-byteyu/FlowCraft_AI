@@ -11,3 +11,5 @@ openpyxl==3.1.5
 xlsxwriter==3.2.5
 # Excelの高速な読み取り（Rust製・読み取り専用）。書き出しは openpyxl を使う
 python-calamine==0.9.1
+# Claude API の公式 SDK（AI業務改善診断などで使う。使うときだけ読み込むので、AIを使わない機能やテストには影響しない）
+anthropic==2.8.0

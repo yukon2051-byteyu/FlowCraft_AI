@@ -8,7 +8,7 @@ import { StatusBadge } from '../components/ui/StatusBadge'
 type Health = {
   status: string
   engine_version: string
-  ai_mode: 'live' | 'fixed'
+  ai_mode: 'live' | 'fixed' | 'off'
 }
 
 type State = { kind: 'loading' } | { kind: 'ok'; health: Health } | { kind: 'error'; message: string }
@@ -46,7 +46,7 @@ export default function DiagnosticsPage() {
         {state.kind === 'ok' && (
           <p className="text-[#6fd99b]">
             ✔ 接続OK（エンジン v{state.health.engine_version}／AI：
-            {state.health.ai_mode === 'live' ? '接続中' : '固定応答モード（AI未接続）'}）
+            {state.health.ai_mode === 'live' ? '接続中' : state.health.ai_mode === 'fixed' ? '固定応答モード（テスト用・AIは呼ばない）' : '使わない（未設定）'}）
           </p>
         )}
         {state.kind === 'error' && <p className="text-error">✖ {state.message}</p>}
