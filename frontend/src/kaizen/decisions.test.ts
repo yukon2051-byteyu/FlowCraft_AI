@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Candidate } from '../api/kaizen'
-import { adoptBlocker, answerConfirm, counts, decide, initialDecisions, problems, setReason, REASON_MAX } from './decisions'
+import { adoptBlocker, answerConfirm, counts, decide, firstUndecided, initialDecisions, problems, setReason, REASON_MAX } from './decisions'
 
 const cand = (id: string, over: Partial<Candidate> = {}): Candidate => ({
   candidate_id: id,
@@ -80,5 +80,15 @@ describe('改善候補への判断', () => {
     expect(decide(D, ds, 'reject').D.reason).toBe('効果が小さい')
     expect(decide(D, ds, 'hold').D.reason).toBe('')
     expect(setReason('D', ds, 'あ'.repeat(300)).D.reason).toHaveLength(REASON_MAX)
+  })
+})
+
+describe('まだ判断していない候補', () => {
+  it('確認の問いに答えただけでは判断したことにならない。最初の未判断の候補を返す', () => {
+    let ds = initialDecisions(ALL)
+    ds = answerConfirm(A, ds, 'none')
+    expect(firstUndecided(ALL, ds)).toBe('A')
+    for (const c of ALL) ds = decide(c, decide(C, ds, 'adopt'), 'adopt')
+    expect(firstUndecided(ALL, ds)).toBeNull()
   })
 })

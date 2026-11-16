@@ -267,3 +267,31 @@ test('STEP 5 改善前後の比較：作った手順から数えた比較。作�
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(BANNED)
 })
+
+test('確認の問いに「要件はない」と答えただけでは判断にならない：どの候補が足りないかを示し、その候補へ移動できる', async ({ page }) => {
+  await page.goto('/kaizen-demo')
+  await page.getByRole('button', { name: 'この作業を改善診断する' }).click()
+  await page.getByRole('button', { name: '次へ進む：改善する作業を選ぶ' }).click()
+  const decision = (id: string) => page.getByRole('radiogroup', { name: `候補${id}の判断` })
+  // 利用者の画面と同じ状態：A は確認の問いだけに答え、B・C・D は判断済み
+  await page.getByRole('radiogroup', { name: /確認：会議用資料への転記は/ }).getByRole('radio', { name: /要件はない/ }).check()
+  await decision('C').getByText('採用する').click()
+  await decision('B').getByText('採用する').click()
+  await decision('D').getByText('採用しない').click()
+
+  const next = page.getByRole('button', { name: '次へ進む：改善後の手順を作る' })
+  await expect(next).toBeDisabled()
+  // ボタンの横で、足りない候補を具体的に示す
+  await expect(page.getByRole('status').filter({ hasText: '候補Aの判断（採用する・保留する・採用しない）を選ぶと、次へ進めます' })).toBeVisible()
+  // 候補Aのカードでも、まだ判断していないことを示す（ほかの候補には出さない）
+  await expect(page.locator('#kz-card-A')).toContainText('まだ判断していません。3つから選んでください')
+  await expect(page.locator('#kz-card-B')).not.toContainText('まだ判断していません')
+  // 候補Aへ移動できる
+  await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }))
+  await page.getByRole('button', { name: '候補Aへ移動' }).click()
+  await expect(page.locator('#kz-card-A')).toBeInViewport()
+  // 判断を選べば進める
+  await decision('A').getByText('採用する').click()
+  await expect(next).toBeEnabled()
+  await expect(page.getByRole('button', { name: '候補Aへ移動' })).toHaveCount(0)
+})

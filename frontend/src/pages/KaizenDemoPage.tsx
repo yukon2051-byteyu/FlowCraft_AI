@@ -15,7 +15,7 @@ import type { KaizenStepState } from '../components/kaizen/KaizenProgress'
 import { SiteHeader } from '../components/layout/SiteHeader'
 import { Button } from '../components/ui/Button'
 import { ErrorNotice } from '../components/ui/ErrorNotice'
-import { STATUS_DONE_LABEL, initialDecisions, problems } from '../kaizen/decisions'
+import { STATUS_DONE_LABEL, firstUndecided, initialDecisions, problems } from '../kaizen/decisions'
 import type { Decisions } from '../kaizen/decisions'
 import { clearKaizenState, handOffFlow, resumeState, runResultFor } from '../kaizen/handoff'
 
@@ -199,7 +199,7 @@ export default function KaizenDemoPage() {
             )}
             {step === 2 && (
               <>
-                {decisionIssues.length > 0 && <p className="max-w-md text-right text-[0.85rem] text-subtle">判断がすべてそろうと、次へ進めます。</p>}
+                {decisionIssues.length > 0 && <NextBlocker pending={diagnosis ? firstUndecided(diagnosis.candidates, decisions) : null} issue={decisionIssues[0]} />}
                 <Button variant="primary" size="lg" onClick={() => void buildAfter()} disabled={decisionIssues.length > 0 || busy} title={decisionIssues[0]}>
                   {busy ? '作成しています…' : '次へ進む：改善後の手順を作る'}
                   <ArrowRight className="size-4.5" aria-hidden />
@@ -232,5 +232,27 @@ export default function KaizenDemoPage() {
         </nav>
       </main>
     </div>
+  )
+}
+
+/**
+ * 「次へ進む」が押せない理由を、どの候補の何が足りないかで示す（「判断がすべてそろうと」だけでは分からなかったため）。
+ * 未判断の候補があれば、その候補へ移動できる。
+ */
+function NextBlocker({ pending, issue }: { pending: string | null; issue: string }) {
+  const go = () => {
+    const el = document.getElementById(`kz-card-${pending}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el?.querySelector<HTMLInputElement>('input[type="radio"]:not(:disabled)')?.focus({ preventScroll: true })
+  }
+  return (
+    <p className="flex max-w-lg flex-wrap items-center justify-end gap-x-2 text-right text-[0.88rem] text-warning" role="status">
+      {pending ? `候補${pending}の判断（採用する・保留する・採用しない）を選ぶと、次へ進めます` : issue}
+      {pending && (
+        <button type="button" onClick={go} className="font-bold underline underline-offset-2 hover:text-white focus-visible:outline-2 focus-visible:outline-mint">
+          候補{pending}へ移動
+        </button>
+      )}
+    </p>
   )
 }

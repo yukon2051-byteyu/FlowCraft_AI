@@ -45,7 +45,11 @@ export function DecisionList({
           const groupId = `kz-dec-${c.candidate_id}`
           return (
             <li key={c.candidate_id}>
-              <fieldset aria-labelledby={groupId} className="rounded-2xl border border-edge border-l-4 border-l-kaizen bg-panel p-5">
+              <fieldset
+                id={`kz-card-${c.candidate_id}`}
+                aria-labelledby={groupId}
+                className={`scroll-mt-24 rounded-2xl border border-l-4 border-l-kaizen bg-panel p-5 ${d.status ? 'border-edge' : 'border-warning/50'}`}
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <Lightbulb className="size-5 text-kaizen" aria-hidden />
                   <span className="rounded-full px-2 py-0.5 text-[0.78rem] font-bold text-kaizen-text ring-1 ring-kaizen/50">{c.direction_label}</span>
@@ -112,6 +116,8 @@ export function DecisionList({
                       </label>
                     )
                   })}
+                  {/* 確認の問いに答えただけでは判断にならない。まだ選んでいないことを、ボタンのすぐ横で示す */}
+                  {!d.status && <span className="self-center text-[0.86rem] font-bold text-warning">まだ判断していません。3つから選んでください</span>}
                   {blocker && d.status !== 'adopt' && <span className="self-center text-[0.84rem] text-subtle">採用するには：{blocker}</span>}
                 </div>
 

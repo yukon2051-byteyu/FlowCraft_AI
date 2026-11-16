@@ -85,3 +85,8 @@ export function counts(cands: Candidate[], ds: Decisions): Record<DecisionStatus
   for (const c of cands) out[ds[c.candidate_id]?.status ?? 'none'] += 1
   return out
 }
+
+/** まだ判断していない最初の候補（なければ null）。「次へ進む」の横で、どの候補が足りないかを具体的に示すために使う */
+export function firstUndecided(cands: Candidate[], ds: Decisions): string | null {
+  return cands.find((c) => !ds[c.candidate_id]?.status)?.candidate_id ?? null
+}
