@@ -17,11 +17,12 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel
 
-from app.kaizen.models import Scenario, WorkStep
+from app.kaizen.models import Scenario, WorkReview, WorkStep
 from app.kaizen.scenarios import FileFacts
 
 Direction = Literal["eliminate", "simplify", "standardize", "automate"]
@@ -105,17 +106,56 @@ def column_diffs(facts: list[FileFacts]) -> list[ColumnDiff]:
     return out
 
 
+@dataclass
+class WorkView:
+    """規則が見る業務の事実（デモのシナリオと、利用者が入力した自分の業務の両方から作る）。"""
+
+    steps: list[WorkStep]
+    deliverable_names: dict[str, str]  # 成果物の識別 → 名前
+    must_keep: list[str]  # 業務情報の「必ず残すこと」
+    pain_points: list[str]
+    quality_concerns: list[str]
+    unsure_to_remove: list[str]
+    facts: list[FileFacts]  # 部署のExcel（自分の業務の入力では空。列名の標準化 KD-3 は調べない）
+    # 部署ごとに繰り返す工程が、何回くり返されているか（デモ：部署のExcelの数／自分の業務：工程ごとの入力）
+    repeat_of: dict[str, int]
+
+
+def _short(name: str) -> str:
+    """成果物の名前を、候補の見出しに使う短い形にする（「〇〇報告資料」→「〇〇資料」。資料でない名前は「」で囲む）"""
+    if name.endswith("資料"):
+        return f"{name.removesuffix('報告資料').removesuffix('資料')}資料"
+    return f"「{name}」"
+
+
 def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
-    steps = {s.step_id: s for s in sc.steps}
-    deliverable = {d.deliverable_id: d.name for d in sc.deliverables}
+    """業務改善デモ（シナリオ）の改善候補"""
+    return diagnose_work(
+        WorkView(
+            steps=sc.steps,
+            deliverable_names={d.deliverable_id: d.name for d in sc.deliverables},
+            must_keep=sc.context.must_keep,
+            pain_points=sc.context.pain_points,
+            quality_concerns=sc.context.quality_concerns,
+            unsure_to_remove=sc.context.unsure_to_remove,
+            facts=facts,
+            repeat_of={s.step_id: len(facts) for s in sc.steps if s.repeats_per_department},
+        )
+    )
+
+
+def diagnose_work(w: WorkView) -> Diagnosis:
+    steps = {s.step_id: s for s in w.steps}
+    deliverable = w.deliverable_names
     candidates: list[Candidate] = []
-    kept = [KeptStep(step_id=s.step_id, reason=f"業務情報の「必ず残すこと」（{'・'.join(sc.context.must_keep)}）に当たるため") for s in sc.steps if s.must_keep]
+    keep_reason = f"業務情報の「必ず残すこと」（{'・'.join(w.must_keep)}）に当たるため" if w.must_keep else "「必ず残す」工程として指定されているため"
+    kept = [KeptStep(step_id=s.step_id, reason=keep_reason) for s in w.steps if s.must_keep]
     keep_ids = {k.step_id for k in kept}
     letters = iter("ABCDEFGH")
 
     # KD-1 廃止：同じ結果を2つ以上の成果物へ書き写している
     by_source: dict[str, list[WorkStep]] = {}
-    for s in sc.steps:
+    for s in w.steps:
         if s.transcribes_from and s.step_id not in keep_ids:
             by_source.setdefault(s.transcribes_from, []).append(s)
     for src, copies in by_source.items():
@@ -131,9 +171,9 @@ def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
                     text=f"成果物が2つあります：{'・'.join(deliverable[c.deliverable] for c in copies if c.deliverable)}（同じ数値）。",
                 ),
             ]
-            ev += [Evidence(source="context", ref="pain_points", text=f"業務情報「困っていること」：{p}") for p in sc.context.pain_points]
-            ev += [Evidence(source="context", ref="quality_concerns", text=f"業務情報「品質上の懸念」：{q}") for q in sc.context.quality_concerns if "転記" in q]
-            ev += [Evidence(source="context", ref="unsure_to_remove", text=f"業務情報「廃止できるか不明なこと」：{u}") for u in sc.context.unsure_to_remove]
+            ev += [Evidence(source="context", ref="pain_points", text=f"業務情報「困っていること」：{p}") for p in w.pain_points]
+            ev += [Evidence(source="context", ref="quality_concerns", text=f"業務情報「品質上の懸念」：{q}") for q in w.quality_concerns if "転記" in q]
+            ev += [Evidence(source="context", ref="unsure_to_remove", text=f"業務情報「廃止できるか不明なこと」：{u}") for u in w.unsure_to_remove]
             name = deliverable.get(s.deliverable or "", "資料")
             candidates.append(
                 Candidate(
@@ -141,7 +181,7 @@ def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
                     rule_id="KD-1",
                     direction="eliminate",
                     direction_label="廃止",
-                    title=f"{name.removesuffix('報告資料').removesuffix('資料')}資料への重複転記を廃止",
+                    title=f"{_short(name)}への重複転記を廃止",
                     detail=f"「{name}」への個別の書き写しをやめ、{deliverable.get(first.deliverable or '', '集計結果')}を会議でもそのまま使います。",
                     target_steps=[s.step_id],
                     evidence=ev,
@@ -150,32 +190,33 @@ def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
                         f"「{name}」を、誰が・何のために使っているか",
                         "法令・監査・内部統制・社内規程で、別の資料として作る必要がないか",
                     ],
-                    confirm_question=f"{name.removesuffix('報告資料').removesuffix('資料')}資料への転記は、独立した承認・監査・報告上の要件がありますか？",
+                    confirm_question=f"{_short(name)}への転記は、独立した承認・監査・報告上の要件がありますか？",
                 )
             )
 
-    # KD-3 標準化（KD-2 の前提になるため先に調べる）
-    diffs = column_diffs(facts)
+    # KD-3 標準化（KD-2 の前提になるため先に調べる）。部署のExcelがないときは調べない
+    diffs = column_diffs(w.facts)
     std_id: str | None = None
-    repeated = [s for s in sc.steps if s.repeats_per_department and s.step_id not in keep_ids]
+    repeated = [s for s in w.steps if s.repeats_per_department and s.step_id not in keep_ids and w.repeat_of.get(s.step_id, 0) >= 2]
 
     # KD-2 簡素化：部署ごとの繰り返し
     simplify: Candidate | None = None
-    if repeated and len(facts) >= 2:
+    if repeated:
+        count = max(w.repeat_of[s.step_id] for s in repeated)
         simplify = Candidate(
             candidate_id="",
             rule_id="KD-2",
             direction="simplify",
             direction_label="簡素化",
             title="部署別の個別集計を簡素化",
-            detail=f"{len(facts)}部署のExcelを1つの表にまとめ、確認と集計を1回で行います（部署は列として残し、部署別の集計結果は変わりません）。",
+            detail=f"{count}部署のExcelを1つの表にまとめ、確認と集計を1回で行います（部署は列として残し、部署別の集計結果は変わりません）。",
             target_steps=[s.step_id for s in repeated],
             evidence=[
-                Evidence(source="step", ref=s.step_id, text=f"工程{s.step_id[1:]}「{s.name}」を、部署ごとに{len(facts)}回くり返しています。")
+                Evidence(source="step", ref=s.step_id, text=f"工程{s.step_id[1:]}「{s.name}」を、部署ごとに{w.repeat_of[s.step_id]}回くり返しています。")
                 for s in repeated
             ]
-            + [Evidence(source="file", ref=f.filename, text=f"{f.department}：{f.filename}（{f.rows}件）") for f in facts],
-            effect=f"同じ作業の繰り返しが{len(facts)}回から1回になります。部署が増えても手順は増えません。",
+            + [Evidence(source="file", ref=f.filename, text=f"{f.department}：{f.filename}（{f.rows}件）") for f in w.facts],
+            effect=f"同じ作業の繰り返しが{count}回から1回になります。部署が増えても手順は増えません。",
             checks=["部署ごとに、集計の条件（対象とする伝票など）が違わないか"],
         )
 
@@ -188,7 +229,7 @@ def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
             direction_label="標準化",
             title="集計方法を標準化",
             detail="部署ごとに違う列名を、共通の列名にそろえるルールを作業手順に入れます。あわせて、提出してもらうExcelの列名の統一をお願いすると、読み替えそのものが不要になります。",
-            target_steps=[s.step_id for s in sc.steps if s.action == "inspect" and s.uses_files],
+            target_steps=[s.step_id for s in w.steps if s.action == "inspect" and s.uses_files],
             evidence=[
                 Evidence(
                     source="file",
@@ -214,7 +255,7 @@ def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
             simplify.checks.append(f"1つの表にまとめるには、列名をそろえる必要があります（候補{std_id}）")
 
     # KD-4 自動化：処理エンジンで行える手作業
-    manual = [s for s in sc.steps if s.mode == "manual"]
+    manual = [s for s in w.steps if s.mode == "manual"]
     doable = [s for s in manual if ENGINE_SUPPORT[s.action][0] != "unsupported"]
     unsupported = [s for s in manual if ENGINE_SUPPORT[s.action][0] == "unsupported"]
     if doable:
@@ -241,3 +282,34 @@ def diagnose(sc: Scenario, facts: list[FileFacts]) -> Diagnosis:
             )
         )
     return Diagnosis(candidates=candidates, kept=kept)
+
+
+def diagnose_review(r: WorkReview) -> Diagnosis:
+    """自分の業務（利用者が表で入力した工程）の改善候補。部署のExcelは使わないので、列名の標準化（KD-3）は調べない。"""
+    steps = [
+        WorkStep(
+            step_id=s.step_id,
+            name=s.name,
+            detail=s.name,
+            minutes=s.minutes or 0,
+            mode=s.mode,
+            deliverable=s.deliverable,
+            action=s.action,
+            must_keep=s.must_keep,
+            repeats_per_department=s.repeat_count >= 2,
+            transcribes_from=s.transcribes_from,
+        )
+        for s in r.steps
+    ]
+    return diagnose_work(
+        WorkView(
+            steps=steps,
+            deliverable_names={s.deliverable: s.deliverable for s in r.steps if s.deliverable},
+            must_keep=r.context.must_keep,
+            pain_points=r.context.pain_points,
+            quality_concerns=[],
+            unsure_to_remove=[],
+            facts=[],
+            repeat_of={s.step_id: s.repeat_count for s in r.steps},
+        )
+    )

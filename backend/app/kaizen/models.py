@@ -95,3 +95,51 @@ class Scenario(_Strict):
     @property
     def total_minutes(self) -> int:
         return sum(s.minutes for s in self.steps)
+
+
+# ---------------------------------------------------------------------------
+# 自分の業務の見直し（Phase K-1）：利用者が表の形で入力した、今の作業の工程
+# ---------------------------------------------------------------------------
+
+ShortText = Annotated[str, Field(max_length=500)]
+
+
+class ReviewContext(_Strict):
+    """業務の情報（すべて任意）。改善候補の根拠として示す。"""
+
+    purpose: ShortText = ""  # 業務の目的
+    frequency: Annotated[str, Field(max_length=100)] = ""  # 実施頻度
+    users: Annotated[str, Field(max_length=200)] = ""  # 成果物を使う人
+    pain_points: Annotated[list[Text], Field(max_length=10)] = Field(default_factory=list)  # 困っていること
+    must_keep: Annotated[list[Text], Field(max_length=10)] = Field(default_factory=list)  # 必ず残すこと
+
+
+class ReviewStep(_Strict):
+    """今の作業の1工程（利用者の入力）。規則が見るのは、作業の種類・書き写し元・くり返しの回数などの事実だけ（工程名の文字は見ない）。"""
+
+    step_id: Annotated[str, Field(pattern=r"^s[0-9]{1,2}$")]
+    name: Text  # 工程名
+    action: Literal["receive", "inspect", "aggregate", "copy", "transcribe", "reconcile", "share"]
+    mode: Literal["manual", "auto"] = "manual"
+    minutes: Annotated[int, Field(ge=0, le=1_000)] | None = None  # 1回の所要時間（任意。想定値）
+    transcribes_from: str | None = None  # どの工程の結果を書き写しているか（前の工程の step_id）
+    deliverable: Text | None = None  # 書き写し先の成果物の名前
+    repeat_count: Annotated[int, Field(ge=1, le=50)] = 1  # 何部署分（何回）同じ作業をくり返しているか
+    must_keep: bool = False  # 必ず残す工程（廃止・簡素化の対象にしない）
+
+
+class WorkReview(_Strict):
+    """自分の業務の見直しの入力（業務の情報と、今の工程の表）。"""
+
+    context: ReviewContext = Field(default_factory=ReviewContext)
+    steps: Annotated[list[ReviewStep], Field(min_length=1, max_length=30)]
+
+    @model_validator(mode="after")
+    def _consistent(self) -> WorkReview:
+        ids = [s.step_id for s in self.steps]
+        if len(set(ids)) != len(ids):
+            raise ValueError("工程の識別（step_id）が重複しています")
+        for s in self.steps:
+            if s.transcribes_from is not None and s.transcribes_from not in ids[: ids.index(s.step_id)]:
+                raise ValueError(f"「{s.name}」の書き写し元は、それより前の工程を選んでください")
+        return self
