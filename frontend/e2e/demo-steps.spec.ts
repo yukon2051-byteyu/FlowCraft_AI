@@ -87,9 +87,9 @@ test('月次売上（品質異常）：業務を知る → 改善を確認 → �
   expect(text).not.toMatch(BANNED)
 })
 
-for (const [id, name, files] of [
-  ['product_match', '売上データの商品マスタ照合', 2],
-  ['inventory', '月末の在庫差異の確認', 2],
+for (const [id, name, files, dimension] of [
+  ['product_match', '売上データの商品マスタ照合', 2, 'カテゴリ'],
+  ['inventory', '月末の在庫差異の確認', 2, '商品コード'],
 ] as const) {
   test(`${name}：STEP 1 から始まり、改善例と実際のデータを確かめてから、正常に実行できる`, async ({ page }) => {
     test.setTimeout(150_000)
@@ -104,6 +104,8 @@ for (const [id, name, files] of [
     await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
     await expect(verdictBox(page)).toContainText('総合判定：正常', { timeout: 30_000 })
     await expect(page.getByRole('region', { name: '改善内容の振り返り' })).toContainText('今回の実行：')
+    // データの分析（AIを使わない計算）：まとめるステップの分類ごとのグラフが出る（デモごとに分類が違う）
+    await expect(page.getByRole('region', { name: 'データの分析' }).getByRole('figure', { name: new RegExp(`^「${dimension}」別の`) }).first()).toBeVisible()
     // 正常なら、実際に作ったExcelを出力できる
     const [download] = await Promise.all([
       page.waitForEvent('download'),

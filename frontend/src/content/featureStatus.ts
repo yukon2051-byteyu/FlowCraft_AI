@@ -14,8 +14,8 @@ export const FEATURE_STATUS = {
   aiFlow: 'in_development',
   /** 加工・結合・集計を画面から実行 */
   processing: 'available',
-  /** 比較分析・ランキング・グラフ */
-  analysis: 'in_development',
+  /** 比較分析・ランキング・グラフ（AIを使わない計算。分析 Phase A〜C・F で完成。AIによる分析コメントは別で、まだ作っていない） */
+  analysis: 'available',
   /** 作業手順の保存・再実行 */
   saveReuse: 'available',
   /** 既存の手順をもとに新しく作る */
