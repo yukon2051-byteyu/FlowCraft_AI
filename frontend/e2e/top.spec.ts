@@ -185,3 +185,24 @@ test('上部のメニューに「デモ」を重ねて出さない（ナビゲ�
   await expect(page).toHaveURL(/#demo$/)
   await expect(page.locator('#demo')).toBeInViewport()
 })
+
+test('上部の「デモを見る」は、同じページの中ではなめらかに動き、見出しが固定ヘッダーのすぐ下に来る（区画の上端に合わせて余白を空けすぎない）', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await page.evaluate(async () => {
+    await document.fonts.ready
+  })
+  await page.getByRole('banner').getByRole('link', { name: 'デモを見る' }).click()
+  // 途中の位置を記録する（一瞬で切り替わると、同じ値しか取れない）
+  const ys: number[] = []
+  for (let i = 0; i < 6; i++) {
+    ys.push(await page.evaluate(() => Math.round(window.scrollY)))
+    await page.waitForTimeout(60)
+  }
+  await expect(page).toHaveURL(/#demo$/)
+  await expect.poll(() => page.evaluate(() => Math.round(document.querySelector('#demo [data-section-heading]')!.getBoundingClientRect().top))).toBeLessThanOrEqual(90)
+  const top = await page.evaluate(() => Math.round(document.querySelector('#demo [data-section-heading]')!.getBoundingClientRect().top))
+  expect(top).toBeGreaterThanOrEqual(64) // 固定ヘッダー（64px）に隠れない
+  expect(new Set(ys).size).toBeGreaterThan(2)
+})

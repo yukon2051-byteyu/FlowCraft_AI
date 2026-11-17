@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { AI_NOTE, HANDLING_SUMMARY, UNSUPPORTED_NOTE } from '../content/dataHandling'
 import { isAvailable } from '../content/featureStatus'
@@ -38,6 +38,7 @@ import { SiteFooter } from '../components/layout/SiteFooter'
 import { SiteHeader } from '../components/layout/SiteHeader'
 import { BackToTop } from '../components/top/BackToTop'
 import { HeroVisual } from '../components/top/HeroVisual'
+import { samePageSection, scrollToSection } from '../components/top/scrollToSection'
 import { Button } from '../components/ui/Button'
 import { DevBadge } from '../components/ui/DevBadge'
 
@@ -48,13 +49,27 @@ import { DevBadge } from '../components/ui/DevBadge'
  * 未実装の機能には「開発中」を表示する（content/featureStatus.ts で一元管理）。
  */
 export default function TopPage() {
-  // ほかの画面から「/#demo」などで戻ってきたとき、その欄まで動かす（デモ選択へ戻る・別のデモを試す）
+  // ほかの画面から「/#demo」などで来たとき（デモ選択へ戻る・別のデモを試す・ほかの画面の上部のメニュー）は、
+  // なめらかに流さず、すぐにその区画の見出しを表示する（長い距離を数秒かけて動かさない）。最初の表示のときだけ
   const { hash } = useLocation()
+  const arrived = useRef(false)
   useEffect(() => {
-    const el = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null
-    // 別の画面から来たときは、なめらかに流さず、すぐにその欄を表示する（長い距離を数秒かけて動かさない）
-    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+    if (arrived.current) return
+    arrived.current = true
+    if (hash) requestAnimationFrame(() => scrollToSection(decodeURIComponent(hash.slice(1)), 'instant'))
   }, [hash])
+  // 同じページの中の区画へのリンク（上部のメニュー・デモを見る・デモを体験する）は、見出しの位置へなめらかに動かす。
+  // ブラウザに任せると区画の上端へ動き、余白が余分に空く。URL の #... は書き換えるが、履歴は増やさない
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const id = samePageSection(e)
+      if (!id || !scrollToSection(id)) return
+      e.preventDefault()
+      window.history.replaceState(window.history.state, '', `#${id}`)
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
   return (
     <div className="min-h-screen overflow-x-clip bg-canvas">
       <SiteHeader />
@@ -918,29 +933,10 @@ function SectionLink({ target, label }: { target: string; label: string }) {
   )
 }
 
-function scrollToSection(id: string) {
-  const section = document.getElementById(id)
-  if (!section) return
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  const anchor = section.querySelector<HTMLElement>('[data-section-heading]') ?? section
-  anchor.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
-  // キーボードで操作している人のために、移動先の見出しへフォーカスを移す（スクロールはしない）
-  const heading = section.querySelector<HTMLElement>('h2')
-  if (!heading) return
-  heading.tabIndex = -1
-  heading.focus({ preventScroll: true })
-  if (!reduce) {
-    heading.classList.remove('section-flash')
-    void heading.offsetWidth // 続けて押したときも、もう一度強調する
-    heading.classList.add('section-flash')
-    window.setTimeout(() => heading.classList.remove('section-flash'), 1600)
-  }
-}
-
 function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: string; lead?: ReactNode }) {
   return (
-    // data-section-heading：特徴カードからの移動先（固定ヘッダー 64px ＋ 余白 32px を空ける）
-    <div className="max-w-3xl scroll-mt-24" data-section-heading>
+    // data-section-heading：ページ内の移動先（固定ヘッダー 64px ＋ 余白 16px を空ける。区画の中身ができるだけ1画面に収まるように）
+    <div className="max-w-3xl scroll-mt-20" data-section-heading>
       <p className="text-[0.88rem] font-bold text-mint">{eyebrow}</p>
       <h2 className="mt-2 leading-snug font-bold text-white text-[2rem]">{title}</h2>
       {lead && <p className="mt-3 leading-relaxed text-subtle">{lead}</p>}
