@@ -18,6 +18,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Git の出力（UTF-8）を正しく読む（読まないと、日本語のコミットの題名などが文字化けする）
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
@@ -53,8 +56,16 @@ if ($DryRun) {
 Get-ChildItem $work -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
 $archive = Join-Path $env:TEMP 'flowcraft-hf-deploy.tar'
 git archive --format=tar -o $archive HEAD -- $include
-tar -xf $archive -C $work
+# Windows に入っている tar を使う（Git に付いてくる tar は「C:」を別のパソコンの名前と誤解するため）
+$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+if (-not (Test-Path $tar)) { Stop-With "Windows の tar が見つかりません：$tar" }
+& $tar -xf $archive -C $work
+if ($LASTEXITCODE -ne 0) { Stop-With 'コミット済みの中身を取り出せませんでした。' }
 Remove-Item $archive
+# 取り出せたかを確かめる（取り出しに失敗したまま送らない）
+foreach ($must in @('Dockerfile', 'backend/requirements.txt', 'backend/app/main.py', 'frontend/package.json', 'frontend/src/main.tsx')) {
+  if (-not (Test-Path (Join-Path $work $must))) { Stop-With "送る中身に $must がありません。送らずに止めます。" }
+}
 foreach ($e in $exclude) { $p = Join-Path $work $e; if (Test-Path $p) { Remove-Item $p -Recurse -Force } }
 $secrets = @(Get-ChildItem $work -Recurse -Force -File | Where-Object { $_.Name -like '.env*' -and $_.Name -ne '.env.example' })
 if ($secrets.Count -gt 0) { Stop-With "秘密の値のファイルが含まれています（$($secrets.FullName -join ', ')）。送らずに止めます。" }
