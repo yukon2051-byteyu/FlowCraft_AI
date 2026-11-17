@@ -175,6 +175,7 @@ npm audit               # 開発用を含む
 ```
 
 2026-11-17 の結果：すべて「脆弱性なし」。あわせて、Gitの履歴全体に `.env`・APIキーの形の文字列・パスワードのハッシュが入っていないことを確かめました。
+アプリ自体の点検（送信の大きさの上限・数式の注入・セッション・エラーの表示など13の観点）は [docs/security-review.md](docs/security-review.md) にまとめています。
 
 PC画面（1920×1080・1366×768）のスクリーンショットとレイアウト自動チェック（開発サーバー起動中に実行）：
 
@@ -200,7 +201,7 @@ node scripts/screenshots.mjs screenshots
 - [AI利用の認証と利用上限の設計](docs/ai-auth-design.md)・[業務改善診断の設計](docs/kaizen-design.md)
 - [業務の完了基準](docs/completion-criteria.md)・[品質MVPの設計](docs/quality-mvp-design.md)・[空白データの確認と品質ルールの設計](docs/blank-data-design.md)
 - [デモの設計](docs/demo-design.md)・[業務改善診断デモの受入確認](docs/kaizen-demo-acceptance.md)
-- [性能の実測](docs/performance.md)・[PC専用の方針](docs/pc-only.md)・[画面の用語](docs/ui-terminology.md)
+- [セキュリティ点検の記録](docs/security-review.md)・[性能の実測](docs/performance.md)・[PC専用の方針](docs/pc-only.md)・[画面の用語](docs/ui-terminology.md)
 - 設計のみ・未実装：[無人定期実行](docs/scheduled-run-design.md)・[クラウドの「3分後に自動実行を試す」](docs/cloud-demo-design.md)・[Windows Worker](docs/windows-worker-design.md)
 - 面接・ポートフォリオ用のまとめ：[docs/portfolio.md](docs/portfolio.md)
 

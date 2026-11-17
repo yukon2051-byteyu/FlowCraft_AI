@@ -64,8 +64,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # アップロードの送信サイズを、本文を受け取る前に確認する（巨大な送信でメモリ・ディスクを使わせない）
     upload_limit = settings.max_file_size_mb * 1024 * 1024 + 64 * 1024  # 送信形式の付帯情報ぶんの余裕
 
+    request_limit = settings.max_request_mb * 1024 * 1024
+
     @app.middleware("http")
     async def limit_upload_size(request: Request, call_next):  # type: ignore[no-untyped-def]
+        # ファイル以外の送信（JSON）も、本文を受け取る前に大きさを確かめる。
+        # 大きさが分からない送信（chunked）は受け付けない（本文がない送信は、そのまま通す）
+        if request.method in ("POST", "PUT", "PATCH") and request.url.path.startswith("/api/") and request.url.path != "/api/files":
+            length = request.headers.get("content-length")
+            if length is None:
+                if "transfer-encoding" in request.headers:
+                    err = AppError(411, "LENGTH_REQUIRED", "送信サイズが不明なため受け付けられません。", how_to_fix="画面を再読み込みしてから、もう一度お試しください。")
+                    return JSONResponse(status_code=411, content=err.to_body())
+            elif not length.isdigit() or int(length) > request_limit:
+                err = AppError(
+                    413,
+                    "REQUEST_TOO_LARGE",
+                    f"送信する内容が大きすぎます（上限 {settings.max_request_mb}MB）。",
+                    how_to_fix="作業手順の内容が大きすぎないか確かめてください。解決しない場合は、画面を再読み込みしてからやり直してください。",
+                )
+                return JSONResponse(status_code=413, content=err.to_body())
         if request.method == "POST" and request.url.path == "/api/files":
             length = request.headers.get("content-length")
             if length is None or not length.isdigit():
@@ -80,6 +98,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
                 return JSONResponse(status_code=413, content=err.to_body())
         return await call_next(request)
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        # ブラウザ向けの安全設定。応答の種類を推測して実行させない・ほかのサイトへ移るときにURLを渡さない
+        # （ほかのサイトへの埋め込みを禁じる設定は、公開先が埋め込んで表示する場合があるため、公開の準備で決める）
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
 
     install_error_handlers(app)
     app.include_router(health.router, prefix="/api")

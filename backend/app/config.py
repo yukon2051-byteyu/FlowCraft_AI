@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # ----- ファイル制限 -----
     max_files: int = Field(default=5, ge=1)
     max_file_size_mb: int = Field(default=10, ge=1)
+    # ファイル以外の送信（作業手順・実行の履歴などのJSON）の上限。正しい使い方では数百KB程度（巨大な送信でメモリを使わせない）
+    max_request_mb: int = Field(default=5, ge=1)
     max_total_rows: int = Field(default=100_000, ge=1)
     max_intermediate_rows: int = Field(default=500_000, ge=1)
     max_columns: int = Field(default=500, ge=1)
