@@ -169,7 +169,7 @@ cd backend
 cd backend
 .venv\Scripts\python.exe -X utf8 -m pip_audit -r requirements.txt       # サーバー（-X utf8：日本語のコメントを読むため）
 .venv\Scripts\python.exe -X utf8 -m pip_audit -r requirements-dev.txt   # 開発用を含む
-cd ..rontend
+cd ..\frontend
 npm audit --omit=dev    # 画面に組み込まれるもの
 npm audit               # 開発用を含む
 ```
