@@ -1,0 +1,29 @@
+# コンテナに入れないもの。特に秘密の値（.env）は絶対に入れない
+**/.env
+**/.env.*
+!**/.env.example
+
+# 作業用・生成物（コンテナの中で作り直す）
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+frontend/dist
+frontend/dist-e2e
+frontend/test-results
+frontend/playwright-report
+frontend/screenshots
+backend/tmp
+backend/data
+
+# テスト・資料・開発用（公開する動作には不要）
+backend/tests
+frontend/e2e
+docs
+samples
+.git
+.github
+.vscode
+.idea
+*.log

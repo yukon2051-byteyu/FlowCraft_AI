@@ -20,6 +20,7 @@ from app.api import ai, demos, files, flows, health, kaizen, session
 from app.config import Settings, get_settings
 from app.errors import AppError, install_error_handlers
 from app.sessions.store import SessionStore
+from app.web import install_frontend
 
 logger = logging.getLogger("flowcraft")
 
@@ -116,6 +117,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(demos.router, prefix="/api")
     app.include_router(kaizen.router, prefix="/api")
     app.include_router(ai.router, prefix="/api")
+    # 公開環境：画面も配信する（窓口の後に登録し、/api/... より優先させない）
+    if settings.frontend_dist:
+        install_frontend(app, settings.frontend_dist)
     return app
 
 
