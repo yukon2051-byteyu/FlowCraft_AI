@@ -2,3 +2,5 @@
 -r requirements.txt
 pytest==9.2.0
 httpx2==2.16.0
+# 使っているライブラリに公表済みの脆弱性がないかを調べる（README「セキュリティの確認」）
+pip-audit==2.10.1
