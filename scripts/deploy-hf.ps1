@@ -54,19 +54,32 @@ if ($DryRun) {
 
 # 3. 中身を入れ替える（.git 以外を消してから、コミット済みの中身を取り出す）
 Get-ChildItem $work -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
-$archive = Join-Path $env:TEMP 'flowcraft-hf-deploy.tar'
-git archive --format=tar -o $archive HEAD -- $include
-# Windows に入っている tar を使う（Git に付いてくる tar は「C:」を別のパソコンの名前と誤解するため）
-$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
-if (-not (Test-Path $tar)) { Stop-With "Windows の tar が見つかりません：$tar" }
-& $tar -xf $archive -C $work
+# コミット済みの中身を、Git の機能（worktree）で一時的なフォルダに取り出してからコピーする。
+# tar で取り出すと、Windows では日本語のファイル名が文字化けし、一部のファイルが取り出せなかった（2026-11-17 に確認）
+$snapshot = Join-Path $env:TEMP 'flowcraft-hf-snapshot'
+if (Test-Path $snapshot) { git worktree remove --force $snapshot 2>$null; if (Test-Path $snapshot) { Remove-Item $snapshot -Recurse -Force } }
+git worktree prune
+git worktree add --detach -q $snapshot HEAD
 if ($LASTEXITCODE -ne 0) { Stop-With 'コミット済みの中身を取り出せませんでした。' }
-Remove-Item $archive
-# 取り出せたかを確かめる（取り出しに失敗したまま送らない）
-foreach ($must in @('Dockerfile', 'backend/requirements.txt', 'backend/app/main.py', 'frontend/package.json', 'frontend/src/main.tsx')) {
-  if (-not (Test-Path (Join-Path $work $must))) { Stop-With "送る中身に $must がありません。送らずに止めます。" }
+try {
+  foreach ($i in $include) {
+    $dest = Join-Path $work $i
+    New-Item -ItemType Directory -Force (Split-Path -Parent $dest) | Out-Null
+    Copy-Item (Join-Path $snapshot $i) $dest -Recurse -Force
+  }
+} finally {
+  git worktree remove --force $snapshot
 }
 foreach ($e in $exclude) { $p = Join-Path $work $e; if (Test-Path $p) { Remove-Item $p -Recurse -Force } }
+# 取り出せたかを確かめる（取り出しに失敗したまま送らない）
+foreach ($must in @('Dockerfile', 'backend/requirements.txt', 'backend/app/main.py', 'frontend/package.json', 'frontend/src/main.tsx')) {
+  if (-not (Test-Path -LiteralPath (Join-Path $work $must))) { Stop-With "送る中身に $must がありません。送らずに止めます。" }
+}
+# デモのデータ（日本語の名前）が、リポジトリと同じ名前・同じ数だけあるか
+$expected = @(git -c core.quotepath=off ls-files backend/app/demos/data) | Sort-Object
+$actual = @(Get-ChildItem -LiteralPath (Join-Path $work 'backend/app/demos/data') -File | ForEach-Object { "backend/app/demos/data/$($_.Name)" }) | Sort-Object
+if (Compare-Object $expected $actual) { Stop-With 'デモのデータの名前か数が、リポジトリと一致しません。送らずに止めます。' }
+Write-Host "デモのデータ：$($actual.Count) 個（リポジトリと一致）"
 $secrets = @(Get-ChildItem $work -Recurse -Force -File | Where-Object { $_.Name -like '.env*' -and $_.Name -ne '.env.example' })
 if ($secrets.Count -gt 0) { Stop-With "秘密の値のファイルが含まれています（$($secrets.FullName -join ', ')）。送らずに止めます。" }
 
