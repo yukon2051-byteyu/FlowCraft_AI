@@ -106,7 +106,9 @@ def test_提案は重要な順で_初めに見せるのは3件_材料にない�
     res = client.post("/api/ai/diagnosis/proposals", json={**BODY, "files": [{"file_id": fid}], "answers": ANSWERS})
     assert res.status_code == 200, res.text
     body = res.json()
-    assert [p["direction"] for p in body["proposals"]] == ["eliminate", "automate", "standardize", "simplify"]
+    # 出力可否に関わる提案（品質ルールを加える自動化）を先に。残りは重要な順
+    assert [p["direction"] for p in body["proposals"]] == ["automate", "eliminate", "standardize", "simplify"]
+    assert [p["pinned"] for p in body["proposals"]] == [["出力可否に関わる"], [], [], []]
     assert body["shown_first"] == 3
     auto = next(p for p in body["proposals"] if p["direction"] == "automate")
     # 材料にある列を挙げた根拠は「データ」のまま
@@ -289,3 +291,77 @@ def test_前回までの診断_AIへの指示に聞き直さない_採用しな�
     assert "「採用しない」とした提案は、同じ内容で出さない" in sys_p
     for user in (user_q, user_p):
         assert "## 前回までの診断" in user and "監査で必要な資料のため" in user
+
+
+
+# ===================== レビュー指摘4：明示した要件・出力可否に関わる提案を初めに見せる =====================
+
+EXPENSE = {"name": "経費の月次集計", "purpose": "3チームの経費CSVを月次集計する。申請番号が重複したら経理に確認するまで正式出力を止める。"}
+Q_MONTH = "対象月以外の行はどう扱いますか？"
+
+
+def _expense_out():
+    """架空の経費精算の案件で、AIが返したことにする提案（重要度は自動化を高くしてある）"""
+    from app.ai.diagnosis import ProposalsOut
+
+    def P(direction, title, priority, evidence, build):
+        return {"direction": direction, "title": title, "target": "対象", "problem": "問題", "change": title, "evidence": evidence,
+                "effect": "効果", "risks": [], "recommendation": "対応", "priority": priority, "build": build}
+
+    return ProposalsOut(proposals=[
+        P("automate", "集計を自動にする", 1, [{"source": "inference", "text": "推測"}], {"fit": "yes", "step_types": ["aggregate"]}),
+        P("simplify", "確認を1回にする", 2, [{"source": "inference", "text": "推測"}], {"fit": "no"}),
+        P("standardize", "列名をそろえる", 3, [{"source": "inference", "text": "推測"}], {"fit": "partial", "step_types": ["rename_columns"]}),
+        # 業務の説明で明示した要件。出力を止める品質ルール（重複がない）も加える
+        P("automate", "申請番号が重複したら正式出力を止める", 4, [{"source": "answer", "text": "説明：重複したら止める", "ref": "業務の説明"}],
+          {"fit": "partial", "criteria_kinds": ["unique"], "note": "重複が見つかったら経理に確認する（人が行う）"}),
+        # 回答で明示した要件
+        P("standardize", "対象月外の行を別一覧にする", 5, [{"source": "answer", "text": "回答：除外して別一覧で確認する", "ref": Q_MONTH}],
+          {"fit": "yes", "step_types": ["filter"], "criteria_kinds": ["list_rows"]}),
+    ], note="")
+
+
+def _ask(monkeypatch, body):
+    from app.ai import diagnosis
+
+    monkeypatch.setattr(diagnosis, "run_ai", lambda *a, **k: SimpleNamespace(data=_expense_out()))
+    client, _, _ = make()
+    client.post("/api/ai/auth", json={"password": PASSWORD})
+    res = client.post("/api/ai/diagnosis/proposals", json=body)
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
+def test_明示した要件と出力可否に関わる提案を初めに見せる_重要度が低くても上限の3件に隠れない(monkeypatch):
+    body = _ask(monkeypatch, {**EXPENSE, "answers": [{"question": Q_MONTH, "answer": "除外して別一覧で確認する"}]})
+    titles = [p["title"] for p in body["proposals"]]
+    assert titles[:2] == ["申請番号が重複したら正式出力を止める", "対象月外の行を別一覧にする"]
+    assert body["proposals"][0]["pinned"] == ["あなたが伝えた要件", "出力可否に関わる"]
+    assert body["proposals"][1]["pinned"] == ["あなたが伝えた要件", "出力可否に関わる"]
+    assert body["shown_first"] == 3  # 2件はどちらも初めの3件に入る
+    # 提案の識別子は、並べ替えても AI が返した順のまま（判断・理由・手順への反映が識別子に対応する）
+    assert {p["title"]: p["proposal_id"] for p in body["proposals"]}["対象月外の行を別一覧にする"] == "p5"
+
+
+def test_回答の根拠は_答えた質問か業務の説明を参照するときだけ認め_そうでなければ推測に格下げする(monkeypatch):
+    # 質問に答えていない・業務の説明がない → 「あなたの回答」とは認めない（AIが根拠を誤っても、要件として先頭に出さない）
+    body = _ask(monkeypatch, {"name": "経費の月次集計", "purpose": "", "answers": []})
+    month = next(p for p in body["proposals"] if p["title"] == "対象月外の行を別一覧にする")
+    assert month["evidence"][0]["source"] == "inference" and month["evidence"][0]["downgraded"] is True
+    assert month["pinned"] == ["出力可否に関わる"]  # 品質ルールを加える提案としては、先に見せる
+    dup = next(p for p in body["proposals"] if p["title"] == "申請番号が重複したら正式出力を止める")
+    assert dup["evidence"][0]["downgraded"] is True
+
+
+def test_初めに必ず見せる提案が3件より多ければ_すべて見えるよう件数を増やす(monkeypatch):
+    from app.ai import diagnosis
+
+    out = _expense_out()
+    for p in out.proposals[:3]:  # 残りの3件にも品質ルールを加える
+        p.build = diagnosis.BuildHint(fit="yes", criteria_kinds=["row_count"])
+    monkeypatch.setattr(diagnosis, "run_ai", lambda *a, **k: SimpleNamespace(data=out))
+    client, _, _ = make()
+    client.post("/api/ai/auth", json={"password": PASSWORD})
+    body = client.post("/api/ai/diagnosis/proposals", json={**EXPENSE, "answers": []}).json()
+    assert sum(1 for p in body["proposals"] if p["pinned"]) == 5
+    assert body["shown_first"] == 5

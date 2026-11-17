@@ -4,6 +4,7 @@
  */
 
 import type { CriterionResult, RunSummary } from '../api/flows'
+import { outputState } from './outputState'
 
 export type CompareRow = {
   label: string
@@ -42,10 +43,10 @@ export function keyValue(c: CriterionResult | undefined): string {
   return v !== undefined ? `${status}（${entry[1](v)}）` : status
 }
 
+// 正式な出力の可否は、結果の画面・ヘッダーと同じ判定を使う（flow/outputState.ts）
 function officialOutput(r: RunSummary): string {
-  if (r.status === 'failed' || r.verdict?.export === 'report_only') return '停止'
-  if (r.verdict?.export === 'needs_confirmation') return '確認したうえで出力できる'
-  return '出力できる'
+  const mode = outputState(r).mode
+  return mode === 'stopped' ? '停止' : mode === 'confirm' ? '確認したうえで出力できる' : '出力できる'
 }
 const OUTPUT_RANK: Record<string, number> = { 出力できる: 0, 確認したうえで出力できる: 1, 停止: 2 }
 

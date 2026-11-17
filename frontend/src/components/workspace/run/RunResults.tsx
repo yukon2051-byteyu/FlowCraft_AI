@@ -20,6 +20,8 @@ import { DemoResultSummary } from './DemoResultSummary'
 import { isAmountColumn } from '../../../flow/numberFormat'
 import { nextAction } from '../../../flow/nextAction'
 import type { NextAction } from '../../../flow/nextAction'
+import { causeGroups, outputState, REPORT_EXPORT_LABEL } from '../../../flow/outputState'
+import { CausePanel, StopBanner } from './CausePanel'
 
 /*
  * タスク1-6：作業手順全体の実行結果。
@@ -62,6 +64,8 @@ type Props = {
   footer?: ReactNode
   /** 金額らしい列の見出しに単位「円」を添える（デモの架空データは円） */
   amountUnit?: boolean
+  /** 自分の案件：読み込むファイルを差し替える（データを直して再実行するため。デモでは渡さない） */
+  onChangeData?: () => void
   /**
    * STEP 4「実行・品質確認」として表示する（STEP 5「出力・保存」へ進む）。
    * 渡したときは、この画面から出力・保存の操作を外し、画面下部に判定に応じた主要ボタンを1つ出す。
@@ -70,7 +74,7 @@ type Props = {
   onNext?: () => void
 }
 
-export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review, demoTitle, footer, amountUnit, onNext }: Props) {
+export function RunResults({ run, snap, onBack, onExport, exporting, exportedName, exportError, confirmed, onConfirmChange, onSave, saved, fix, before, review, demoTitle, footer, amountUnit, onNext, onChangeData }: Props) {
   const flow = useFlowStore((s) => s.flow)
   const detail = useQuery({ queryKey: ['run', run.run_id], queryFn: () => fetchRun(run.run_id) })
   const [sheet, setSheet] = useState(0)
@@ -90,9 +94,11 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
         : { icon: CircleCheck, cls: 'text-success', text: '最後まで実行しました', sub: '処理の中で行った確認（件数・合計の照合など）で、問題は見つかりませんでした。' }
   const Head = headline.icon
   const verdict = run.verdict
-  // 出力の扱い：調査用の確認結果だけ／確認したうえで出力／そのまま出力
-  const reportOnly = run.status === 'failed' || verdict?.export === 'report_only'
+  // 出力の扱い：調査用の確認結果だけ／確認したうえで出力／そのまま出力（ヘッダー・本文・画面下部・出力の画面で同じ判定を使う）
+  const state = outputState(run)
+  const reportOnly = state.mode === 'stopped'
   const needsConfirm = verdict?.export === 'needs_confirmation'
+  const causes = causeGroups(run, flow)
   const previews = detail.data?.output_previews ?? []
   const action = nextAction(run, confirmed, stale)
   // 主要ボタンで移動した欄を、少しの間だけ強調する（異常の項目は「該当する例」も開く）
@@ -126,15 +132,39 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
       title={needsConfirm && !confirmed ? '「確認したうえで出力する」にチェックを入れると出力できます' : undefined}
     >
       {exporting ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <FileOutput className="size-4" aria-hidden />}
-      {reportOnly ? '確認結果をExcelに出力する（調査用）' : 'Excelに出力する'}
+      {/* 正式な出力を止めたときは、どの入口でも同じ名前（調査用レポートをExcelに出力）。通常のときは、これまでどおり */}
+      {reportOnly ? state.exportLabel : 'Excelに出力する'}
     </Button>
   )
+  // 原因を直して再実行する操作：デモは「直したデータで再実行する」、自分の案件は手順に戻る・ファイルを差し替える
+  const retry =
+    !stale && (reportOnly || causes.length > 0) ? (
+      fix ? (
+        <FixBox fix={fix} />
+      ) : (
+        <div className="flex flex-wrap items-center gap-3" aria-label="直して再実行する">
+          <Button variant="outlineDark" size="sm" onClick={onBack}>
+            <Wrench className="size-4" aria-hidden />
+            作業手順に戻って直す
+          </Button>
+          {onChangeData && (
+            <Button variant="outlineDark" size="sm" onClick={onChangeData}>
+              <RefreshCw className="size-4" aria-hidden />
+              読み込むファイルを差し替える
+            </Button>
+          )}
+          <span className="text-[0.85rem] text-muted">直したら、もう一度実行して確かめます（直す前の結果は使いません）。</span>
+        </div>
+      )
+    ) : null
 
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1200px] space-y-5 px-6 py-6">
-          {demoTitle && <DemoResultSummary run={run} title={demoTitle} />}
+          {/* 先頭は正式な出力の可否（止めたとき）。その下に、判定・原因と対応・再実行。前回比較や分析は後ろ */}
+          <StopBanner state={state} />
+          {demoTitle && <DemoResultSummary run={run} title={demoTitle} hideMessage={reportOnly} />}
           <section className="rounded-2xl bg-panel p-6 ring-1 ring-edge" aria-label="実行の結論">
             {/* タスク2-5：総合判定を最初に大きく示す。処理がどこまで進んだかは、その下に */}
             {verdict && <VerdictBox verdict={verdict} />}
@@ -143,9 +173,9 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               {verdict ? (run.status === 'failed' ? `処理・検証：途中で停止（${headline.text}）` : `処理・検証：完了（${headline.text}）`) : headline.text}
             </p>
             {/* 「処理が最後まで終わったこと」と「正式な成果物を出力してよいこと」を分けて示す */}
-            {verdict && (
-              <p className={`mt-1 font-bold ${reportOnly ? 'text-error' : needsConfirm ? 'text-warning' : 'text-success'}`} aria-label="正式な出力">
-                正式な出力：{reportOnly ? '停止（調査用の確認結果だけを出力できます）' : needsConfirm ? '確認したうえで出力できます' : '出力できます'}
+            {verdict && !reportOnly && (
+              <p className={`mt-1 font-bold ${needsConfirm ? 'text-warning' : 'text-success'}`} aria-label="正式な出力">
+                正式な出力：{needsConfirm ? '確認したうえで出力できます' : '出力できます'}
               </p>
             )}
             <p className="mt-1 text-[0.9rem] text-subtle">{headline.sub}</p>
@@ -238,6 +268,12 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
             )}
           </section>
 
+          {/* 直して再実行した後：直す前と後を並べる（未照合の件数・総合判定・正式な出力の可否） */}
+          {before && <ComparePanel before={before} after={run} />}
+
+          {/* 原因と対応 → 再実行（原因がまとめられないときも、再実行の操作は同じ位置に出す） */}
+          {causes.length > 0 ? <CausePanel groups={causes} actions={retry} highlight={flash('run-causes')} openTop={focus?.id === 'run-causes' ? focus.tick : 0} /> : retry}
+
           {/* 分析レポート（分析エンジン）：今回の主要数値 → 確認すべきこと → 前回との比較 → データの分析 */}
           {run.analysis && run.status !== 'failed' && (
             <AnalysisReport
@@ -247,10 +283,6 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
               compareAction={<CompareWithFile key={run.run_id} runId={run.run_id} onCompared={(v) => setCompared({ runId: run.run_id, ...v })} />}
             />
           )}
-
-          {before && <ComparePanel before={before} after={run} />}
-
-          {fix && <FixBox fix={fix} />}
 
           {run.criteria.length > 0 && <CriteriaResults criteria={run.criteria} highlight={flash('run-criteria')} openTop={focus?.id === 'run-criteria' ? focus.tick : 0} />}
 
@@ -275,8 +307,12 @@ export function RunResults({ run, snap, onBack, onExport, exporting, exportedNam
             <section className="light-panel rounded-2xl p-5" aria-label="出力する表">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-bold">出力する表</h2>
-                  <p className="mt-0.5 text-[0.85rem] text-muted">先頭の一部を表示しています。すべての行は{onNext ? '「出力・保存」' : '「Excelに出力する」'}で保存できます。</p>
+                  <h2 className="font-bold">{reportOnly ? '調査用プレビュー（正式出力停止中）' : '出力する表'}</h2>
+                  <p className="mt-0.5 text-[0.85rem] text-muted">
+                    {reportOnly
+                      ? '原因を調べるための参考として、処理結果の先頭の一部を表示しています（正式な結果としては出力できません）。'
+                      : `先頭の一部を表示しています。すべての行は${onNext ? '「出力・保存」' : '「Excelに出力」'}で保存できます。`}
+                  </p>
                 </div>
                 {!reportOnly && !onNext && <div className="[&_button]:shadow-none">{exportButton}</div>}
               </div>
@@ -337,7 +373,7 @@ const TONE_TEXT: Record<NextAction['tone'], string> = { mint: 'text-mint', amber
 function Step4Footer({ action, onBack, onGo, onReport }: { action: NextAction; onBack: () => void; onGo: () => void; onReport: (() => void) | null }) {
   const Icon = action.tone === 'mint' ? CircleCheck : action.tone === 'coral' ? CircleX : TriangleAlert
   return (
-    <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-2.5">
+    <div className="flex shrink-0 items-center gap-4 border-t border-edge bg-nav px-6 py-2.5" role="toolbar" aria-label="次の操作">
       <Button variant="ghostDark" size="sm" onClick={onBack} className="shrink-0">
         <ArrowLeft className="size-4" aria-hidden />
         作業手順に戻る
@@ -349,8 +385,8 @@ function Step4Footer({ action, onBack, onGo, onReport }: { action: NextAction; o
         </span>
       </p>
       {onReport && (
-        <Button variant="ghostDark" size="sm" onClick={onReport} className="shrink-0" title="正式な処理結果ではなく、原因を調べるための確認結果を出力します">
-          調査用の記録を出力する
+        <Button variant="ghostDark" size="sm" onClick={onReport} className="shrink-0" title="正式な処理結果ではなく、原因を調べるための確認結果を出力します（出力・保存の画面へ進みます）">
+          {REPORT_EXPORT_LABEL}
         </Button>
       )}
       <button

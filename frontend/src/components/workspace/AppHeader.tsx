@@ -17,6 +17,8 @@ type Props = {
   exportBlocked?: string | null
   /** 出力・保存の画面（ここで出力するのが主要な操作）か */
   exportPrimary?: boolean
+  /** 出力ボタンの名前（正式な出力を止めたときは「調査用レポートをExcelに出力」。結果の画面と同じ判定：flow/outputState.ts） */
+  exportLabel?: string
   /** 作業手順を保存する（処理ステップがあるときに使える） */
   onSave?: () => void
   canSave?: boolean
@@ -34,7 +36,7 @@ type Props = {
 const LEAVE_MESSAGE = '保存していない変更があります。このページを離れると、変更は失われます。離れますか？'
 
 /** ワークスペース用のヘッダー。TOPと同じロゴ・ナビゲーション色で統一する。 */
-export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExport, exporting = false, exportBlocked = null, exportPrimary = false, onSave, canSave = false, onOpen, onHistory, demo = false }: Props) {
+export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExport, exporting = false, exportBlocked = null, exportPrimary = false, exportLabel = 'Excelに出力', onSave, canSave = false, onOpen, onHistory, demo = false }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-edge bg-nav px-5 text-white">
       <Link
@@ -106,7 +108,7 @@ export function AppHeader({ flowName, saveState, confirmLeave, canExport, onExpo
           title={exportBlocked ?? (exportPrimary ? '実行結果をExcelファイルで保存します' : '出力・保存の画面へ進みます')}
         >
           <FileOutput className="size-4" aria-hidden />
-          Excelに出力
+          {exportLabel}
         </Button>
         )}
       </div>

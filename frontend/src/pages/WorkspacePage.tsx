@@ -22,6 +22,7 @@ import { isAvailable } from '../content/featureStatus'
 import { AiDiagnosis } from '../components/workspace/ai/AiDiagnosis'
 import { AdoptedImprovements } from '../components/workspace/ai/AdoptedImprovements'
 import type { ImprovementPlan } from '../flow/aiPlan'
+import { outputState } from '../flow/outputState'
 import type { DiagnosisStage } from '../components/workspace/ai/AiDiagnosis'
 import { getAiStatus } from '../api/ai'
 import { RunResults } from '../components/workspace/run/RunResults'
@@ -68,7 +69,7 @@ const AI_STAGE_HINT: Record<DiagnosisStage, string> = {
   context: 'AIに送る情報を確かめてから、AIに質問を作ってもらってください（回答は任意です）',
   questions: '分かる質問に答えて、改善案を作ってもらってください（空欄のままでも進めます）',
   proposals: '提案ごとに、採用・保留・採用しないを選んでください（理由は任意です）',
-  plan: '手順に反映できる改善と、人が行う作業として残るものを確かめてください',
+  plan: '取り入れる改善を確認し、手順の作成へ進んでください',
 }
 
 /** 選んだファイル・シート・見出し行が同じなら、決めた内容を残す（変わったら最初から決め直す） */
@@ -401,6 +402,8 @@ export default function WorkspacePage() {
           onExport={!demo && screen === 'result' ? () => setScreen('output') : doExport}
           exporting={exporting}
           exportPrimary={screen === 'output' || (!!demo && screen === 'result')}
+          // 正式な出力を止めたときは、どの入口でも「調査用レポートをExcelに出力」（結果の画面と同じ判定）
+          exportLabel={lastRun ? outputState(lastRun.run).exportLabel : undefined}
           exportBlocked={
             needsConfirm && !confirmed && (demo || screen === 'output') ? '実行結果の画面で内容を確かめ、「確認したうえで出力する」にチェックを入れてください' : null
           }
@@ -541,6 +544,14 @@ export default function WorkspacePage() {
                 前のデモの作業手順とファイルを片付けています…
               </p>
             )}
+            {/* AIの診断で採用した改善を、ファイルの読み込み・列の設定でも上部に短く示す（これから設定する内容・人が行うこと） */}
+            {!demo && aiPlan && (screen === 'data' || screen === 'define') && (
+              <div className="shrink-0 px-6 pt-3">
+                <div className="mx-auto max-w-[1100px]">
+                  <AdoptedImprovements items={aiPlan.adopted} compact />
+                </div>
+              </div>
+            )}
             <div className={screen === 'data' && !cleaningDemo ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
               {!cleaningDemo && <UploadStart
                 key={uploadKey}
@@ -639,6 +650,8 @@ export default function WorkspacePage() {
                 exportedName={exported?.runId === lastRun.run.run_id ? exported.name : null}
                 exportError={exportError}
                 review={demo?.story ? <DemoReview story={demo.story} criteria={lastRun.run.criteria} /> : undefined}
+                // 自分の案件：データを直して再実行するため、読み込むファイルを差し替える
+                onChangeData={demo ? undefined : () => setScreen(origin === 'opened' ? 'assign' : 'data')}
                 demoTitle={demo?.title}
                 amountUnit={!!demo}
                 // デモ以外は、この画面を STEP 4（実行・品質確認）にして、出力・保存は STEP 5 で行う

@@ -96,19 +96,24 @@ test('「重大」は「異常の詳細を確認する」で完了基準の判�
   await expect(verdictBox(page)).toContainText('処理結果は出力できません')
   // 処理と検証は完了したが、正式な出力は停止（2つを分けて示す）
   await expect(conclusion(page)).toContainText('処理・検証：完了')
-  await expect(conclusion(page).getByLabel('正式な出力')).toHaveText('正式な出力：停止（調査用の確認結果だけを出力できます）')
+  // 正式な出力の可否は、画面の先頭に（結論の欄では繰り返さない）
+  await expect(page.getByRole('alert', { name: '正式出力停止' })).toContainText('正式出力停止')
+  await expect(page.getByRole('alert', { name: '正式出力停止' })).toContainText('実行と品質検証は最後まで完了しました。')
+  await expect(conclusion(page).getByLabel('正式な出力')).toHaveCount(0)
   await expect(footerStatus(page)).toHaveText('重大な異常：正式な出力を停止しています')
   await expect(page.getByRole('button', { name: '次へ：出力・保存' })).toHaveCount(0)
   await page.getByRole('button', { name: '異常の詳細を確認する' }).click()
-  const results = page.getByRole('region', { name: '完了基準の判定' })
-  await expect(results).toBeInViewport()
-  await expect(results.getByRole('listitem').first()).toContainText('満たしていない（重大）')
+  // 原因と対応へ移動する（完了基準ごとの詳しい判定根拠は、下の「完了基準の判定」でも参照できる）
+  const causes = page.getByRole('region', { name: '原因と対応' })
+  await expect(causes).toBeInViewport()
+  await expect(causes.getByRole('listitem').first()).toContainText('（重大）')
+  await expect(page.getByRole('region', { name: '完了基準の判定' }).getByRole('listitem').first()).toContainText('満たしていない（重大）')
   // 調査用の記録は STEP 5 で出力できる（正式な処理結果ではない）
-  await page.getByRole('button', { name: '調査用の記録を出力する' }).click()
+  await page.getByRole('toolbar', { name: '次の操作' }).getByRole('button', { name: '調査用レポートをExcelに出力' }).click()
   await expect(outputArea(page).getByRole('status', { name: '正式な出力' })).toContainText('重大な品質異常があるため、正式な処理結果は出力できません')
   await expect(outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
   await expect(outputArea(page).getByRole('list', { name: '出力するシート' }).getByRole('listitem')).toHaveCount(2)
-  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: '調査用レポートをExcelに出力' }).click()])
   expect(download.suggestedFilename()).toContain('確認結果（調査用）')
 })
 

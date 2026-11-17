@@ -5,6 +5,7 @@ import { contentSnapshot } from '../../../flow/ops'
 import { useFlowStore } from '../../../flow/store'
 import { Button } from '../../ui/Button'
 import { ErrorNotice } from '../../ui/ErrorNotice'
+import { outputState, REPORT_EXPORT_LABEL } from '../../../flow/outputState'
 
 /*
  * STEP 5「出力・保存」。STEP 4 で確定した実行結果を使う（この画面に来ても再実行しない）。
@@ -35,7 +36,8 @@ export function OutputStep({ run, snap, onBack, onExport, exporting, exportedNam
   const flow = useFlowStore((s) => s.flow)
   const stale = contentSnapshot(flow) !== snap
   const v = run.verdict
-  const reportOnly = run.status === 'failed' || v?.export === 'report_only'
+  // 出力可否は、結果の画面・ヘッダーと同じ判定を使う（flow/outputState.ts）
+  const reportOnly = outputState(run).mode === 'stopped'
   const waitingConfirm = v?.export === 'needs_confirmation' && !confirmed
   const blocked = stale || waitingConfirm
 
@@ -99,7 +101,7 @@ export function OutputStep({ run, snap, onBack, onExport, exporting, exportedNam
                   disabled={exporting || blocked}
                 >
                   {exporting ? <LoaderCircle className="size-5 animate-spin" aria-hidden /> : <FileOutput className="size-5" aria-hidden />}
-                  {exporting ? '出力しています…' : reportOnly ? '確認結果をExcelに出力する（調査用）' : exportedName ? 'もう一度Excelに出力する' : 'Excelに出力する'}
+                  {exporting ? '出力しています…' : reportOnly ? REPORT_EXPORT_LABEL : exportedName ? 'もう一度Excelに出力する' : 'Excelに出力する'}
                 </Button>
                 {exportedName && (
                   <p className="flex items-center gap-1.5 text-[0.9rem] text-success" role="status">

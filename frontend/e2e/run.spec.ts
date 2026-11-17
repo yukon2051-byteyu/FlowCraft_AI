@@ -78,9 +78,9 @@ test('マスタに重複があると、照合のステップで止まり、理�
   await page.getByRole('button', { name: 'エラーの詳細を確認する' }).click()
   await expect(steps).toBeInViewport()
   // 調査用に、確認結果だけを出力できる（STEP 5。正式な処理結果は出力しない）
-  await page.getByRole('button', { name: '調査用の記録を出力する' }).click()
+  await page.getByRole('toolbar', { name: '次の操作' }).getByRole('button', { name: '調査用レポートをExcelに出力' }).click()
   await expect(outputArea(page).getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
-  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
+  const [download] = await Promise.all([page.waitForEvent('download'), outputArea(page).getByRole('button', { name: '調査用レポートをExcelに出力' }).click()])
   expect(download.suggestedFilename()).toContain('確認結果（調査用）')
 
   // 内部の名前（in2 など）や専門用語を見せない

@@ -163,13 +163,14 @@ const REASONS: Reason[] = [
   {
     no: '02',
     icon: Workflow,
-    title: 'AIの提案を、実行できる手順に',
+    title: 'AIの改善案をもとに、作業手順を作る',
     body: (
       <>
-        日本語で伝えた作業を、<span className="font-semibold text-mint">編集・検証・実行できる手順</span>に変換。AIの回答だけで終わらせません。
+        AIが改善案と使える処理・品質ルールを提案します。<span className="font-semibold text-mint">ひな形や処理部品を使って手順を作れます。</span>
       </>
     ),
-    feature: 'aiFlow',
+    // AI業務改善診断（使える）と、処理部品・ひな形での手順の作成。AIが手順を自動で組み立てる機能（aiFlow）は開発中で、ここでは紹介しない
+    feature: 'kaizen',
   },
   {
     no: '03',

@@ -51,7 +51,7 @@ test('作業起点：ひな形から仮の手順を作り、データを読み�
   await page.getByRole('textbox', { name: '実行時に指定する値：対象月' }).fill('2026-10')
   await run(page)
   await expect(verdictBox(page)).toContainText('総合判定：未検証')
-  await expect(conclusion(page).getByLabel('正式な出力')).toContainText('停止')
+  await expect(page.getByRole('alert', { name: '正式出力停止' }).getByRole('heading')).toHaveText('必要な確認ができず・正式出力停止')
 
   // ルールを1つずつ開いて確かめ「設定済み」にすると、正常になり出力できる
   await page.getByRole('button', { name: '作業手順に戻る' }).click()

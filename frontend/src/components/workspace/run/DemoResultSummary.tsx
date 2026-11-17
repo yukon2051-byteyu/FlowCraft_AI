@@ -14,7 +14,7 @@ const TONE = {
   critical: { cls: 'border-l-kaizen', text: 'text-kaizen-text', icon: CircleX, label: '重大' },
 } as const
 
-export function DemoResultSummary({ run, title }: { run: RunSummary; title: string }) {
+export function DemoResultSummary({ run, title, hideMessage = false }: { run: RunSummary; title: string; hideMessage?: boolean }) {
   const flow = useFlowStore((s) => s.flow)
   const v = run.verdict?.verdict ?? (run.status === 'failed' ? 'critical' : 'unverified')
   const t = TONE[v]
@@ -45,17 +45,20 @@ export function DemoResultSummary({ run, title }: { run: RunSummary; title: stri
   return (
     <section aria-label="完了のまとめ" className={`rounded-2xl border-l-4 bg-panel px-5 py-4 ring-1 ring-edge ${t.cls}`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <h2 className="text-[1.15rem] font-bold text-white">{failedRun ? `${name}が途中で止まりました` : `${name}が完了しました`}</h2>
-        <p className={`flex items-center gap-1.5 font-bold ${t.text}`}>
-          <t.icon className="size-4.5" aria-hidden />
-          {message}
-        </p>
+        {/* 正式な出力を止めたとき（hideMessage）は「完了しました」と書かない（正式な結果ができたように読めるため） */}
+        <h2 className="text-[1.15rem] font-bold text-white">{failedRun ? `${name}が途中で止まりました` : hideMessage ? `${name}の処理が終わりました` : `${name}が完了しました`}</h2>
+        {!hideMessage && (
+          <p className={`flex items-center gap-1.5 font-bold ${t.text}`}>
+            <t.icon className="size-4.5" aria-hidden />
+            {message}
+          </p>
+        )}
       </div>
       <dl className="mt-2.5 grid grid-cols-[repeat(4,auto)] justify-start gap-x-8 gap-y-1 text-[0.9rem]">
         <dt className="text-subtle">処理結果</dt>
         <dt className="text-subtle">品質検証（判定：{t.label}）</dt>
         <dt className="text-subtle">重大の基準</dt>
-        <dt className="text-subtle">出力データ</dt>
+        <dt className="text-subtle">{hideMessage ? '処理で作った表（正式出力は停止中）' : '出力データ'}</dt>
         <dd className="font-bold text-white">{failedRun ? '途中で停止' : run.status === 'warning' ? '最後まで実行（お知らせあり）' : '最後まで実行（正常終了）'}</dd>
         <dd className="font-bold text-white">{crit.length ? `完了基準 ${crit.length}件のうち ${passed}件を満たした` : '完了基準なし（標準の確認のみ）'}</dd>
         <dd className="text-white">

@@ -39,13 +39,14 @@ describe('STEP 4：判定ごとの「今の状態」と「次に押すボタン�
 
   it('重大：異常の詳細へ（基準の不合格なら完了基準の判定、それ以外はステップごとの結果）。確認しても解除されない', () => {
     const r = run({ verdict: verdict('critical', 'report_only'), criteria: [crit('failed', 'critical')] })
-    expect(nextAction(r, true, false)).toMatchObject({ kind: 'critical', button: '異常の詳細を確認する', tone: 'coral', target: 'run-criteria' })
+    expect(nextAction(r, true, false)).toMatchObject({ kind: 'critical', button: '異常の詳細を確認する', tone: 'coral', target: 'run-causes' })
     expect(nextAction(run({ verdict: verdict('critical', 'report_only') }), false, false).target).toBe('run-steps')
   })
 
-  it('未検証（必須の基準）：未完了の検証へ。確認しても解除されない', () => {
+  it('未検証（必須の基準）：原因と対応へ（まとめられないときは完了基準へ）。確認しても解除されない', () => {
     const r = run({ verdict: verdict('unverified', 'report_only'), criteria: [crit('unverified', 'critical')] })
-    expect(nextAction(r, true, false)).toMatchObject({ kind: 'unverified', button: '未完了の検証を確認する', tone: 'amber', target: 'run-criteria' })
+    expect(nextAction(r, true, false)).toMatchObject({ kind: 'unverified', button: '未完了の検証を確認する', tone: 'amber', target: 'run-causes' })
+    expect(nextAction(run({ verdict: verdict('unverified', 'report_only') }), true, false).target).toBe('run-criteria')
   })
 
   it('未検証（必須でない基準だけ）：既存の決まりどおり、確認してから次へ', () => {

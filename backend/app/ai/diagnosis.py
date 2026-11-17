@@ -201,15 +201,21 @@ class CheckedBuild(BuildHint):
     adjusted: bool = False  # 一覧にない部品を取り除いた・反映できないに直した
 
 
+# 初めに必ず見せる理由（レビュー指摘4。既存の提案データと根拠から決める。見出しの文字には頼らない）
+PIN_STATED = "あなたが伝えた要件"  # 根拠に「あなたの回答」（業務の説明・質問への回答。照らし合わせ済み）がある
+PIN_OUTPUT = "出力可否に関わる"  # 手順に反映でき、品質ルール（満たさなければ正式な出力を止められる）を加える
+
+
 class CheckedProposal(Proposal):
     proposal_id: str
     evidence: list[CheckedEvidence]  # type: ignore[assignment]
+    pinned: list[str] = Field(default_factory=list)  # 初めに必ず見せる理由（PIN_STATED・PIN_OUTPUT）
     build: CheckedBuild  # type: ignore[assignment]
 
 
 class ProposalsResponse(BaseModel):
     proposals: list[CheckedProposal]  # 重要な順
-    shown_first: int  # 初めに見せる数
+    shown_first: int  # 初めに見せる数（初めに必ず見せる提案がすべて入るよう、3件より増やすことがある）
     note: str
     fingerprint: str
     cached: bool
@@ -223,7 +229,7 @@ SYSTEM_PROPOSALS = """あなたは業務改善の専門家です。材料（業�
 守ること：
 - 検討の順番は、廃止（そもそも不要ではないか）→簡素化（工程や確認の回数を減らせないか）→標準化（人によるばらつきをなくせないか）→自動化（残すべき作業をプログラムで処理できないか）。自動化ありきの提案はしない。
 - 品質や内部統制が下がるおそれがあれば、risks に必ず書く。承認・監査・法令などで必要な作業を、根拠なく廃止しない（利用者が「必須」と答えたものは廃止を勧めない）。
-- 根拠（evidence）は種類を分ける。data：材料に書かれている事実（ref に「列「〇〇」」「ステップN」「品質ルールの名前」のどれかを書く）／answer：利用者の回答／inference：あなたの推測。材料にない列やステップを data として書かない。
+- 根拠（evidence）は種類を分ける。data：材料に書かれている事実（ref に「列「〇〇」」「ステップN」「品質ルールの名前」のどれかを書く）／answer：利用者の回答、または業務の説明に利用者が書いた要件（ref に、答えた質問の文そのもの、または「業務の説明」を書く）／inference：あなたの推測。材料にない列やステップを data として書かない。
 - 効果の数値を出せないときは、文章だけにして estimate は出さない。出すときは estimated（材料からの見積もり）か assumed（前提を置いた試算。前提を文中に書く）。根拠のない削減率・削減時間は書かない。実測とは書かない。
 - 提案は多くても5件。priority は重要度（1がいちばん高い）。
 - build には、この提案を作業手順（プログラムの処理）に反映できるかを書く。fit：yes（できる）／partial（一部できる）／no（できない：資料の作成・送付・承認・人の判断など）。
@@ -278,8 +284,15 @@ def _column_names(text: str) -> set[str]:
     return set(re.findall(r"列「(.+?)」", text))
 
 
-def _check_evidence(ev: Evidence, material_text: str, step_count: int, rule_names: set[str]) -> CheckedEvidence:
-    """data の根拠が、材料で確かめられるかを照らし合わせる。確かめられなければ推測に格下げする（事実のように見せない）"""
+def _check_evidence(ev: Evidence, material_text: str, step_count: int, rule_names: set[str], answer_refs: frozenset[str] | set[str] = frozenset()) -> CheckedEvidence:
+    """data・answer の根拠が、材料・回答で確かめられるかを照らし合わせる。確かめられなければ推測に格下げする（事実や利用者の要件のように見せない）
+
+    answer_refs：回答の根拠にしてよい参照先（答えた質問の文と、業務の説明があれば「業務の説明」。normalize_question したもの）
+    """
+    if ev.source == "answer":
+        if normalize_question(ev.ref) in answer_refs:
+            return CheckedEvidence(**ev.model_dump())
+        return CheckedEvidence(source="inference", text=ev.text, ref=ev.ref, downgraded=True)
     if ev.source != "data":
         return CheckedEvidence(**ev.model_dump())
     ref = ev.ref.strip()
@@ -356,17 +369,29 @@ def make_proposals(ctx: AiContext, req: ProposalsRequest) -> ProposalsResponse:
     rules = next((s for s in material.sections if s.key == "criteria"), None)
     rule_names = {line.split("（")[0] for line in (rules.lines if rules else [])}
     step_count = len(steps.lines) if steps else 0
+    # 回答の根拠にしてよい参照先：答えた質問の文と、業務の説明（入力があるとき）
+    answer_refs = {normalize_question(a.question) for a in answered}
+    if req.purpose.strip():
+        answer_refs.add(normalize_question("業務の説明"))
     checked = []
     for i, p in enumerate(out.proposals[:5]):  # 多く返っても5件まで
-        evidence = [_check_evidence(e, material.text, step_count, rule_names) for e in p.evidence]
+        evidence = [_check_evidence(e, material.text, step_count, rule_names, answer_refs) for e in p.evidence]
+        build = _check_build(p.build)
+        pins = []
+        if any(e.source == "answer" for e in evidence):
+            pins.append(PIN_STATED)
+        if build.fit != "no" and build.criteria_kinds:
+            pins.append(PIN_OUTPUT)
         checked.append(
-            CheckedProposal(**{**p.model_dump(), "evidence": [e.model_dump() for e in evidence], "build": _check_build(p.build).model_dump()}, proposal_id=f"p{i + 1}")
+            CheckedProposal(**{**p.model_dump(), "evidence": [e.model_dump() for e in evidence], "build": build.model_dump()}, proposal_id=f"p{i + 1}", pinned=pins)
         )
     # 重要な順（同じ重要度なら、廃止→簡素化→標準化→自動化の順）
-    checked.sort(key=lambda p: (p.priority, DIRECTION_ORDER[p.direction]))
+    # 初めに必ず見せる提案を先に（その中・残りの中は、重要な順。同じなら廃止→簡素化→標準化→自動化の順）
+    checked.sort(key=lambda p: (0 if p.pinned else 1, p.priority, DIRECTION_ORDER[p.direction]))
+    pinned = sum(1 for p in checked if p.pinned)
     return ProposalsResponse(
         proposals=checked,
-        shown_first=min(MAX_SHOWN_FIRST, len(checked)),
+        shown_first=min(max(MAX_SHOWN_FIRST, pinned), len(checked)),
         note=out.note,
         fingerprint=fp,
         cached=cached,

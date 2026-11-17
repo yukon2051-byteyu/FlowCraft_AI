@@ -103,6 +103,8 @@ export type Proposal = {
   recommendation: string
   priority: number
   build: BuildHint
+  /** 初めに必ず見せる理由（「あなたが伝えた要件」「出力可否に関わる」）。サーバーが提案データと根拠から決める */
+  pinned: string[]
 }
 
 export type ProposalsResponse = {

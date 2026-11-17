@@ -64,7 +64,8 @@ test('月次売上（品質異常）：業務を知る → 改善を確認 → �
   // STEP 5：結果を確認（品質異常を実際のルールで検出し、正式な出力を止める。改善の振り返り）
   await expect(verdictBox(page)).toContainText('総合判定：重大', { timeout: 30_000 })
   await expect(current(page)).toContainText('結果を確認')
-  await expect(page.getByRole('region', { name: '実行の結論' }).getByLabel('正式な出力')).toContainText('停止')
+  // 先頭に、実際の判定結果を使った「正式出力停止」の見出し
+  await expect(page.getByRole('alert', { name: '正式出力停止' }).getByRole('heading')).toHaveText('対象期間外3件・正式出力停止')
   const review = page.getByRole('region', { name: '改善内容の振り返り' })
   await expect(review).toContainText('今回の実行：品質ルール「対象月の伝票だけ」を満たさなかった')
   await expect(review).toContainText('今回の実行：品質ルール「照合できない商品コードが0件」を満たした')
@@ -83,7 +84,8 @@ test('月次売上（品質異常）：業務を知る → 改善を確認 → �
   await page.getByRole('button', { name: '結果を見る（再実行しない）' }).click()
   await expect(page.getByRole('region', { name: '実行の結論' })).toContainText(ranAt)
 
-  const text = await page.locator('body').innerText()
+  // 「調査用プレビュー（正式出力停止中）」は、レビュー指摘（2026-11-17）で明示された見出しなので例外とする（docs/ui-terminology.md の言い換えより優先）
+  const text = (await page.locator('body').innerText()).replace('調査用プレビュー（正式出力停止中）', '')
   expect(text).not.toMatch(BANNED)
 })
 
@@ -204,9 +206,10 @@ test('デモの完了画面：完了のまとめ（処理と品質を分けて�
   await expect(banner).toContainText('商品マスタ照合デモ｜品質異常のデータで実行', { timeout: 20_000 })
   await page.getByRole('button', { name: '次へ：実行・品質確認' }).click()
   await page.getByRole('button', { name: '作業手順全体を実行する' }).click()
-  await expect(summary).toContainText('重大な品質異常を検出しました。正式出力を停止しています。', { timeout: 30_000 })
+  // 先頭は正式な出力の可否（実際の判定結果の数）。完了のまとめでは同じ文を繰り返さない
+  await expect(page.getByRole('alert', { name: '正式出力停止' })).toContainText('照合漏れ6行・正式出力停止', { timeout: 30_000 })
   await expect(summary).toContainText('照合できない商品コードが0件：満たしていない')
   await expect(page.getByRole('button', { name: 'Excelに出力する', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('region', { name: '実行の結論' }).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '実行の結論' }).getByRole('button', { name: '調査用レポートをExcelに出力' })).toBeVisible()
   await expect(end.getByRole('link', { name: 'TOPページに戻る' })).toBeVisible()
 })

@@ -167,12 +167,13 @@ test('送る情報を確かめ、パスワードを入れると押し直さず�
   // ひな形を選んだ状態で手順の画面へ（処理ステップは自動で組み立てず、ひな形の仮の手順を確かめる）
   await page.getByRole('button', { name: 'ひな形「月次売上集計」で手順を作る' }).click()
   await expect(page.getByRole('heading', { name: '作業手順', exact: true })).toBeVisible()
-  const adopted = page.getByRole('region', { name: '採用した改善' })
-  await expect(adopted).toContainText('AIの診断で採用した改善（2件）')
-  await expect(adopted).toContainText('集計と確認を作業手順にする')
-  await expect(adopted).toContainText('品質ルールは「② 何を満たせば完了？」で')
-  await adopted.getByRole('button', { name: /AIの診断で採用した改善/ }).click()
-  await expect(adopted).not.toContainText('列名をそろえる') // 閉じられる
+  const adopted = page.getByRole('region', { name: '今回の手順に取り入れる改善' })
+  await expect(adopted).toContainText('今回の手順に取り入れる改善（2件）')
+  await expect(adopted.getByRole('listitem', { name: '取り入れる改善：集計と確認を作業手順にする' })).toContainText('これから設定：ひな形「月次売上集計」・処理「集計」・品質ルール「2つの結果で合計が一致する」')
+  await expect(adopted.getByRole('listitem', { name: '取り入れる改善：列名をそろえる' })).toContainText('人が行うこと：列名の見本を配るのは人が行います。')
+  await expect(adopted).toContainText('「② 何を満たせば完了？」で加えます')
+  await adopted.getByRole('button', { name: /今回の手順に取り入れる改善/ }).click()
+  await expect(adopted.getByRole('listitem')).toHaveCount(0) // 閉じられる
 })
 
 test('回答と判断・理由を作業手順に残し、作った手順から見直すと前回の診断を送り、答えた質問は聞かない。手順は置き換えず、保存すると記録が残る', async ({ page }) => {
@@ -243,7 +244,7 @@ test('ひな形のない改善だけを採用したら、処理部品で作る�
   await page.getByRole('button', { name: '回答して改善案を作る' }).click()
   await page.getByRole('radiogroup', { name: '提案3の判断' }).getByRole('radio', { name: '採用する' }).click()
   await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
-  await expect(page.getByText('手順に反映できる改善と、人が行う作業として残るものを確かめてください')).toBeVisible()
+  await expect(page.getByText('取り入れる改善を確認し、手順の作成へ進んでください')).toBeVisible()
   await expect(page.getByLabel('手順の作り方')).toContainText('もとにできるひな形はありません。データを読み込んでから、処理部品を組み合わせて作ります。')
   await expect(page.getByRole('button', { name: 'ひな形を使わずに処理部品で作る' })).toHaveCount(0) // ひな形がないので出さない
   await page.getByRole('button', { name: '処理部品を組み合わせて手順を作る' }).click()
@@ -270,4 +271,83 @@ test('AIが設定されていないサーバーでは、AIのカードは「利�
   await ai.click({ force: true })
   await expect(ai).toHaveAttribute('aria-checked', 'false')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('経費の月次集計（架空）：明示した要件と出力可否に関わる提案を初めから表示。採用した改善だけをファイル読み込みに引き継ぎ、保留は含めない。戻って判断を変えると反映も変わる', async ({ page }) => {
+  // サーバーが並べ替えた後の形（明示した要件・出力可否に関わる提案が先。サーバーの並べ替えは test_ai_diagnosis.py で確かめる）
+  const B = (fit: string, extra: Record<string, unknown> = {}) => ({ ...NO_BUILD, fit, ...extra })
+  const EXPENSE = {
+    ...PROPOSALS,
+    shown_first: 3,
+    proposals: [
+      P('p4', 'automate', '申請番号が重複したら正式出力を止める', {
+        evidence: [{ source: 'answer', text: '説明：重複したら経理に確認するまで止める', ref: '業務の説明', downgraded: false }],
+        build: B('partial', { criteria_kinds: ['unique'], criteria_labels: ['重複がない'], note: '重複が見つかったら経理に確認する（人が行う）' }),
+        pinned: ['あなたが伝えた要件', '出力可否に関わる'],
+      }),
+      P('p5', 'standardize', '対象月外の行を別一覧にする', {
+        evidence: [{ source: 'answer', text: '回答：除外して別一覧で確認する', ref: '対象月以外の行はどう扱いますか？', downgraded: false }],
+        build: B('yes', { step_types: ['filter'], step_labels: ['条件に合う行だけ残す'], criteria_kinds: ['list_rows'], criteria_labels: ['条件に合う行を一覧にする'] }),
+        pinned: ['あなたが伝えた要件', '出力可否に関わる'],
+      }),
+      P('p1', 'automate', '3チームの集計を自動にする', { build: B('yes', { step_types: ['concat'], step_labels: ['表を縦にまとめる'] }), pinned: [] }),
+      P('p2', 'simplify', '確認を1回にする', { pinned: [] }),
+      P('p3', 'eliminate', '別資料への転記をやめる', { pinned: [] }),
+    ],
+  }
+  await mockAi(page, (r) => r.fulfill({ json: QUESTIONS }))
+  await page.route('**/api/ai/diagnosis/proposals', (r) => r.fulfill({ json: EXPENSE }))
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto('/build?start=work')
+  await page.getByRole('textbox', { name: '案件名' }).fill('経費の月次集計')
+  await page.getByRole('textbox', { name: 'やりたい作業・目的' }).fill('3チームの経費CSVを月次集計する。申請番号が重複したら経理に確認するまで正式出力を止める。')
+  await page.getByRole('radiogroup', { name: '改善診断' }).getByRole('radio', { name: 'AIで業務を改善する' }).click()
+  await page.getByRole('button', { name: '次へ：AIに送る情報を確かめる' }).click()
+  await page.getByRole('button', { name: 'この内容でAIに質問を作ってもらう' }).click()
+  await page.getByRole('button', { name: '回答して改善案を作る' }).click()
+
+  // 4. 説明は実際の並びに合わせる。明示した要件・出力可否に関わる提案は、展開しなくても見える
+  await expect(page.getByText('入力した要件や、出力可否に関わる提案を先に表示します。提案ごとに採用・保留・不採用を選べます。')).toBeVisible()
+  const cards = page.getByRole('list', { name: '改善提案' }).getByRole('listitem').filter({ has: page.getByRole('radiogroup') })
+  await expect(cards).toHaveCount(3)
+  await expect(cards.nth(0)).toContainText('申請番号が重複したら正式出力を止める')
+  await expect(cards.nth(1)).toContainText('対象月外の行を別一覧にする')
+  await expect(cards.nth(0)).toContainText('あなたが伝えた要件')
+  await expect(cards.nth(0)).toContainText('出力可否に関わる')
+  await expect(cards.nth(1)).toContainText('標準化') // 種別は引き続き表示する
+  await expect(page.getByRole('button', { name: 'ほかの提案を見る（2件）' })).toBeVisible()
+
+  // 重複を採用、対象月外は保留 → 反映の対象は重複だけ
+  await page.getByRole('radiogroup', { name: '提案1の判断' }).getByRole('radio', { name: '採用する' }).click()
+  await page.getByRole('radiogroup', { name: '提案2の判断' }).getByRole('radio', { name: '保留する' }).click()
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  await expect(page.getByText('取り入れる改善を確認し、手順の作成へ進んでください')).toBeVisible() // 3. 今の操作に合う案内
+  await expect(page.getByText('提案ごとに、採用・保留・採用しないを選んでください')).toHaveCount(0)
+  const buildable = page.getByRole('region', { name: '手順に反映できるもの' })
+  const manual = page.getByRole('region', { name: '人が行う作業として残るもの' })
+  await expect(buildable).toContainText('申請番号が重複したら正式出力を止める')
+  await expect(buildable).not.toContainText('対象月外')
+  await expect(manual).toContainText('重複が見つかったら経理に確認する（人が行う）')
+
+  // 戻って判断を変えると、反映の対象も変わる（対象月外を採用 → 入る → 保留に戻す → 外れる）
+  await page.getByRole('button', { name: '改善提案に戻る' }).click()
+  await page.getByRole('radiogroup', { name: '提案2の判断' }).getByRole('radio', { name: '採用する' }).click()
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  await expect(buildable).toContainText('対象月外の行を別一覧にする')
+  await page.getByRole('button', { name: '改善提案に戻る' }).click()
+  await page.getByRole('radiogroup', { name: '提案2の判断' }).getByRole('radio', { name: '保留する' }).click()
+  await page.getByRole('button', { name: '次へ：手順への反映を確かめる' }).click()
+  await expect(buildable).not.toContainText('対象月外')
+
+  // 3. ファイル読み込みの画面の上部に「今回の手順に取り入れる改善」（これから設定する内容・人が行うこと。設定済みとは書かない）
+  await page.getByRole('button', { name: '処理部品を組み合わせて手順を作る' }).click()
+  await expect(page.getByTestId('file-input').first()).toBeAttached()
+  const adopted = page.getByRole('region', { name: '今回の手順に取り入れる改善' })
+  await expect(adopted).toContainText('今回の手順に取り入れる改善（1件）')
+  await adopted.getByRole('button', { name: /今回の手順に取り入れる改善/ }).click()
+  const item = adopted.getByRole('listitem', { name: '取り入れる改善：申請番号が重複したら正式出力を止める' })
+  await expect(item).toContainText('これから設定：品質ルール「重複がない」')
+  await expect(item).toContainText('人が行うこと：重複が見つかったら経理に確認する（人が行う）')
+  await expect(adopted).not.toContainText('対象月外')
+  await expect(adopted).not.toContainText('設定済み')
 })

@@ -37,7 +37,7 @@ test('TOP の「品質の確認」から品質異常のデモを始めると、�
   await run(page)
   await expect(verdictBox(page)).toContainText('総合判定：重大')
   await expect(conclusion(page)).toContainText('処理・検証：完了')
-  await expect(conclusion(page).getByLabel('正式な出力')).toContainText('停止')
+  await expect(page.getByRole('alert', { name: '正式出力停止' }).getByRole('heading')).toHaveText('対象期間外3件・正式出力停止')
   const first = page.getByRole('region', { name: '完了基準の判定' }).getByRole('listitem').first()
   await expect(first).toHaveAttribute('aria-label', '完了基準：対象月の伝票だけ')
   await expect(first).toContainText('満たしていない（重大）')
@@ -46,7 +46,7 @@ test('TOP の「品質の確認」から品質異常のデモを始めると、�
   await expect(conclusion(page)).not.toContainText('この作業手順は保存済みです')
   await expect(conclusion(page).getByRole('button', { name: 'この作業手順を保存する' })).toBeVisible()
   // 調査用の確認結果は出力できる
-  const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: '確認結果をExcelに出力する（調査用）' }).click()])
+  const [download] = await Promise.all([page.waitForEvent('download'), conclusion(page).getByRole('button', { name: '調査用レポートをExcelに出力' }).click()])
   expect(download.suggestedFilename()).toContain('確認結果（調査用）')
 })
 

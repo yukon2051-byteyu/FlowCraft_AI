@@ -21,23 +21,26 @@ export type NextAction = {
   /** ボタンの色：ミント（進む）／アンバー（注意・未検証）／コーラル（重大・失敗） */
   tone: 'mint' | 'amber' | 'coral'
   /** 移動先（画面内の欄）。stale は作業手順へ戻る */
-  target: 'output' | 'run-confirm' | 'run-criteria' | 'run-steps' | 'procedure'
+  target: 'output' | 'run-confirm' | 'run-causes' | 'run-criteria' | 'run-steps' | 'procedure'
 }
 
 export function nextAction(run: RunSummary, confirmed: boolean, stale: boolean): NextAction {
   if (stale) {
     return { kind: 'stale', status: '実行後に作業手順を変更しました。この結果は出力に使えません', button: '作業手順に戻って再実行する', tone: 'amber', target: 'procedure' }
   }
+  // 移動先は、結果画面の上部の「原因と対応」（まとめられるとき）。まとめられなければ、これまでどおりの欄
   if (run.status === 'failed') {
-    return { kind: 'failed', status: '処理が途中で止まりました。正式な出力はできません', button: 'エラーの詳細を確認する', tone: 'coral', target: 'run-steps' }
+    const explained = run.nodes.some((n) => n.status === 'error' && n.issues.length > 0)
+    return { kind: 'failed', status: '処理が途中で止まりました。正式な出力はできません', button: 'エラーの詳細を確認する', tone: 'coral', target: explained ? 'run-causes' : 'run-steps' }
   }
   const v = run.verdict
   if (v?.export === 'report_only') {
     if (v.verdict === 'unverified') {
-      return { kind: 'unverified', status: '必須の検証が完了していません。正式な出力を停止しています', button: '未完了の検証を確認する', tone: 'amber', target: 'run-criteria' }
+      const explained = run.criteria.some((c) => c.status === 'unverified' && c.on_fail === 'critical')
+      return { kind: 'unverified', status: '必須の検証が完了していません。正式な出力を停止しています', button: '未完了の検証を確認する', tone: 'amber', target: explained ? 'run-causes' : 'run-criteria' }
     }
     const fromCriteria = run.criteria.some((c) => c.status === 'failed' && c.on_fail === 'critical')
-    return { kind: 'critical', status: '重大な異常：正式な出力を停止しています', button: '異常の詳細を確認する', tone: 'coral', target: fromCriteria ? 'run-criteria' : 'run-steps' }
+    return { kind: 'critical', status: '重大な異常：正式な出力を停止しています', button: '異常の詳細を確認する', tone: 'coral', target: fromCriteria ? 'run-causes' : 'run-steps' }
   }
   if (v?.export === 'needs_confirmation' && !confirmed) {
     const status = v.verdict === 'unverified' ? '確かめられなかった基準があります。確認してから出力できます' : '注意：確認してから出力できます'

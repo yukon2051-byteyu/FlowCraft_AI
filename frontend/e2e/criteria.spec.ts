@@ -100,11 +100,14 @@ test('別の月を指定すると、対象期間の基準を満たさず「重�
   await expect(first).toContainText('対象期間2026-11-01〜2026-11-30')
   await expect(first).toContainText('期間外の件数240') // 10月分のファイルなので、全240行が期間外
   await expect(first).toContainText('対応：')
-  // 画面下部の「異常の詳細を確認する」で、いちばん上の重大な項目の「該当する例」が開く
+  // 画面下部の「異常の詳細を確認する」で、上部の「原因と対応」へ移動し、いちばん上の原因の「該当する例と判定の根拠」が開く
   await expect(page.getByRole('status', { name: '今の判定' })).toHaveText('重大な異常：正式な出力を停止しています')
   await page.getByRole('button', { name: '異常の詳細を確認する' }).click()
-  await expect(first.getByRole('button', { name: /該当する例/ })).toHaveAttribute('aria-expanded', 'true')
-  await expect(first).toContainText('結果の行：1')
+  const cause = page.getByRole('region', { name: '原因と対応' }).getByRole('listitem').first()
+  await expect(cause).toContainText('対象月の伝票だけ')
+  await expect(cause.getByRole('button', { name: /該当する例と判定の根拠/ })).toHaveAttribute('aria-expanded', 'true')
+  await expect(cause).toContainText('結果の行：1')
+  await expect(cause.getByRole('button', { name: /該当する例と判定の根拠/ })).toContainText('240件中') // 全件数と表示件数
   // 満たしているものは後ろに並び、対応は出さない
   const passed = results.filter({ hasText: '満たしている' }).first()
   await expect(passed).not.toContainText('対応：')

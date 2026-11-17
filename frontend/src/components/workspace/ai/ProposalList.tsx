@@ -61,6 +61,12 @@ function ProposalCard({ p, rank, decision, onDecide }: { p: Proposal; rank: numb
           提案{rank}：{p.title}
         </h3>
         <span className="text-[0.82rem] text-muted">対象：{p.target}</span>
+        {/* 初めに必ず見せる理由（並びの理由が分かるように） */}
+        {(p.pinned ?? []).map((r) => (
+          <span key={r} className="rounded-full bg-mint-soft px-2 py-0.5 text-[0.75rem] font-bold text-forest ring-1 ring-forest/25">
+            {r}
+          </span>
+        ))}
       </div>
       <dl className="mt-2 grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5 text-[0.9rem]">
         <dt className="font-bold text-muted">今の問題</dt>
