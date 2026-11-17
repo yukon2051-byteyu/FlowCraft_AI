@@ -28,6 +28,8 @@ class Session:
     session_id: str
     created_at: float
     last_access: float
+    # 作った利用者のIPアドレス（同じ所から同時に持てる数を制限するために使う。公開先では中継サーバーが付ける本当の送り元）
+    client_ip: str | None = None
     # ファイルID → 解析済みデータ。中身の型はファイル管理（タスク1-8）で決める
     files: dict[str, Any] = field(default_factory=dict)
     # 実行ID → 実行結果（直近の数回分だけ保持。ディスクには保存しない）
@@ -44,9 +46,11 @@ class Session:
 
 
 class SessionStore:
-    def __init__(self, ttl_seconds: float, max_sessions: int = 200, clock: Callable[[], float] = time.monotonic):
+    def __init__(self, ttl_seconds: float, max_sessions: int = 200, clock: Callable[[], float] = time.monotonic, max_per_ip: int | None = None):
         self._ttl = ttl_seconds
         self._max = max_sessions
+        # 同じIPアドレスから同時に持てる数（None は制限なし）。1人で全体の上限を埋められないようにする
+        self._max_per_ip = max_per_ip
         self._clock = clock
         self._sessions: dict[str, Session] = {}
         # 複数のリクエストが同時に来ても壊れないよう、出し入れは1つずつ行う
@@ -54,9 +58,19 @@ class SessionStore:
 
     # ----- 発行・取得・削除 -----
 
-    def create(self) -> Session:
+    def create(self, client_ip: str | None = None) -> Session:
         with self._lock:
             self._purge_expired_locked()
+            if self._max_per_ip is not None and client_ip is not None:
+                same = sum(1 for s in self._sessions.values() if s.client_ip == client_ip)
+                if same >= self._max_per_ip:
+                    raise AppError(
+                        429,
+                        "TOO_MANY_SESSIONS",
+                        "この端末（ネットワーク）から開いている作業が多すぎるため、新しい作業を開始できません。",
+                        cause=f"同じ所から同時に開ける作業は{self._max_per_ip}までです。",
+                        how_to_fix="使っていないタブを閉じるか、しばらく（最大60分）待ってから、もう一度お試しください。",
+                    )
             if len(self._sessions) >= self._max:
                 raise AppError(
                     503,
@@ -67,7 +81,7 @@ class SessionStore:
                 )
             now = self._clock()
             sid = secrets.token_urlsafe(_TOKEN_BYTES)
-            session = Session(session_id=sid, created_at=now, last_access=now)
+            session = Session(session_id=sid, created_at=now, last_access=now, client_ip=client_ip)
             self._sessions[sid] = session
             return session
 

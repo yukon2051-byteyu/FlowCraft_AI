@@ -33,8 +33,8 @@ class SessionInfo(BaseModel):
 
 
 @router.post("/session", response_model=SessionCreated, status_code=201)
-def create_session(store: SessionStore = Depends(get_store)) -> SessionCreated:
-    s = store.create()
+def create_session(request: Request, store: SessionStore = Depends(get_store)) -> SessionCreated:
+    s = store.create(request.client.host if request.client else None)
     return SessionCreated(session_id=s.session_id, expires_in_seconds=store.remaining_seconds(s))
 
 

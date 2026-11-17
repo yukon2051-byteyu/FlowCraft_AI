@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     session_ttl_minutes: int = Field(default=60, ge=1)
     session_purge_interval_seconds: int = Field(default=60, ge=1)  # 期限切れを掃除する間隔
     max_sessions: int = Field(default=200, ge=1)  # 同時に保持するセッション数の上限（メモリ保護）
+    # 同じIPアドレスから同時に持てるセッションの数（1人で全体の上限を埋められないようにする。タブごとに1つ使う）
+    max_sessions_per_ip: int = Field(default=30, ge=1)
     run_timeout_seconds: int = Field(default=60, ge=1)
 
     @property

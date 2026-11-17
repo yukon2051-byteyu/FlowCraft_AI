@@ -36,7 +36,7 @@ async def _purge_loop(store: SessionStore, interval_seconds: float) -> None:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    store = SessionStore(ttl_seconds=settings.session_ttl_minutes * 60, max_sessions=settings.max_sessions)
+    store = SessionStore(ttl_seconds=settings.session_ttl_minutes * 60, max_sessions=settings.max_sessions, max_per_ip=settings.max_sessions_per_ip)
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

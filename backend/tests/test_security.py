@@ -54,3 +54,38 @@ def test_応答にブラウザ向けの安全設定を付ける():
     # エラーの応答にも付く
     err = client.get("/api/session", headers={"X-Session-Id": "unknown-session-id"})
     assert err.headers["X-Content-Type-Options"] == "nosniff"
+
+
+# ===== セッションの作り過ぎ（同じIPアドレスから同時に持てる数） =====
+
+from app.sessions.store import SessionStore  # noqa: E402
+from app.errors import AppError  # noqa: E402
+
+
+def test_同じ所から同時に持てるセッションは上限まで_終えればまた作れる():
+    client, first = make(max_sessions_per_ip=3)  # make で1つ作っている
+    client.post("/api/session")
+    client.post("/api/session")
+    over = client.post("/api/session")
+    assert over.status_code == 429
+    body = over.json()["error"]
+    assert body["code"] == "TOO_MANY_SESSIONS"
+    assert "使っていないタブを閉じる" in body["how_to_fix"]
+    # 1つ終えれば、また作れる
+    assert client.delete("/api/session", headers={"X-Session-Id": first}).status_code == 204
+    assert client.post("/api/session").status_code == 201
+
+
+def test_別の所や_期限が切れたセッションは数えない():
+    now = [0.0]
+    store = SessionStore(ttl_seconds=60, max_sessions=100, clock=lambda: now[0], max_per_ip=2)
+    store.create("192.0.2.1")
+    store.create("192.0.2.1")
+    store.create("198.51.100.7")  # 別の所からは作れる
+    try:
+        store.create("192.0.2.1")
+        raise AssertionError("上限を超えて作れてしまった")
+    except AppError as e:
+        assert e.status_code == 429
+    now[0] = 61  # 期限切れ
+    store.create("192.0.2.1")  # 期限が切れたものは数えない

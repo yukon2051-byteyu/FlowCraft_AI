@@ -23,7 +23,8 @@ export default defineConfig({
       cwd: '../backend',
       // テストでは実際のAIを決して呼ばない（backend/.env にAPIキーがあっても、環境変数が優先されるので使わない）。
       // AIの画面は、テストの中で応答を差し替えて確かめる
-      env: { AI_MODE: 'off', ANTHROPIC_API_KEY: '', AI_PASSWORD_HASH: '' },
+      env: { AI_MODE: 'off', ANTHROPIC_API_KEY: '', AI_PASSWORD_HASH: '', MAX_SESSIONS_PER_IP: '100000' },
+      // MAX_SESSIONS_PER_IP：テストはすべて同じパソコンから、テストごとに新しいセッションを作るため、同じ所からの上限を外す
       url: 'http://127.0.0.1:8001/api/health',
       reuseExistingServer: false,
       timeout: 60_000,
